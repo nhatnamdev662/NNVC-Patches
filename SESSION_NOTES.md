@@ -335,16 +335,16 @@
           - Loại bỏ 100% link GitHub repo trong comment, log, chuỗi string trong `AccuracyEloWidgetView.java`, `ArrowOverlayView.java`, `EloScanner.java`, `PlayerAccuracyPillView.java`, `SoundManager.java`, `TorchEngine.java`.
         - **Biên dịch & Đóng gói**:
           - Bump phiên bản lên `v2.0.68` (versionCode `20068`) trong `patches-bundle.json` và `patches-list.json`.
-          - Biên dịch sạch toàn bộ Java Extension thành `extension.mpe` (2,730,400 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.68.mpp` (227,438,739 bytes).
+          - Biên dịch sạch toàn bộ Java Extension thành `extension.mpe` (2,731,908 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.68.mpp` (227,441,697 bytes).
 
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
 - **Phiên bản mới nhất**: `v2.0.68` (versionCode `20068`).
 - **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.68/patches-2.0.68.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.68.mpp` (227,438,739 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.68.mpp`.
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.68.mpp` (227,441,697 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.68.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.68.mpp` (227,438,739 bytes).
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.68.mpp` (227,441,697 bytes).
   - [x] Tích hợp `StockfishResourceCopier` và patch bytecode Morphe Patcher nhúng assets vào APK.
   - [x] Trích xuất nội bộ ngoại tuyến 100% qua `extractBundledWasmFiles` từ assets/APK zip.
   - [x] Xóa 100% URL GitHub và luồng tải ngầm từ xa trong `WasmEngineManager` & `TorchEngine`.

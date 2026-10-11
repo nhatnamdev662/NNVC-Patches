@@ -362,7 +362,7 @@
   - Xóa bỏ 100% các URL GitHub cá nhân / kho lưu trữ mã nguồn trong toàn bộ mã nguồn extension (`WasmEngineManager`, `TorchEngine`, `AccuracyEloWidgetView`, `ArrowOverlayView`, `EloScanner`, `PlayerAccuracyPillView`, `SoundManager`), không còn xuất hiện trong chuỗi string, file log debug `nnvc_debug.log` hay màn hình hiển thị HUD.
   - Loại bỏ tiến trình tải nền qua mạng gây ra lỗi HTTP 404 FileNotFoundException; chuyển sang kiến trúc 100% ngoại tuyến (offline-first).
 - **Bump phiên bản lên v2.0.68**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
-- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,730,400 bytes) và DEX gốc `classes.dex` (93,704 bytes), đóng gói `patches-2.0.68.mpp` (227,438,739 bytes).
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,908 bytes) và DEX gốc `classes.dex` (95,736 bytes), đóng gói `patches-2.0.68.mpp` (227,441,697 bytes).
 
 ---
 

@@ -172,9 +172,24 @@ public class WasmEngineManager {
         return dir;
     }
 
+    public static long getMinExpectedSize(String fileName) {
+        if (fileName.endsWith("dragon3.3.wasm")) return 1_000_000L;
+        if (fileName.endsWith("komodo.js")) return 50_000L;
+        if (fileName.endsWith("book.bin")) return 500_000L;
+        if (fileName.endsWith("stockfish-18-lite-single.wasm")) return 1_000_000L;
+        if (fileName.endsWith("stockfish-18-lite-single.js")) return 10_000L;
+        if (fileName.endsWith("torch.wasm")) return 10_000_000L;
+        if (fileName.endsWith("torch.js")) return 50_000L;
+        return 1L;
+    }
+
+    public static boolean isValidEngineFile(String fileName, File file) {
+        return file != null && file.exists() && file.length() >= getMinExpectedSize(fileName);
+    }
+
     /**
      * Extracts bundled WASM engine files from:
-     * 1. Direct APK Zip (context.getPackageResourcePath())
+     * 1. Direct APK Zip (context.getPackageResourcePath(), split APKs)
      * 2. Direct App Assets (context.getAssets())
      * 3. External MPP bundle or files in storage
      */
@@ -199,31 +214,66 @@ public class WasmEngineManager {
 
     public void extractFromApkZipIfAvailable() {
         try {
-            String apkPath = context.getPackageResourcePath();
-            if (apkPath == null) return;
-            try (ZipFile zip = new ZipFile(apkPath)) {
-                java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
-                while (entries.hasMoreElements()) {
-                    ZipEntry ze = entries.nextElement();
-                    String name = ze.getName();
-                    if (name == null) continue;
+            List<String> apkPaths = new java.util.ArrayList<>();
+            if (context.getPackageResourcePath() != null) apkPaths.add(context.getPackageResourcePath());
+            if (context.getPackageCodePath() != null && !apkPaths.contains(context.getPackageCodePath())) {
+                apkPaths.add(context.getPackageCodePath());
+            }
+            try {
+                android.content.pm.ApplicationInfo appInfo = context.getApplicationInfo();
+                if (appInfo != null) {
+                    if (appInfo.sourceDir != null && !apkPaths.contains(appInfo.sourceDir)) apkPaths.add(appInfo.sourceDir);
+                    if (appInfo.publicSourceDir != null && !apkPaths.contains(appInfo.publicSourceDir)) apkPaths.add(appInfo.publicSourceDir);
+                    if (appInfo.splitSourceDirs != null) {
+                        for (String split : appInfo.splitSourceDirs) {
+                            if (split != null && !apkPaths.contains(split)) apkPaths.add(split);
+                        }
+                    }
+                    if (appInfo.splitPublicSourceDirs != null) {
+                        for (String split : appInfo.splitPublicSourceDirs) {
+                            if (split != null && !apkPaths.contains(split)) apkPaths.add(split);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
 
-                    String targetFileName = null;
-                    if (name.endsWith("dragon3.3.wasm")) targetFileName = "dragon3.3.wasm";
-                    else if (name.endsWith("komodo.js")) targetFileName = "komodo.js";
-                    else if (name.endsWith("book.bin")) targetFileName = "book.bin";
-                    else if (name.endsWith("stockfish-18-lite-single.wasm")) targetFileName = "stockfish-18-lite-single.wasm";
-                    else if (name.endsWith("stockfish-18-lite-single.js")) targetFileName = "stockfish-18-lite-single.js";
+            File torchDir = new File(context.getFilesDir(), "torch");
+            if (!torchDir.exists()) torchDir.mkdirs();
 
-                    if (targetFileName != null) {
-                        File dest = new File(getWasmDir(), targetFileName);
-                        if (!dest.exists() || dest.length() == 0) {
-                            try (InputStream is = zip.getInputStream(ze)) {
-                                copyStream(is, dest);
-                                NnvcLogger.i(TAG, "✓ Extracted from APK [" + name + "] -> " + targetFileName + " (" + dest.length() + " bytes)");
+            for (String apkPath : apkPaths) {
+                File apkFile = new File(apkPath);
+                if (!apkFile.exists() || !apkFile.canRead()) continue;
+
+                try (ZipFile zip = new ZipFile(apkFile)) {
+                    java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+                    while (entries.hasMoreElements()) {
+                        ZipEntry ze = entries.nextElement();
+                        String name = ze.getName();
+                        if (name == null) continue;
+
+                        String targetFileName = null;
+                        File targetDir = getWasmDir();
+
+                        if (name.endsWith("dragon3.3.wasm")) targetFileName = "dragon3.3.wasm";
+                        else if (name.endsWith("komodo.js")) targetFileName = "komodo.js";
+                        else if (name.endsWith("book.bin")) targetFileName = "book.bin";
+                        else if (name.endsWith("stockfish-18-lite-single.wasm")) targetFileName = "stockfish-18-lite-single.wasm";
+                        else if (name.endsWith("stockfish-18-lite-single.js")) targetFileName = "stockfish-18-lite-single.js";
+                        else if (name.endsWith("torch.wasm")) { targetFileName = "torch.wasm"; targetDir = torchDir; }
+                        else if (name.endsWith("torch.js")) { targetFileName = "torch.js"; targetDir = torchDir; }
+
+                        if (targetFileName != null) {
+                            File dest = new File(targetDir, targetFileName);
+                            if (!isValidEngineFile(targetFileName, dest)) {
+                                try (InputStream is = zip.getInputStream(ze)) {
+                                    copyStream(is, dest);
+                                    NnvcLogger.i(TAG, "✓ Extracted from APK [" + name + "] -> " + targetFileName + " (" + dest.length() + " bytes)");
+                                }
                             }
                         }
                     }
+                } catch (Throwable t) {
+                    NnvcLogger.d(TAG, "Error inspecting APK " + apkPath + ": " + t.getMessage());
                 }
             }
         } catch (Throwable t) {
@@ -270,7 +320,7 @@ public class WasmEngineManager {
 
     private void extractEntryIfMissing(ZipFile zip, String entryPath, String targetFileName) {
         File targetFile = new File(getWasmDir(), targetFileName);
-        if (targetFile.exists() && targetFile.length() > 0) return;
+        if (isValidEngineFile(targetFileName, targetFile)) return;
 
         String[] candidates = { entryPath, "assets/" + entryPath, targetFileName };
         for (String c : candidates) {
@@ -278,8 +328,10 @@ public class WasmEngineManager {
             if (ze != null) {
                 try (InputStream is = zip.getInputStream(ze)) {
                     copyStream(is, targetFile);
-                    NnvcLogger.i(TAG, "✓ Extracted " + targetFileName + " (" + targetFile.length() + " bytes) from " + zip.getName());
-                    return;
+                    if (isValidEngineFile(targetFileName, targetFile)) {
+                        NnvcLogger.i(TAG, "✓ Extracted " + targetFileName + " (" + targetFile.length() + " bytes) from " + zip.getName());
+                        return;
+                    }
                 } catch (Throwable ignored) {}
             }
         }
@@ -287,7 +339,7 @@ public class WasmEngineManager {
 
     public File getAssetOrExtract(String assetSubpath, String targetFileName) {
         File targetFile = new File(getWasmDir(), targetFileName);
-        if (targetFile.exists() && targetFile.length() > 0) {
+        if (isValidEngineFile(targetFileName, targetFile)) {
             return targetFile;
         }
 
@@ -300,40 +352,59 @@ public class WasmEngineManager {
         for (String p : candidatePaths) {
             try (InputStream is = context.getAssets().open(p)) {
                 copyStream(is, targetFile);
-                if (targetFile.exists() && targetFile.length() > 0) {
+                if (isValidEngineFile(targetFileName, targetFile)) {
                     NnvcLogger.i(TAG, "Extracted from assets: " + p + " -> " + targetFile.getAbsolutePath());
                     return targetFile;
                 }
             } catch (Throwable ignored) {}
         }
 
-        // 2. Try extracting from APK Zip (context.getPackageResourcePath())
+        // 2. Try extracting from APK Zip (context.getPackageResourcePath(), split APKs)
         try {
-            String apkPath = context.getPackageResourcePath();
-            if (apkPath != null) {
-                try (ZipFile zip = new ZipFile(apkPath)) {
+            List<String> apkPaths = new java.util.ArrayList<>();
+            if (context.getPackageResourcePath() != null) apkPaths.add(context.getPackageResourcePath());
+            if (context.getPackageCodePath() != null && !apkPaths.contains(context.getPackageCodePath())) {
+                apkPaths.add(context.getPackageCodePath());
+            }
+            try {
+                android.content.pm.ApplicationInfo appInfo = context.getApplicationInfo();
+                if (appInfo != null) {
+                    if (appInfo.sourceDir != null && !apkPaths.contains(appInfo.sourceDir)) apkPaths.add(appInfo.sourceDir);
+                    if (appInfo.publicSourceDir != null && !apkPaths.contains(appInfo.publicSourceDir)) apkPaths.add(appInfo.publicSourceDir);
+                    if (appInfo.splitSourceDirs != null) {
+                        for (String split : appInfo.splitSourceDirs) {
+                            if (split != null && !apkPaths.contains(split)) apkPaths.add(split);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            for (String apkPath : apkPaths) {
+                File apkFile = new File(apkPath);
+                if (!apkFile.exists() || !apkFile.canRead()) continue;
+                try (ZipFile zip = new ZipFile(apkFile)) {
                     for (String p : candidatePaths) {
                         ZipEntry entry = zip.getEntry(p);
                         if (entry != null) {
                             try (InputStream is = zip.getInputStream(entry)) {
                                 copyStream(is, targetFile);
-                                if (targetFile.exists() && targetFile.length() > 0) {
+                                if (isValidEngineFile(targetFileName, targetFile)) {
                                     NnvcLogger.i(TAG, "Extracted from APK zip: " + p + " -> " + targetFile.getAbsolutePath());
                                     return targetFile;
                                 }
                             }
                         }
                     }
-                }
+                } catch (Throwable ignored) {}
             }
         } catch (Throwable ignored) {}
 
         // 3. Try checking Downloads folder
         try {
             File dl = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), targetFileName);
-            if (dl.exists() && dl.length() > 0) {
+            if (isValidEngineFile(targetFileName, dl)) {
                 copyFile(dl, targetFile);
-                if (targetFile.exists() && targetFile.length() > 0) {
+                if (isValidEngineFile(targetFileName, targetFile)) {
                     NnvcLogger.i(TAG, "Copied from Downloads: " + dl.getAbsolutePath() + " -> " + targetFile.getAbsolutePath());
                     return targetFile;
                 }
@@ -343,16 +414,16 @@ public class WasmEngineManager {
         // 4. Try checking app external files dir
         try {
             File ext = new File(context.getExternalFilesDir(null), targetFileName);
-            if (ext.exists() && ext.length() > 0) {
+            if (isValidEngineFile(targetFileName, ext)) {
                 copyFile(ext, targetFile);
-                if (targetFile.exists() && targetFile.length() > 0) {
+                if (isValidEngineFile(targetFileName, targetFile)) {
                     NnvcLogger.i(TAG, "Copied from external files: " + ext.getAbsolutePath() + " -> " + targetFile.getAbsolutePath());
                     return targetFile;
                 }
             }
         } catch (Throwable ignored) {}
 
-        return targetFile.exists() && targetFile.length() > 0 ? targetFile : null;
+        return isValidEngineFile(targetFileName, targetFile) ? targetFile : null;
     }
 
     public File getStockfishWasm() {
@@ -392,50 +463,24 @@ public class WasmEngineManager {
         EngineStatusHUD.show(context, "⚠️ Không tìm thấy tệp động cơ " + engineKey.toUpperCase() + " trong APK", true, 6000);
     }
 
-    private static void downloadToFile(String urlStr, File dest) throws Exception {
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setConnectTimeout(20_000);
-        conn.setReadTimeout(90_000);
-        conn.setInstanceFollowRedirects(true);
-        int code = conn.getResponseCode();
-        if (code >= 300 && code < 400) {
-            String redirectUrl = conn.getHeaderField("Location");
-            if (redirectUrl != null) {
-                conn.disconnect();
-                url = new URL(redirectUrl);
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(20_000);
-                conn.setReadTimeout(90_000);
-            }
-        }
-        File temp = new File(dest.getParentFile(), dest.getName() + ".part");
-        try (InputStream in = conn.getInputStream(); FileOutputStream out = new FileOutputStream(temp)) {
-            byte[] buf = new byte[65536];
-            int read;
-            while ((read = in.read(buf)) != -1) {
-                out.write(buf, 0, read);
-            }
-        } finally {
-            conn.disconnect();
-        }
-        if (temp.exists() && temp.length() > 0) {
-            if (dest.exists()) dest.delete();
-            temp.renameTo(dest);
-        }
-    }
-
     private static void copyFile(File src, File dst) {
-        try (FileInputStream in = new FileInputStream(src); FileOutputStream out = new FileOutputStream(dst)) {
-            copyStream(in, out);
+        try (FileInputStream in = new FileInputStream(src)) {
+            copyStream(in, dst);
         } catch (Throwable ignored) {}
     }
 
     private static void copyStream(InputStream in, File dst) throws Exception {
-        try (FileOutputStream out = new FileOutputStream(dst)) {
+        File parent = dst.getParentFile();
+        if (parent != null && !parent.exists()) parent.mkdirs();
+        File tmp = new File(parent, dst.getName() + ".part");
+        try (FileOutputStream out = new FileOutputStream(tmp)) {
             copyStream(in, out);
         } finally {
             in.close();
+        }
+        if (tmp.exists() && tmp.length() > 0) {
+            if (dst.exists()) dst.delete();
+            tmp.renameTo(dst);
         }
     }
 
@@ -526,7 +571,7 @@ public class WasmEngineManager {
             File kmWasm = getKomodoWasm();
 
             if (sfWasm == null && kmWasm == null) {
-                NnvcLogger.w(TAG, "No WASM binaries present yet on disk. Triggering auto-download...");
+                NnvcLogger.w(TAG, "No WASM binaries present yet on disk. Scanning and extracting bundled files...");
                 ensureEngineFilesAvailable(currentPlayEngineKey, null);
                 return;
             }

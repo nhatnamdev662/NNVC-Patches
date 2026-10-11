@@ -120,11 +120,30 @@ public class TorchEngine {
             } catch (Throwable ignored) {}
         }
 
-        // 3. APK Zip extraction
+        // 3. Multi-APK Zip extraction (base + split APKs)
         try {
-            String apkPath = context.getPackageResourcePath();
-            if (apkPath != null) {
-                try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(apkPath)) {
+            List<String> apkPaths = new java.util.ArrayList<>();
+            if (context.getPackageResourcePath() != null) apkPaths.add(context.getPackageResourcePath());
+            if (context.getPackageCodePath() != null && !apkPaths.contains(context.getPackageCodePath())) {
+                apkPaths.add(context.getPackageCodePath());
+            }
+            try {
+                android.content.pm.ApplicationInfo appInfo = context.getApplicationInfo();
+                if (appInfo != null) {
+                    if (appInfo.sourceDir != null && !apkPaths.contains(appInfo.sourceDir)) apkPaths.add(appInfo.sourceDir);
+                    if (appInfo.publicSourceDir != null && !apkPaths.contains(appInfo.publicSourceDir)) apkPaths.add(appInfo.publicSourceDir);
+                    if (appInfo.splitSourceDirs != null) {
+                        for (String split : appInfo.splitSourceDirs) {
+                            if (split != null && !apkPaths.contains(split)) apkPaths.add(split);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            for (String apkPath : apkPaths) {
+                File apkFile = new File(apkPath);
+                if (!apkFile.exists() || !apkFile.canRead()) continue;
+                try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(apkFile)) {
                     for (String p : candidatePaths) {
                         java.util.zip.ZipEntry ze = zip.getEntry(p);
                         if (ze != null) {
@@ -134,7 +153,7 @@ public class TorchEngine {
                             }
                         }
                     }
-                }
+                } catch (Throwable ignored) {}
             }
         } catch (Throwable ignored) {}
 
@@ -143,7 +162,7 @@ public class TorchEngine {
             File dl = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "torch.wasm");
             if (dl.exists() && dl.length() > 10_000_000) {
                 copyFile(dl, f);
-                return f;
+                if (f.exists() && f.length() > 10_000_000) return f;
             }
         } catch (Throwable ignored) {}
 
@@ -163,9 +182,28 @@ public class TorchEngine {
         }
 
         try {
-            String apkPath = context.getPackageResourcePath();
-            if (apkPath != null) {
-                try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(apkPath)) {
+            List<String> apkPaths = new java.util.ArrayList<>();
+            if (context.getPackageResourcePath() != null) apkPaths.add(context.getPackageResourcePath());
+            if (context.getPackageCodePath() != null && !apkPaths.contains(context.getPackageCodePath())) {
+                apkPaths.add(context.getPackageCodePath());
+            }
+            try {
+                android.content.pm.ApplicationInfo appInfo = context.getApplicationInfo();
+                if (appInfo != null) {
+                    if (appInfo.sourceDir != null && !apkPaths.contains(appInfo.sourceDir)) apkPaths.add(appInfo.sourceDir);
+                    if (appInfo.publicSourceDir != null && !apkPaths.contains(appInfo.publicSourceDir)) apkPaths.add(appInfo.publicSourceDir);
+                    if (appInfo.splitSourceDirs != null) {
+                        for (String split : appInfo.splitSourceDirs) {
+                            if (split != null && !apkPaths.contains(split)) apkPaths.add(split);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            for (String apkPath : apkPaths) {
+                File apkFile = new File(apkPath);
+                if (!apkFile.exists() || !apkFile.canRead()) continue;
+                try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(apkFile)) {
                     for (String p : candidatePaths) {
                         java.util.zip.ZipEntry ze = zip.getEntry(p);
                         if (ze != null) {
@@ -175,7 +213,7 @@ public class TorchEngine {
                             }
                         }
                     }
-                }
+                } catch (Throwable ignored) {}
             }
         } catch (Throwable ignored) {}
 
@@ -501,45 +539,24 @@ public class TorchEngine {
         }).start();
     }
 
-    private static void downloadToFile(String urlStr, File dest) throws Exception {
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setConnectTimeout(20_000);
-        conn.setReadTimeout(60_000);
-        conn.setInstanceFollowRedirects(true);
-        int code = conn.getResponseCode();
-        if (code >= 300 && code < 400) {
-            String redirectUrl = conn.getHeaderField("Location");
-            if (redirectUrl != null) {
-                conn.disconnect();
-                url = new URL(redirectUrl);
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(20_000);
-                conn.setReadTimeout(60_000);
-            }
-        }
-        try (InputStream in = conn.getInputStream(); FileOutputStream out = new FileOutputStream(dest)) {
-            byte[] buf = new byte[65536];
-            int read;
-            while ((read = in.read(buf)) != -1) {
-                out.write(buf, 0, read);
-            }
-        } finally {
-            conn.disconnect();
-        }
-    }
-
     private static void copyFile(File src, File dst) {
-        try (FileInputStream in = new FileInputStream(src); FileOutputStream out = new FileOutputStream(dst)) {
-            copyStream(in, out);
+        try (FileInputStream in = new FileInputStream(src)) {
+            copyStream(in, dst);
         } catch (Throwable ignored) {}
     }
 
     private static void copyStream(InputStream in, File dst) throws Exception {
-        try (FileOutputStream out = new FileOutputStream(dst)) {
+        File parent = dst.getParentFile();
+        if (parent != null && !parent.exists()) parent.mkdirs();
+        File tmp = new File(parent, dst.getName() + ".part");
+        try (FileOutputStream out = new FileOutputStream(tmp)) {
             copyStream(in, out);
         } finally {
             in.close();
+        }
+        if (tmp.exists() && tmp.length() > 0) {
+            if (dst.exists()) dst.delete();
+            tmp.renameTo(dst);
         }
     }
 
