@@ -366,9 +366,12 @@ public class TorchEngine {
     }
 
     private final java.util.concurrent.atomic.AtomicLong currentRequestId = new java.util.concurrent.atomic.AtomicLong(0);
+    private final java.util.concurrent.atomic.AtomicLong minValidRequestId = new java.util.concurrent.atomic.AtomicLong(0);
+    private final java.util.Queue<TorchClassificationCallback> pendingCallbacks = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
     public void cancelPendingRequests() {
-        currentRequestId.incrementAndGet();
+        minValidRequestId.set(currentRequestId.incrementAndGet());
+        pendingCallbacks.clear();
         this.activeCallback = null;
         if (webView != null) {
             mainHandler.post(() -> {
@@ -391,6 +394,9 @@ public class TorchEngine {
         }
         final long reqId = currentRequestId.incrementAndGet();
         this.activeCallback = callback;
+        if (callback != null) {
+            pendingCallbacks.offer(callback);
+        }
         final String cmd = positionCmd.trim();
         final String color = (userColor != null) ? userColor : "white";
         final int targetDepth = Math.max(1, Math.min(10, depth > 0 ? depth : 2));
@@ -462,8 +468,8 @@ public class TorchEngine {
         @JavascriptInterface
         public void onTorchResult(String jsonStr, long reqId) {
             log("[BRIDGE RESULT] Nhận json reqId=" + reqId + " độ dài: " + (jsonStr != null ? jsonStr.length() : 0));
-            if (reqId > 0 && reqId != currentRequestId.get()) {
-                log("[TORCH SUPERSEDED] Bỏ qua kết quả cũ reqId=" + reqId + " (Hiện tại: " + currentRequestId.get() + ")");
+            if (reqId > 0 && reqId < minValidRequestId.get()) {
+                log("[TORCH CANCELLED] Bỏ qua kết quả vì đã bị hủy (reqId=" + reqId + ", minValid=" + minValidRequestId.get() + ")");
                 return;
             }
             try {
@@ -492,13 +498,11 @@ public class TorchEngine {
                 }
                 log("[BRIDGE PARSED] reqId=" + reqId + ", class=" + classificationName + ", played=" + playedMoveLan + ", best=" + bestMoveLan + ", speech=" + speechText);
 
-                if (reqId > 0 && reqId != currentRequestId.get()) {
-                    log("[TORCH SUPERSEDED] Bỏ qua callback vì reqId=" + reqId + " bị vượt qua.");
-                    return;
-                }
+                TorchClassificationCallback cb = pendingCallbacks.poll();
+                if (cb == null) cb = activeCallback;
 
-                if (activeCallback != null) {
-                    activeCallback.onClassification(classificationName, playedMoveLan, bestMoveLan, speechText, jsonStr);
+                if (cb != null) {
+                    cb.onClassification(classificationName, playedMoveLan, bestMoveLan, speechText, jsonStr);
                 }
 
             } catch (Throwable t) {

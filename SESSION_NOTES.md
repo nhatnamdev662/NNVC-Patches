@@ -356,21 +356,35 @@
         - Bump phiên bản lên `v2.0.69` (versionCode `20069`) trong `patches-bundle.json` và `patches-list.json`.
         - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,734,972 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.69.mpp` (227,441,939 bytes).
 
+34. **Phát Hành Bản v2.0.70 (Tối Ưu Kiến Trúc Engine: Asyncify Queue, Độc Lập Eval Bar & Torch Move Classifier)**:
+      - **Sửa Triệt Để Lỗi Classify Stockfish 18 WASM Worker (RuntimeError: memory access out of bounds)**:
+        - Bản build Emscripten Stockfish 18 WASM kích hoạt cờ Asyncify. Khi WebView gọi `evaluateClassifyPosition` dồn dập hoặc `stop` chồng lấn lệnh `go`, việc gọi `_sfModule.ccall('command', ...)` re-entrantly trong khi Stack Asyncify chưa unwound hoặc search loop đang thực thi dẫn tới hỏng bộ nhớ WebAssembly và sinh lỗi `RuntimeError: memory access out of bounds`.
+        - Triển khai hàng đợi tuần tự hóa `_cmdQueue`, cờ `_isSearching`, `_stopRequested` và bộ theo dõi timeout `_searchWatchdog` (5000ms): Mọi lệnh gửi tới Web Worker (`position`, `go`, v.v.) đều được xếp hàng qua `queueCmd`. Khi search hoàn tất hoặc gặp `bestmove`, hàm `onDoneSearching` gọi `setTimeout(drainQueue, 0)` để chỉ thực thi lệnh tiếp theo khi stack JS hoàn toàn giải phóng.
+      - **Tách Rời 100% Eval Bar Khỏi Play Engine**:
+        - Loại bỏ hoàn toàn việc gọi `OverlayManager.updateEvalBar(...)` từ `displayLiveResult()` của Play Engine (vốn chạy độ sâu biến thiên 1..12 làm giật/đổi điểm đột ngột).
+        - Eval Bar chỉ nhận luồng điểm số thời gian thực duy nhất từ Classify Engine (Stockfish 18 WASM chuẩn Extension: Depth 10, MultiPV 3, Hash 64).
+        - Kích hoạt phân tích Eval Bar trực tiếp trong `onBoardChanged(boardView, fen)` qua `evaluateClassifyPosition(fen)`.
+      - **Tách Rời Torch Move Classifier & Tránh Drop Kết Quả Khi Đối Thủ Đi Nhanh**:
+        - Gọi độc lập `MoveClassifier.classifyMoveDebounced(context, fen)` (debounce 100ms) không phụ thuộc luồng phân tích nước đi Best Moves.
+        - Nâng cấp `TorchEngine`: FIFO queue `pendingCallbacks` và cửa sổ `minValidRequestId` không drop kết quả phân loại khi đối thủ đi nhanh.
+        - Debounce SeekBar settings: Chỉ kích hoạt lại phân tích bàn cờ khi `onStopTrackingTouch` (`onEloCommitted` / `onValueCommitted`).
+      - **Biên dịch & Đóng gói**:
+        - Bump phiên bản lên `v2.0.70` (versionCode `20070`) trong `patches-bundle.json` và `patches-list.json`.
+        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,740,264 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.70.mpp` (227,443,089 bytes).
+
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
-- **Phiên bản mới nhất**: `v2.0.69` (versionCode `20069`).
-- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.69/patches-2.0.69.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.69.mpp` (227,441,939 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.69.mpp`.
+- **Phiên bản mới nhất**: `v2.0.70` (versionCode `20070`).
+- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.70/patches-2.0.70.mpp`
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.70.mpp` (227,443,089 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.70.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.69.mpp` (227,441,939 bytes).
-  - [x] Sửa triệt để lỗi Stockfish 18 WASM Classify Worker `TypeError: Failed to fetch`.
-  - [x] Tích hợp `WasmAwareXHR` và Mock `fetch` đồng bộ trong Stockfish 18 Worker Preamble.
-  - [x] Đóng gói JS trong IIFE khép kín che giấu biến `onmessage`.
-  - [x] Trích xuất nội bộ ngoại tuyến 100% qua `extractBundledWasmFiles` từ assets/APK zip.
-  - [x] Xóa 100% URL GitHub và luồng tải ngầm từ xa trong `WasmEngineManager` & `TorchEngine`.
-  - [x] Dọn dẹp triệt để thông tin mã nguồn/repo URL trong comments và logs, bảo mật tối đa.
-  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.69.
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.70.mpp` (227,443,089 bytes).
+  - [x] Sửa triệt để lỗi Stockfish 18 WASM Classify Worker `RuntimeError: memory access out of bounds` bằng Asyncify serialized queue.
+  - [x] Tách rời 100% Eval Bar khỏi Play Engine.
+  - [x] Tách rời Torch Move Classifier và ngăn chặn drop kết quả khi đối thủ đi nhanh.
+  - [x] Debounce SeekBar settings trên `onStopTrackingTouch`.
+  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.70.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
 
 

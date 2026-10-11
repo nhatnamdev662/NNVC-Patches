@@ -829,6 +829,56 @@ public class WasmEngineManager {
                 "var _queuedCmds = [];\n" +
                 "var _engineReady = false;\n" +
                 "var _engineProcess = null;\n" +
+                "var _eng = null;\n" +
+                "var _cmdQueue = [];\n" +
+                "var _isSearching = false;\n" +
+                "var _stopRequested = false;\n" +
+                "var _searchWatchdog = null;\n" +
+                "\n" +
+                "function clearWatchdog() {\n" +
+                "    if (_searchWatchdog) {\n" +
+                "        clearTimeout(_searchWatchdog);\n" +
+                "        _searchWatchdog = null;\n" +
+                "    }\n" +
+                "}\n" +
+                "\n" +
+                "function onDoneSearching() {\n" +
+                "    _isSearching = false;\n" +
+                "    _stopRequested = false;\n" +
+                "    clearWatchdog();\n" +
+                "    setTimeout(drainQueue, 0);\n" +
+                "}\n" +
+                "\n" +
+                "function drainQueue() {\n" +
+                "    if (!_eng || _isSearching) return;\n" +
+                "    while (_cmdQueue.length > 0) {\n" +
+                "        var nextCmd = _cmdQueue.shift();\n" +
+                "        var trimmed = (typeof nextCmd === 'string' ? nextCmd : String(nextCmd || '')).trim();\n" +
+                "        if (!trimmed) continue;\n" +
+                "        if (trimmed === 'stop') continue;\n" +
+                "        if (trimmed.indexOf('go') === 0) {\n" +
+                "            _isSearching = true;\n" +
+                "            _stopRequested = false;\n" +
+                "            clearWatchdog();\n" +
+                "            _searchWatchdog = setTimeout(function() {\n" +
+                "                if (_isSearching) onDoneSearching();\n" +
+                "            }, 8000);\n" +
+                "            try {\n" +
+                "                _eng.ccall('command', null, ['string'], [trimmed]);\n" +
+                "            } catch (err) {\n" +
+                "                _isSearching = false;\n" +
+                "                postMessage('__ENGINE_ERROR__:' + err);\n" +
+                "            }\n" +
+                "            break;\n" +
+                "        } else {\n" +
+                "            try {\n" +
+                "                _eng.ccall('command', null, ['string'], [trimmed]);\n" +
+                "            } catch (err) {\n" +
+                "                postMessage('__ENGINE_ERROR__:' + err);\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n" +
                 "\n" +
                 "self.onmessage = function(e) {\n" +
                 "    if (e.data && e.data.__init__) {\n" +
@@ -855,15 +905,68 @@ public class WasmEngineManager {
                 "                wasmBinary: _injectedWasm,\n" +
                 "                listener: function(line) {\n" +
                 "                    postMessage(line);\n" +
+                "                    var str = (typeof line === 'string') ? line : String(line || '');\n" +
+                "                    if (str.indexOf('bestmove') === 0) {\n" +
+                "                        onDoneSearching();\n" +
+                "                    }\n" +
                 "                }\n" +
                 "            });\n" +
                 "            var _promise = (_sfInstance && typeof _sfInstance.then === 'function') ? _sfInstance : (_sfInstance && _sfInstance.ready ? _sfInstance.ready : null);\n" +
                 "            if (!_promise) throw new Error('Stockfish 18 init failed to return Promise');\n" +
                 "\n" +
                 "            _promise.then(function(eng) {\n" +
+                "                _eng = eng;\n" +
                 "                _engineProcess = function(ev) {\n" +
-                "                    var cmd = (typeof ev === 'object' && ev && ev.data) ? ev.data : String(ev || '');\n" +
-                "                    eng.ccall('command', null, ['string'], [cmd]);\n" +
+                "                    var raw = (typeof ev === 'object' && ev && ev.data) ? ev.data : String(ev || '');\n" +
+                "                    var cmd = String(raw || '').trim();\n" +
+                "                    if (!cmd) return;\n" +
+                "\n" +
+                "                    if (cmd === 'stop') {\n" +
+                "                        if (_isSearching) {\n" +
+                "                            if (!_stopRequested) {\n" +
+                "                                _stopRequested = true;\n" +
+                "                                try {\n" +
+                "                                    _eng.ccall('command', null, ['string'], ['stop']);\n" +
+                "                                } catch (err) {\n" +
+                "                                    onDoneSearching();\n" +
+                "                                }\n" +
+                "                            }\n" +
+                "                        }\n" +
+                "                        var filtered = [];\n" +
+                "                        for (var i = 0; i < _cmdQueue.length; i++) {\n" +
+                "                            var c = String(_cmdQueue[i] || '').trim();\n" +
+                "                            if (c.indexOf('go') !== 0 && c.indexOf('position') !== 0) {\n" +
+                "                                filtered.push(_cmdQueue[i]);\n" +
+                "                            }\n" +
+                "                        }\n" +
+                "                        _cmdQueue = filtered;\n" +
+                "                        return;\n" +
+                "                    }\n" +
+                "\n" +
+                "                    if (_isSearching) {\n" +
+                "                        _cmdQueue.push(cmd);\n" +
+                "                    } else {\n" +
+                "                        if (cmd.indexOf('go') === 0) {\n" +
+                "                            _isSearching = true;\n" +
+                "                            _stopRequested = false;\n" +
+                "                            clearWatchdog();\n" +
+                "                            _searchWatchdog = setTimeout(function() {\n" +
+                "                                if (_isSearching) onDoneSearching();\n" +
+                "                            }, 8000);\n" +
+                "                            try {\n" +
+                "                                _eng.ccall('command', null, ['string'], [cmd]);\n" +
+                "                            } catch (err) {\n" +
+                "                                _isSearching = false;\n" +
+                "                                postMessage('__ENGINE_ERROR__:' + err);\n" +
+                "                            }\n" +
+                "                        } else {\n" +
+                "                            try {\n" +
+                "                                _eng.ccall('command', null, ['string'], [cmd]);\n" +
+                "                            } catch (err) {\n" +
+                "                                postMessage('__ENGINE_ERROR__:' + err);\n" +
+                "                            }\n" +
+                "                        }\n" +
+                "                    }\n" +
                 "                };\n" +
                 "                _engineReady = true;\n" +
                 "                self.onmessage = function(ev) {\n" +

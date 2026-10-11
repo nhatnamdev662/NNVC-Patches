@@ -389,6 +389,30 @@ public class MoveClassifier {
         return null;
     }
 
+    private static final android.os.Handler classifyHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static Runnable pendingClassifyRunnable = null;
+
+    public static void classifyMoveDebounced(final Context context, final String currentFen) {
+        if (context == null || currentFen == null) return;
+        if (!StockfishSettings.isMoveClassificationEnabled(context)) return;
+
+        if (pendingClassifyRunnable != null) {
+            classifyHandler.removeCallbacks(pendingClassifyRunnable);
+        }
+
+        final Context appContext = context.getApplicationContext();
+        pendingClassifyRunnable = () -> {
+            pendingClassifyRunnable = null;
+            classifyMoveIfPossible(appContext, currentFen);
+        };
+        classifyHandler.postDelayed(pendingClassifyRunnable, 100);
+    }
+
+    @android.annotation.SuppressLint("MissingPermission")
+    public static void classifyMoveIfPossible(Context context, String currentFen) {
+        classifyMoveIfPossible(context, currentFen, null);
+    }
+
     @android.annotation.SuppressLint("MissingPermission")
     public static void classifyMoveIfPossible(Context context, String currentFen, StockfishProcess.AnalysisResult currentResult) {
         StockfishExtension.silenceIllegalMoveSound();

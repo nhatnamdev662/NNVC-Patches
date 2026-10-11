@@ -606,14 +606,20 @@ public class StockfishSettingsDialog {
                 currentElo, eloProg, eloMax,
                 I18n.get(activity, "elo_hint"),
                 density, activity,
-                (newElo) -> {
-                    StockfishSettings.setElo(activity, newElo);
-                    if (autoDepthSwitch.isChecked() && depthBadgeHolder[0] != null) {
-                        int autoD = StockfishSettings.autoDepthForElo(newElo);
-                        depthBadgeHolder[0].setText(autoD + " (Auto)");
+                new OnEloChangeListener() {
+                    @Override
+                    public void onEloChanged(int newElo) {
+                        StockfishSettings.setElo(activity, newElo);
+                        if (autoDepthSwitch.isChecked() && depthBadgeHolder[0] != null) {
+                            int autoD = StockfishSettings.autoDepthForElo(newElo);
+                            depthBadgeHolder[0].setText(autoD + " (Auto)");
+                        }
                     }
-                    if (StockfishSettings.isEngineEnabled(activity)) {
-                        StockfishExtension.triggerAnalysisForCurrentState();
+                    @Override
+                    public void onEloCommitted(int finalElo) {
+                        if (StockfishSettings.isEngineEnabled(activity)) {
+                            StockfishExtension.triggerAnalysisForCurrentState();
+                        }
                     }
                 });
 
@@ -631,10 +637,16 @@ public class StockfishSettingsDialog {
                 currentDepth - 1, StockfishSettings.MAX_DEPTH - 1, 1,
                 I18n.get(activity, "depth_hint"),
                 density, activity, depthBadgeHolder,
-                (newDepth) -> {
-                    StockfishSettings.setDepth(activity, newDepth);
-                    if (StockfishSettings.isEngineEnabled(activity)) {
-                        StockfishExtension.triggerAnalysisForCurrentState();
+                new OnValueChangeListener() {
+                    @Override
+                    public void onValueChanged(int newDepth) {
+                        StockfishSettings.setDepth(activity, newDepth);
+                    }
+                    @Override
+                    public void onValueCommitted(int finalDepth) {
+                        if (StockfishSettings.isEngineEnabled(activity)) {
+                            StockfishExtension.triggerAnalysisForCurrentState();
+                        }
                     }
                 });
         depthSeekBarHolder[0] = depthSeekBar;
@@ -788,10 +800,16 @@ public class StockfishSettingsDialog {
                 currentPV - 1, 4, 1,
                 I18n.get(activity, "arrows_hint"),
                 density, activity,
-                (newPV) -> {
-                    StockfishSettings.setMultiPV(activity, newPV);
-                    if (StockfishSettings.isEngineEnabled(activity)) {
-                        StockfishExtension.triggerAnalysisForCurrentState();
+                new OnValueChangeListener() {
+                    @Override
+                    public void onValueChanged(int newPV) {
+                        StockfishSettings.setMultiPV(activity, newPV);
+                    }
+                    @Override
+                    public void onValueCommitted(int finalPV) {
+                        if (StockfishSettings.isEngineEnabled(activity)) {
+                            StockfishExtension.triggerAnalysisForCurrentState();
+                        }
                     }
                 });
 
@@ -1063,6 +1081,7 @@ public class StockfishSettingsDialog {
 
     public interface OnValueChangeListener {
         void onValueChanged(int newValue);
+        default void onValueCommitted(int finalValue) {}
     }
 
     private static SeekBar addGlassSeekBarWithBadge(LinearLayout layout, final String labelPrefix, String initialBadge, int progress, int max, final int minVal, String hint, float density, Activity activity) {
@@ -1154,6 +1173,10 @@ public class StockfishSettingsDialog {
             @Override
             public void onStopTrackingTouch(SeekBar sb) {
                 HapticHelper.pop(activity, sb);
+                int val = Math.max(minVal, sb.getProgress() + minVal);
+                if (listener != null) {
+                    listener.onValueCommitted(val);
+                }
             }
         });
 
@@ -1350,6 +1373,7 @@ public class StockfishSettingsDialog {
 
     public interface OnEloChangeListener {
         void onEloChanged(int newElo);
+        default void onEloCommitted(int finalElo) {}
     }
 
     private static SeekBar addEloSeekBarWithBadge(LinearLayout layout, final String labelPrefix, int currentElo, int progress, int max, String hint, float density, Activity activity, OnEloChangeListener listener) {
@@ -1423,6 +1447,8 @@ public class StockfishSettingsDialog {
             @Override
             public void onStopTrackingTouch(SeekBar sb) {
                 HapticHelper.pop(activity, sb);
+                int elo = StockfishSettings.MIN_ELO + sb.getProgress() * StockfishSettings.ELO_STEP;
+                if (listener != null) listener.onEloCommitted(elo);
             }
         });
 
@@ -1523,6 +1549,10 @@ public class StockfishSettingsDialog {
             @Override
             public void onStopTrackingTouch(SeekBar sb) {
                 HapticHelper.pop(activity, sb);
+                int val = Math.max(minVal, sb.getProgress() + minVal);
+                if (listener != null) {
+                    listener.onValueCommitted(val);
+                }
             }
         });
 

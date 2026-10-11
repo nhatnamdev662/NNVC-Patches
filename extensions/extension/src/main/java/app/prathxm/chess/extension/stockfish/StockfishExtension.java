@@ -311,6 +311,18 @@ public class StockfishExtension {
         if (activity != null) {
             EloScanner.scanAndApply(activity, stateImplObject);
         }
+
+        // 1. Independent Eval Bar: Dedicated Stockfish 18 classify instance (Depth 10, MultiPV 3, Hash 64)
+        if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx)) {
+            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, null);
+        }
+
+        // 2. Independent Move Classification: Torch CEE with 100ms debounce
+        if (ctx != null) {
+            MoveClassifier.classifyMoveDebounced(ctx, fen);
+        }
+
+        // 3. Play Engine Analysis: Best moves and threat arrows
         scheduleAnalysis(fen);
     }
 
@@ -377,11 +389,6 @@ public class StockfishExtension {
                 Context context = getContext();
                 if (context == null) return;
 
-                // Concurrent Eval Bar calculation with dedicated Stockfish 18 classify instance (Depth 10, MultiPV 3)
-                if (StockfishSettings.isEvalBarEnabled(context)) {
-                    WasmEngineManager.getInstance(context).evaluateClassifyPosition(fen, null);
-                }
-
                 int depth = StockfishSettings.isAutoDepthEnabled(context)
                         ? StockfishSettings.autoDepthForElo(StockfishSettings.getElo(context))
                         : StockfishSettings.getDepth(context);
@@ -394,8 +401,6 @@ public class StockfishExtension {
                 // Stream intermediate depths to the board so deep searches feel instant.
                 StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV,
                         partial -> {
-                            // Keep intermediate evaluations for the move classifier even if the
-                            // search is cancelled later (see MoveClassifier.recordResult).
                             MoveClassifier.recordResult(fen, partial);
                             if (isStale(jobKey)) return;
                             displayLiveResult(context, fen, partial, false);
@@ -403,20 +408,13 @@ public class StockfishExtension {
 
                 MoveClassifier.recordResult(fen, result);
 
-                // The user moved on while we were searching: never paint an outdated result,
-                // but still rate the move that led here with the deepest result reached, so
-                // the toast is not lost when the opponent replies quickly.
+                // The user moved on while we were searching: never paint an outdated result
                 if (isStale(jobKey)) {
-                    if (MoveClassifier.isUsableForRating(result)) {
-                        MoveClassifier.classifyMoveIfPossible(context, fen, result);
-                    }
                     return;
                 }
 
                 if (result.moves.isEmpty()) {
-                    // Checkmate / stalemate: still rate the move that produced it.
                     if (result.terminal) {
-                        MoveClassifier.classifyMoveIfPossible(context, fen, result);
                         OverlayManager.hideArrowOverlay();
                         ArrowInjector.clearEngineArrows(getStateImpl());
                         TorchEngine.getInstance(context).cancelPendingRequests();
@@ -425,8 +423,6 @@ public class StockfishExtension {
                     Log.d(TAG, "Engine returned no best moves.");
                     return;
                 }
-
-                MoveClassifier.classifyMoveIfPossible(context, fen, result);
 
                 Log.i(TAG, "Best moves: " + result.moves + ", Score: " + result.score + ", depth " + result.depth);
                 displayLiveResult(context, fen, result, true);
@@ -508,9 +504,7 @@ public class StockfishExtension {
             ArrowInjector.clearEngineArrows(getStateImpl());
         }
 
-        if (!disableOverlays && StockfishSettings.isEvalBarEnabled(context)) {
-            OverlayManager.updateEvalBar(result.score, result.hasMate, result.mateIn, getStateImpl());
-        } else {
+        if (disableOverlays || !StockfishSettings.isEvalBarEnabled(context)) {
             OverlayManager.hideEvalBar();
         }
 
@@ -660,6 +654,10 @@ public class StockfishExtension {
                 if (positionObject != null) {
                     String fen = extractFen(positionObject);
                     if (fen != null) {
+                        Context ctx = getContext();
+                        if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx)) {
+                            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, null);
+                        }
                         MoveClassifier.updateHistory(fen, positionObject);
                         scheduleAnalysis(fen, true);
                     }

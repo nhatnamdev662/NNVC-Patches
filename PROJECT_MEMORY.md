@@ -1,6 +1,6 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.69*
+*Phiên bản hiện tại: v2.0.70*
 *Cập nhật lần cuối: 2026-10-11*
 
 ---
@@ -354,6 +354,20 @@
 - **Bump phiên bản lên v2.0.67**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
 - **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói `patches-2.0.67.mpp` (227,435,479 bytes).
 
+### v2.0.70 (2026-10-11) — Tối Ưu Kiến Trúc Engine (Asyncify Queue, Độc Lập Eval Bar & Torch Move Classifier)
+- **Sửa Triệt Để Lỗi Classify Stockfish 18 WASM Worker (RuntimeError: memory access out of bounds):**
+  - Khắc phục xung đột Asyncify re-entrancy khi Emscripten ccall('command') bị gọi trong khi Worker chưa unwound stack.
+  - Xây dựng hàng đợi `_cmdQueue`, khóa tuần tự `_isSearching`, cờ `_stopRequested` và `_searchWatchdog` (5000ms), giải phóng lệnh kế tiếp an toàn qua `setTimeout(drainQueue, 0)`.
+- **Tách Rời 100% Eval Bar Khỏi Play Engine:**
+  - Loại bỏ hoàn toàn `OverlayManager.updateEvalBar` trong `displayLiveResult()` của Play Engine; Eval Bar chỉ nhận stream độc quyền từ Classify Stockfish 18 WASM (Depth 10, MultiPV 3, Hash 64).
+  - Phân tích FEN trực tiếp khi bàn cờ thay đổi `onBoardChanged()`.
+- **Tách Rời Torch Move Classifier & Tránh Drop Kết Quả Khi Đối Thủ Đi Nhanh:**
+  - Gọi độc lập `MoveClassifier.classifyMoveDebounced(context, fen)` (debounce 100ms) không phụ thuộc luồng phân tích nước đi Best Moves.
+  - Nâng cấp `TorchEngine`: FIFO queue `pendingCallbacks` và cửa sổ `minValidRequestId` không drop kết quả phân loại khi đối thủ đi nhanh.
+  - Debounce SeekBar settings: Chỉ kích hoạt lại phân tích bàn cờ khi `onStopTrackingTouch`.
+- **Bump phiên bản lên v2.0.70**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,740,264 bytes) và DEX gốc `classes.dex` (95,736 bytes), đóng gói `patches-2.0.70.mpp` (227,443,089 bytes).
+
 ### v2.0.69 (2026-10-11) — Sửa Triệt Để Lỗi Classify Stockfish 18 WASM Worker (Failed to Fetch)
 - **Khắc Phục Dứt Điểm Lỗi Classify Worker (TypeError: Failed to fetch):**
   - Trong Android WebView, khi Web Worker tạo từ blob URL khởi chạy Stockfish 18 WASM phục vụ Classify Engine (Eval Bar và phân tích), mã nguồn Emscripten JS tự động gọi `fetch('stockfish.wasm')` hoặc kiểm tra `typeof onmessage`, gây lỗi `Uncaught TypeError: Failed to fetch`.
@@ -378,12 +392,12 @@
 ## 3. TRẠNG THÁI HIỆN TẠI & KẾ HOẠCH TIẾP THEO
 
 ### 3.1. Trạng thái hiện tại
-- **Phiên bản mới nhất**: **v2.0.69** (`patches-2.0.69.mpp`).
+- **Phiên bản mới nhất**: **v2.0.70** (`patches-2.0.70.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Khắc phục triệt để lỗi Classify Worker Stockfish 18 WASM (`TypeError: Failed to fetch`).
-  2. Kiến trúc 100% Offline Local Engine Extraction: Toàn bộ tệp WASM được trích xuất trực tiếp từ APK hoặc assets.
-  3. Zero source code leakage, zero remote fallback downloads.
-  4. Hệ thống chẩn đoán NnvcLogger + In-app Viewer `[📜]` + Floating Pill `[📜 LOG]` và EngineStatusHUD bảo toàn đầy đủ.
+  1. Khắc phục triệt để lỗi Classify Worker Stockfish 18 WASM (`RuntimeError: memory access out of bounds`) bằng Asyncify serialized command queue.
+  2. Tách rời hoàn toàn Eval Bar (Classify Engine) khỏi Play Engine.
+  3. Tách rời Torch Move Classifier và ngăn ngừa drop kết quả khi đối thủ đi nhanh.
+  4. Debounce SeekBar settings trên `onStopTrackingTouch`.
 
 
