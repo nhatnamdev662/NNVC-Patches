@@ -272,10 +272,34 @@ public class SelfTest {
         check("isStandardStartposMoves empty is false",
             !WasmEngineManager.isStandardStartposMoves(java.util.Collections.emptyList()));
 
+        // === ARROW EVAL LABEL TESTS ===
+        check("Arrow eval mate in 3",
+            formatArrowEval(true, 3, 0f, true).equals("#3"));
+        check("Arrow eval mate in -1",
+            formatArrowEval(true, -1, 0f, true).equals("#-1"));
+        check("Arrow eval cp score +1.5",
+            formatArrowEval(false, 0, 1.5f, true).equals("+1.5"));
+        check("Arrow eval cp score -0.4",
+            formatArrowEval(false, 0, -0.4f, true).equals("-0.4"));
+        check("Arrow eval cp score +12.3",
+            formatArrowEval(false, 0, 12.3f, true).equals("+12"));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
             System.exit(1);
         }
+    }
+
+    static String formatArrowEval(boolean branchHasMate, int branchMateIn, float score, boolean whiteToMove) {
+        if (branchHasMate && branchMateIn != 0) {
+            return branchMateIn > 0 ? ("#" + branchMateIn) : ("#-" + Math.abs(branchMateIn));
+        }
+        float relativeScore = whiteToMove ? score : -score;
+        float rounded = Math.round(relativeScore * 10f) / 10f;
+        String fixed = Math.abs(rounded) >= 10f
+                ? String.format(java.util.Locale.US, "%.0f", (float) Math.abs(rounded))
+                : String.format(java.util.Locale.US, "%.1f", (float) Math.abs(rounded));
+        return (rounded > 0 ? "+" : (rounded < 0 ? "-" : "")) + fixed;
     }
 }

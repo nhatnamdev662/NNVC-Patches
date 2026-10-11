@@ -1,6 +1,6 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.72*
+*Phiên bản hiện tại: v2.0.73*
 *Cập nhật lần cuối: 2026-10-11*
 
 ---
@@ -353,6 +353,20 @@
   - Tiếp tục hỗ trợ `NnvcLogger` (ghi log chi tiết ra `/sdcard/Android/data/com.chess/files/nnvc_debug.log`), hộp thoại đọc log in-app `NnvcLogViewerDialog`, nút huy hiệu nổi kéo thả `FloatingLogPillView` và thông báo trạng thái `EngineStatusHUD`.
 - **Bump phiên bản lên v2.0.67**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
 - **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói `patches-2.0.67.mpp` (227,435,479 bytes).
+
+### v2.0.73 (2026-10-11) — Sửa Triệt Để Mũi Tên Nhảy Ở Depth Cao (Atomic Display 100% Chuẩn Extension NNVC)
+- **Khắc phục dứt điểm lỗi mũi tên giật / nhảy liên tục ở Depth 8-12 (`StockfishExtension.java`)**:
+  - Phân tích nguyên nhân đối chiếu trực tiếp từ Extension (`NNVC/nnvc_main_bundle.js` dòng 6138-6156 & 16474): Trong suốt quá trình engine tính toán (depth 1..12), Extension TUYỆT ĐỐI KHÔNG vẽ mũi tên nào lên màn hình, chỉ lưu kết quả ngầm vào mảng `_playEngineLines`.
+  - Khi bàn cờ thay đổi: Extension xóa sạch mũi tên cũ, chờ engine tính toán trọn vẹn và phát `bestmove`, sau đó Extension mới lấy kết quả tốt nhất của toàn bộ nhánh MultiPV và vẽ mũi tên LÊN MÀN HÌNH MỘT LẦN DUY NHẤT (Atomic Display). Mũi tên đứng im vững như bàn thạch, không bao giờ nhảy từ nước này sang nước khác!
+  - Trong Mobile trước đây: `StockfishExtension.java` truyền callback `partial -> displayLiveResult(context, fen, partial, false)` vào `StockfishBridge.analyze`. Cứ mỗi 250ms ở các depth 8, 9, 10, 11, 12, engine tìm ra các nước đi khác nhau làm mũi tên bị vẽ lại và nhảy liên tục!
+  - Triệt tiêu hoàn toàn việc gọi `displayLiveResult(context, fen, partial, false)` trong callback progress của `StockfishBridge.analyze`.
+  - TUYỆT ĐỐI CHỈ GỌI `displayLiveResult(context, fen, result, true)` MỘT LẦN DUY NHẤT sau khi `StockfishBridge.analyze(...)` trả về kết quả cuối cùng hoàn tất (`bestmove`).
+- **Ẩn và làm sạch mũi tên tức thì khi bàn cờ thay đổi hoặc đổi cấu hình (`StockfishExtension.java`)**:
+  - Khi có nước cờ mới (`onBoardChanged`), ẩn mũi tên cũ qua `OverlayManager.hideArrowOverlay()`, chờ engine tính xong toàn bộ depth mục tiêu rồi mới vẽ mũi tên mới.
+  - Trong `triggerPlayAnalysisOnly()` và `triggerAnalysisForCurrentState()`: Thêm `OverlayManager.hideArrowOverlay()` ngay khi bắt đầu để xóa sạch mũi tên cũ trong lúc phân tích vị trí mới.
+- **Bổ sung bộ kiểm thử tự động `SelfTest`**: 59/59 test cases vượt qua thành công, bao gồm kiểm tra định dạng nhãn điểm mũi tên mate/cp và scale math.
+- **Bump phiên bản lên v2.0.73**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,755,416 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.73.mpp` (227,447,193 bytes).
 
 ### v2.0.72 (2026-10-11) — Chuẩn Hóa 100% Eval Bar Chuẩn Extension NNVC, Race Condition & Scale Math Module 1921
 - **Khắc phục triệt để lỗi Race Condition đảo ngược điểm số & các dòng UCI cũ trong WASM Worker (`WasmEngineManager.java`)**:

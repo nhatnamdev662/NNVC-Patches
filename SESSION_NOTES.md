@@ -421,19 +421,32 @@
         - Bump phiên bản lên `v2.0.72` (versionCode `20072`) trong `patches-bundle.json` và `patches-list.json`.
         - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,754,792 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.72.mpp` (227,446,906 bytes).
 
+37. **Phát Hành Bản v2.0.73 (Sửa Triệt Để Mũi Tên Nhảy Ở Depth Cao - Atomic Display 100% Chuẩn Extension NNVC)**:
+      - **Khắc phục dứt điểm lỗi mũi tên giật / nhảy liên tục ở Depth 8-12 (`StockfishExtension.java`)**:
+        - Phân tích nguyên nhân đối chiếu trực tiếp từ Extension (`NNVC/nnvc_main_bundle.js` dòng 6138-6156 & 16474): Trong suốt quá trình engine tính toán (depth 1..12), Extension TUYỆT ĐỐI KHÔNG vẽ mũi tên nào lên màn hình, chỉ lưu kết quả ngầm vào mảng `_playEngineLines`.
+        - Khi bàn cờ thay đổi: Extension xóa sạch mũi tên cũ, chờ engine tính toán trọn vẹn và phát `bestmove`, sau đó Extension mới lấy kết quả tốt nhất của toàn bộ nhánh MultiPV và vẽ mũi tên LÊN MÀN HÌNH MỘT LẦN DUY NHẤT (Atomic Display). Mũi tên đứng im vững như bàn thạch, không bao giờ nhảy từ nước này sang nước khác!
+        - Trong Mobile trước đây: `StockfishExtension.java` truyền callback `partial -> displayLiveResult(context, fen, partial, false)` vào `StockfishBridge.analyze`. Cứ mỗi 250ms ở các depth 8, 9, 10, 11, 12, engine tìm ra các nước đi khác nhau làm mũi tên bị vẽ lại và nhảy liên tục!
+        - Triệt tiêu hoàn toàn việc gọi `displayLiveResult(context, fen, partial, false)` trong callback progress của `StockfishBridge.analyze`.
+        - TUYỆT ĐỐI CHỈ GỌI `displayLiveResult(context, fen, result, true)` MỘT LẦN DUY NHẤT sau khi `StockfishBridge.analyze(...)` trả về kết quả cuối cùng hoàn tất (`bestmove`).
+      - **Ẩn và làm sạch mũi tên tức thì khi bàn cờ thay đổi hoặc đổi cấu hình (`StockfishExtension.java`)**:
+        - Khi có nước cờ mới (`onBoardChanged`), ẩn mũi tên cũ qua `OverlayManager.hideArrowOverlay()`, chờ engine tính xong toàn bộ depth mục tiêu rồi mới vẽ mũi tên mới.
+        - Trong `triggerPlayAnalysisOnly()` và `triggerAnalysisForCurrentState()`: Thêm `OverlayManager.hideArrowOverlay()` ngay khi bắt đầu để xóa sạch mũi tên cũ trong lúc phân tích vị trí mới.
+      - **Biên dịch & Đóng gói**:
+        - Bump phiên bản lên `v2.0.73` (versionCode `20073`) trong `patches-bundle.json` và `patches-list.json`.
+        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,755,416 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.73.mpp` (227,447,193 bytes).
+
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
-- **Phiên bản mới nhất**: `v2.0.72` (versionCode `20072`).
-- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.72/patches-2.0.72.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.72.mpp` (227,446,906 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.72.mpp`.
+- **Phiên bản mới nhất**: `v2.0.73` (versionCode `20073`).
+- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.73/patches-2.0.73.mpp`
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.73.mpp` (227,447,193 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.73.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.72.mpp` (227,446,906 bytes).
-  - [x] Sửa triệt để race condition đảo ngược điểm số của Eval Bar khi đối thủ đi nhanh.
-  - [x] Áp dụng chuẩn công thức Scale Math Module 1921 Linear Clamp `[-500, +500]` centipawns.
-  - [x] 100% white/black trên Checkmate; Decelerate ValueAnimator 180ms loại bỏ double-smoothing.
-  - [x] Gửi `position startpos moves ...` tái sử dụng Hash TT và gọi `ucinewgame` khi bắt đầu ván mới.
-  - [x] Phân tách `_workerKind` bảo toàn `bestmove` cho Play worker và triệt tiêu nguy cơ timeout 5000ms.
-  - [x] Chạy kiểm thử tự động `SelfTest` đạt 54/54 tests passed (0 failed).
-  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.72.
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.73.mpp` (227,447,193 bytes).
+  - [x] Triệt tiêu 100% việc gọi vẽ mũi tên giữa chừng trong quá trình tìm kiếm (Atomic Display sau khi có `bestmove`).
+  - [x] Mũi tên đứng im vững như bàn thạch chuẩn Extension NNVC dòng 6138-6156 & 16474.
+  - [x] Tự động ẩn mũi tên cũ khi có nước đi mới hoặc khi thay đổi engine / phong cách chơi.
+  - [x] Chạy kiểm thử tự động `SelfTest` đạt 59/59 tests passed (0 failed).
+  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.73.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
+

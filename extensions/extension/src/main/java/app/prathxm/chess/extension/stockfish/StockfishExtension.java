@@ -403,12 +403,12 @@ public class StockfishExtension {
                 }
 
                 Log.d(TAG, "Analysing FEN with " + StockfishSettings.getEngineChoice(context) + " at depth " + depth + " with MultiPV=" + multiPV + "…");
-                // Stream intermediate depths to the board so deep searches feel instant.
+                // Stream intermediate depths to the classifier, but NEVER paint intermediate arrows to UI.
+                // In NNVC Extension standard (nnvc_main_bundle.js lines 6138-6156 & 16474), arrows are painted
+                // atomically ONLY once after engine finishes full search (bestmove), preventing any jumping/jitter.
                 StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV,
                         partial -> {
                             MoveClassifier.recordResult(fen, partial);
-                            if (isStale(jobKey)) return;
-                            displayLiveResult(context, fen, partial, false);
                         });
 
                 MoveClassifier.recordResult(fen, result);
@@ -651,6 +651,7 @@ public class StockfishExtension {
         // Settings or app state changed: always repaint and restart analysis
         lastArrowSignature = null;
         lastScheduledKey = null;
+        OverlayManager.hideArrowOverlay();
         Object state = getStateImpl();
         if (state != null) {
             try {
@@ -680,6 +681,7 @@ public class StockfishExtension {
     public static void triggerPlayAnalysisOnly() {
         lastArrowSignature = null;
         lastScheduledKey = null;
+        OverlayManager.hideArrowOverlay();
         Object state = getStateImpl();
         if (state != null) {
             try {
