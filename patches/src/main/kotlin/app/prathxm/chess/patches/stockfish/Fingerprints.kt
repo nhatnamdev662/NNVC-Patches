@@ -42,11 +42,6 @@ object ChessBoardViewSetPositionFingerprint : Fingerprint(
             (method.name == "setPosition" || method.name == "setPositionWithPremoves") &&
                 method.parameterTypes.isNotEmpty() &&
                 method.returnType == "V"
-        } else if (classDef.type == "Lcom/chess/chessboard/vm/movesinput/CBViewModelStateImpl;") {
-            method.name == "<init>" && method.parameterTypes.any { paramType ->
-                val posType = classDef.methods.find { it.name == "getPosition" }?.returnType
-                posType != null && posType == paramType
-            }
         } else {
             false
         }

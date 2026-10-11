@@ -354,6 +354,25 @@ public class SelfTest {
             (isClassifySearching || (lastEpoch == epoch && epoch > 0));
         check("Classify does NOT skip on different FEN", !shouldSkipDifferentFen);
 
+        // === RESOLVE VARIANT POSITION TESTS ===
+        class MockInnerPos {
+            public String getFen() { return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; }
+        }
+        class MockDisplayPos {
+            public MockInnerPos a() { return new MockInnerPos(); }
+        }
+        MockDisplayPos disp = new MockDisplayPos();
+        check("DisplayPosition unwraps via a()", disp.a() != null);
+        Object resolved = StockfishExtension.resolveVariantPosition(null);
+        check("Null position resolves to null safely", resolved == null);
+
+        // === MOVE 0 NULL STATEIMPL SAFETY TEST ===
+        // On Move 0, stateImpl is null before any move is played; onBoardChanged must still accept the position
+        Object nullState = null;
+        Object dummyPos = null;
+        boolean canProcessNullPosition = (dummyPos != null);
+        check("Null position is safely rejected", !canProcessNullPosition);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

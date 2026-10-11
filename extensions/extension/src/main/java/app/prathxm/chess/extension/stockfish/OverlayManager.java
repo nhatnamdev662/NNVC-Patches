@@ -638,6 +638,9 @@ public class OverlayManager {
             board = findAnyBoardLayout(root);
         }
         if (board != null && hookedBoardViews.add(System.identityHashCode(board))) {
+            if (board.getWindowToken() != null || board.getParent() != null) {
+                StockfishExtension.onInitialPositionLoaded(board);
+            }
             board.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
                 @Override
                 public void onViewAttachedToWindow(View v) {
@@ -645,6 +648,13 @@ public class OverlayManager {
                 }
                 @Override
                 public void onViewDetachedFromWindow(View v) {}
+            });
+            board.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                           int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    StockfishExtension.onInitialPositionLoaded(v);
+                }
             });
         }
         return board;

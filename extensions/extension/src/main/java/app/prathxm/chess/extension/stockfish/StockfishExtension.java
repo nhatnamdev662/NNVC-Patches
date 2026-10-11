@@ -259,11 +259,13 @@ public class StockfishExtension {
     }
 
     public static void onBoardChanged(Object stateImplObject, Object positionObject) {
-        if (stateImplObject == null || positionObject == null) return;
+        if (positionObject == null) return;
         
         silenceIllegalMoveSound();
-        ArrowInjector.clearEngineArrows(stateImplObject);
-        stateImplRef.set(new WeakReference<>(stateImplObject));
+        if (stateImplObject != null) {
+            ArrowInjector.clearEngineArrows(stateImplObject);
+            stateImplRef.set(new WeakReference<>(stateImplObject));
+        }
 
         final Activity activity = getCurrentActivity();
         if (activity != null) {
@@ -275,7 +277,9 @@ public class StockfishExtension {
 
         if (isGameOver(activity)) {
             OverlayManager.hideArrowOverlay();
-            ArrowInjector.clearEngineArrows(stateImplObject);
+            if (stateImplObject != null) {
+                ArrowInjector.clearEngineArrows(stateImplObject);
+            }
             StockfishBridge.stopSearch();
             Context c = getContext();
             if (c != null) {
@@ -316,7 +320,9 @@ public class StockfishExtension {
             OverlayManager.hideArrowOverlay();
             OverlayManager.resetAccuracyEloWidget();
             OverlayManager.hideAccuracyEloPills();
-            ArrowInjector.clearEngineArrows(stateImplObject);
+            if (stateImplObject != null) {
+                ArrowInjector.clearEngineArrows(stateImplObject);
+            }
             if (ctx != null) {
                 TorchEngine.getInstance(ctx).cancelPendingRequests();
                 WasmEngineManager.getInstance(ctx).resetClassifyGame();
@@ -326,7 +332,7 @@ public class StockfishExtension {
             OverlayManager.resetEvalBar();
         }
         MoveClassifier.updateHistory(fen, positionObject);
-        if (activity != null) {
+        if (activity != null && stateImplObject != null) {
             EloScanner.scanAndApply(activity, stateImplObject);
         }
 
@@ -614,7 +620,7 @@ public class StockfishExtension {
                 lastArrowSignature = null;
                 lastScheduledKey = null;
                 // Multiple retry checks to catch Move 0 as board view loads into view hierarchy
-                for (long delay : new long[]{100, 300, 600, 1200}) {
+                for (long delay : new long[]{100, 300, 600, 1200, 2400, 4000}) {
                     new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
                         @Override
                         public void run() {
@@ -829,25 +835,70 @@ public class StockfishExtension {
         return false;
     }
 
-    public static Object extractPositionFromBoardView(View boardView) {
-        if (boardView == null) return null;
+    public static Object resolveVariantPosition(Object obj) {
+        if (obj == null) return null;
+        if (extractFen(obj) != null) return obj;
         try {
-            Method getPos = boardView.getClass().getMethod("getPositionWithPremoves");
-            Object pos = getPos.invoke(boardView);
-            if (pos != null && extractFen(pos) != null) return pos;
+            Method m = obj.getClass().getMethod("a");
+            Object inner = m.invoke(obj);
+            if (inner != null && extractFen(inner) != null) return inner;
         } catch (Throwable ignored) {}
         try {
-            Method getDispPos = boardView.getClass().getMethod("getPosition");
-            Object dispPos = getDispPos.invoke(boardView);
-            if (dispPos != null) {
-                if (extractFen(dispPos) != null) return dispPos;
+            Method m = obj.getClass().getMethod("getPosition");
+            Object inner = m.invoke(obj);
+            if (inner != null && extractFen(inner) != null) return inner;
+        } catch (Throwable ignored) {}
+        for (Method m : obj.getClass().getMethods()) {
+            if (m.getParameterCount() == 0 && !m.getName().equals("getClass")) {
                 try {
-                    Method getA = dispPos.getClass().getMethod("a");
-                    Object pos = getA.invoke(dispPos);
-                    if (pos != null && extractFen(pos) != null) return pos;
+                    Object inner = m.invoke(obj);
+                    if (inner != null && extractFen(inner) != null) return inner;
                 } catch (Throwable ignored) {}
             }
+        }
+        for (Field f : obj.getClass().getDeclaredFields()) {
+            try {
+                f.setAccessible(true);
+                Object inner = f.get(obj);
+                if (inner != null && extractFen(inner) != null) return inner;
+            } catch (Throwable ignored) {}
+        }
+        return null;
+    }
+
+    public static Object extractPositionFromBoardView(View boardView) {
+        if (boardView == null) return null;
+        // 1. Try getPositionWithPremoves (public or private declared)
+        try {
+            Method getPos = null;
+            try {
+                getPos = boardView.getClass().getMethod("getPositionWithPremoves");
+            } catch (NoSuchMethodException e) {
+                getPos = boardView.getClass().getDeclaredMethod("getPositionWithPremoves");
+                getPos.setAccessible(true);
+            }
+            if (getPos != null) {
+                Object pos = resolveVariantPosition(getPos.invoke(boardView));
+                if (pos != null) return pos;
+            }
         } catch (Throwable ignored) {}
+
+        // 2. Try getPosition (public or private declared)
+        try {
+            Method getDispPos = null;
+            try {
+                getDispPos = boardView.getClass().getMethod("getPosition");
+            } catch (NoSuchMethodException e) {
+                getDispPos = boardView.getClass().getDeclaredMethod("getPosition");
+                getDispPos.setAccessible(true);
+            }
+            if (getDispPos != null) {
+                Object pos = resolveVariantPosition(getDispPos.invoke(boardView));
+                if (pos != null) return pos;
+            }
+        } catch (Throwable ignored) {}
+
+        // 3. Try getViewModel() -> getState() -> getPosition()
         try {
             Method getVm = boardView.getClass().getMethod("getViewModel");
             Object vm = getVm.invoke(boardView);
@@ -856,18 +907,21 @@ public class StockfishExtension {
                 Object state = getState.invoke(vm);
                 if (state != null) {
                     stateImplRef.set(new WeakReference<>(state));
-                    Method getPosition = state.getClass().getMethod("getPosition");
-                    Object pos = getPosition.invoke(state);
-                    if (pos != null && extractFen(pos) != null) return pos;
+                    Object pos = resolveVariantPosition(state);
+                    if (pos != null) return pos;
                 }
             }
         } catch (Throwable ignored) {}
+
+        // 4. Try declared fields on boardView
         for (Field f : boardView.getClass().getDeclaredFields()) {
-            if (f.getName().equalsIgnoreCase("position") || f.getName().equals("p") || f.getName().equals("mPosition")) {
+            String fn = f.getName().toLowerCase(java.util.Locale.US);
+            if (fn.contains("position") || fn.equals("r") || fn.equals("p") || fn.contains("viewmodel") || fn.equals("x")) {
                 try {
                     f.setAccessible(true);
-                    Object pos = f.get(boardView);
-                    if (pos != null && extractFen(pos) != null) return pos;
+                    Object val = f.get(boardView);
+                    Object pos = resolveVariantPosition(val);
+                    if (pos != null) return pos;
                 } catch (Throwable ignored) {}
             }
         }
@@ -887,14 +941,11 @@ public class StockfishExtension {
                 }
             } else {
                 stateImplRef.set(new WeakReference<>(obj));
-                try {
-                    Method getPos = obj.getClass().getMethod("getPosition");
-                    Object pos = getPos.invoke(obj);
-                    if (pos != null) {
-                        onBoardChanged(obj, pos);
-                        return;
-                    }
-                } catch (Throwable ignored) {}
+                Object pos = resolveVariantPosition(obj);
+                if (pos != null) {
+                    onBoardChanged(obj, pos);
+                    return;
+                }
             }
         } catch (Throwable ignored) {}
         triggerAnalysisForCurrentState();

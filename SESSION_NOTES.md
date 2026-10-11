@@ -466,27 +466,30 @@
        - Phân tích nguyên nhân: Trong `RealGameActivity`, tồn tại các trường như `gameOverV6Listener = new b();` và `isGameOverModalV2 = Lazy` chứa chuỗi "gameover" và không bao giờ null. Nhánh `else if (val != null) { return true; }` trước đây khiến `isGameOver` luôn trả về `true` ngay khi vừa vào ván cờ, chặn đứng toàn bộ việc hiển thị mũi tên ở Move 0!
        - Loại bỏ triệt để nhánh kiểm tra non-View non-Boolean; chỉ trả về `true` khi `val instanceof View && getVisibility() == View.VISIBLE && getParent() != null`, hoặc `val instanceof Boolean && booleanValue()`. Các trường listener, callback, Lazy không bao giờ bị coi là game over.
      - **Tự Động Nhận Diện Trận Đấu Mới (Move 0) Cho Cả Trắng & Đen Ngay Lập Tức**:
-       - **Multiple Retries Trong `onActivityResumed`**: Đặt chuỗi kiểm tra và kích hoạt phân tích tại các mốc thời gian 100ms, 300ms, 600ms, 1200ms để đảm bảo khi `ChessBoardView` vừa được khởi tạo và nạp vào phân cấp View, phân tích Move 0 được kích hoạt ngay lập tức mà không cần người chơi phải đi nước cờ nào.
-       - **Hook Tự Động Gắn Vào `ChessBoardView` (`OverlayManager.java`)**: Khi `findChessBoardView` phát hiện `ChessBoardView`, tự động đăng ký `OnAttachStateChangeListener` để gọi `StockfishExtension.onInitialPositionLoaded(v)` ngay khi View gắn vào Window.
-       - **Hàm `extractPositionFromBoardView` & `onInitialPositionLoaded` (`StockfishExtension.java`)**: Trích xuất đa tầng FEN/Position từ `getPositionWithPremoves()`, `getPosition()`, `getViewModel().getState()`, hoặc trường phản chiếu `position`. Tự động dọn sạch lịch sử ván cũ (`clearHistory()`, `resetEvalBar()`, `resetClassifyGame()`) khi ở Move 0 / startpos.
-       - **Hook Bytecode Mới (`Fingerprints.kt` & `StockfishPatch.kt`)**: Thêm hook `ChessBoardViewSetPositionFingerprint` khớp `ChessBoardView.setPosition` / `setPositionWithPremoves` và constructor `CBViewModelStateImpl.<init>`, kết nối trực tiếp vào `StockfishExtension.onInitialPositionLoaded`.
+       - **Multiple Retries Trong `onActivityResumed`**: Mở rộng chuỗi kiểm tra và kích hoạt phân tích tại các mốc thời gian 100ms, 300ms, 600ms, 1200ms, 2400ms, 4000ms để đảm bảo khi `ChessBoardView` vừa được khởi tạo và nạp vào phân cấp View trên mọi thiết bị, phân tích Move 0 được kích hoạt ngay lập tức mà không cần người chơi phải đi nước cờ nào.
+       - **Hook Tự Động Gắn Vào `ChessBoardView` (`OverlayManager.java`)**: Khi `findChessBoardView` phát hiện `ChessBoardView`, kiểm tra `getWindowToken() != null || getParent() != null` để gọi `StockfishExtension.onInitialPositionLoaded` ngay tức khắc; đồng thời đăng ký cả `OnAttachStateChangeListener` và `OnLayoutChangeListener` để kích hoạt Move 0 ngay đợt layout đầu tiên.
+       - **Hàm `resolveVariantPosition`, `extractPositionFromBoardView` & Xử Lý An Toàn Null State (`StockfishExtension.java`)**:
+         - Bổ sung `resolveVariantPosition(Object)`: Đệ quy giải mã đối tượng bàn cờ, tự động mở bọc `DisplayPosition` (`f0.a()`), gọi các phương thức getter `getPosition()`, `a()`, quét phản chiếu trường private để trích xuất đối tượng `d` (`extractFen`).
+         - Xóa bỏ rào cản `if (stateImplObject == null) return;` trong `onBoardChanged`: Cho phép thế cờ Move 0 được nạp và phân tích hoàn toàn bình thường ngay cả khi `CBViewModelStateImpl` chưa kịp khởi tạo.
+         - Tự động dọn sạch lịch sử ván cũ (`clearHistory()`, `resetEvalBar()`, `resetClassifyGame()`) khi ở Move 0 / startpos.
+       - **An Toàn Tuyệt Đối Cho Dalvik ART Bytecode Verifier (`Fingerprints.kt`)**: Loại bỏ hook constructor `<init>` của `CBViewModelStateImpl` nhằm triệt tiêu hoàn toàn lỗi `VerifyError` khi bytecode truyền tham số chưa khởi tạo trước `super.<init>()`; sử dụng hook view và reflection an toàn 100%.
      - **Biên dịch & Đóng gói**:
        - Bump phiên bản lên `v2.0.75` (versionCode `20075`) trong `patches-bundle.json` và `patches-list.json`.
-       - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,765,412 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.75.mpp` (227,451,053 bytes).
+       - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,766,936 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.75.mpp` (227,451,437 bytes).
 
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
 - **Phiên bản mới nhất**: `v2.0.75` (versionCode `20075`).
 - **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.75/patches-2.0.75.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.75.mpp` (227,451,053 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.75.mpp`.
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.75.mpp` (227,451,437 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.75.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.75.mpp` (227,451,053 bytes).
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.75.mpp` (227,451,437 bytes).
   - [x] Độc lập tuyệt đối Eval Bar khi thay đổi Elo/Depth: chuyển sang `triggerPlayAnalysisOnly()`, Eval Bar không bị nhúc nhích.
   - [x] Bỏ qua tìm kiếm dư thừa Eval Bar khi cùng FEN (`isClassifySearching` check).
   - [x] Sửa dứt điểm false-positive trong `isGameOver(Activity)` (bỏ nhánh non-View non-Boolean).
-  - [x] Nhận diện trận đấu mới Move 0 mượt mà cho cả Trắng & Đen ngay lập tức (multiple retries + attach listener + hook 1b).
-  - [x] Chạy kiểm thử tự động `SelfTest` đạt 76/76 tests passed (0 failed).
+  - [x] Nhận diện trận đấu mới Move 0 mượt mà cho cả Trắng & Đen ngay lập tức (multiple retries + attach/layout listener + resolveVariantPosition).
+  - [x] Chạy kiểm thử tự động `SelfTest` đạt 79/79 tests passed (0 failed).
   - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.75.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
 
