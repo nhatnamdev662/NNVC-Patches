@@ -318,22 +318,38 @@
       - **Biên dịch & Đóng gói**:
         - Bump phiên bản lên `v2.0.67` (versionCode `20067`) trong `patches-bundle.json` và `patches-list.json`.
         - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói thành công `patches-2.0.67.mpp` (227,435,479 bytes).
+32. **Phát Hành Bản v2.0.68 (Trích Xuất WASM Nội Bộ Ngoại Tuyến 100% Qua APK Assets & Bảo Mật Triệt Để)**:
+      - **Yêu cầu cốt lõi**:
+        1. Khắc phục lỗi `WasmEngineManager` không tìm thấy tệp WASM trên đĩa và tải từ GitHub dính lỗi 404 (`FileNotFoundException`).
+        2. TUYỆT ĐỐI BẢO MẬT & RIÊNG TƯ: Không để lộ bất kỳ thông tin URL GitHub, repository, tài khoản tác giả hay mã nguồn nào trong code, log (`NnvcLogger`) hoặc chuỗi hiển thị.
+        3. Triển khai cơ chế trích xuất nội bộ ngoại tuyến 100%: Tệp WASM/JS/BIN được đóng gói trực tiếp vào thư mục `assets/` của APK đầu ra qua Morphe resource patcher.
+      - **Giải pháp kỹ thuật**:
+        - **StockfishResourceCopier & Hook Bytecode Morphe Patcher**:
+          - Tạo `StockfishResourceCopier.java` thực thi trong tiến trình vá APK của Morphe, sao chép toàn bộ tệp tài nguyên động cơ (`komodo/dragon3.3.wasm`, `komodo.js`, `book.bin`, `stockfish18/...`, `torch/...`, và native `.so`) vào thư mục `assets/` của APK mục tiêu.
+          - Patch bytecode `StockfishPatchKt.class` chuyển hướng `stockfishResourcePatch$lambda$0$0` gọi trực tiếp `StockfishResourceCopier.copyAll(patchContext)`.
+        - **Trích Xuất Ngoại Tuyến 100% Trong `WasmEngineManager`**:
+          - Xóa bỏ hoàn toàn `BASE_RELEASE_URL` và mọi URL tải từ xa.
+          - Triển khai `extractBundledWasmFiles()` và `extractFromApkZipIfAvailable()` trích xuất trực tiếp từ `context.getAssets()` hoặc file ZIP APK (`context.getPackageCodePath()`) vào `context.getFilesDir()`.
+          - Xóa bỏ luồng tải ngầm remote download thread, đảm bảo ứng dụng vận hành độc lập, ngoại tuyến 100%.
+        - **Bảo Mật Triệt Để Nguồn Gốc & Dọn Dẹp Mã Nguồn**:
+          - Loại bỏ 100% link GitHub repo trong comment, log, chuỗi string trong `AccuracyEloWidgetView.java`, `ArrowOverlayView.java`, `EloScanner.java`, `PlayerAccuracyPillView.java`, `SoundManager.java`, `TorchEngine.java`.
+        - **Biên dịch & Đóng gói**:
+          - Bump phiên bản lên `v2.0.68` (versionCode `20068`) trong `patches-bundle.json` và `patches-list.json`.
+          - Biên dịch sạch toàn bộ Java Extension thành `extension.mpe` (2,730,400 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.68.mpp` (227,438,739 bytes).
 
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
-- **Phiên bản mới nhất**: `v2.0.67` (versionCode `20067`).
-- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.67/patches-2.0.67.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.67.mpp` (227,435,479 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.67.mpp`.
+- **Phiên bản mới nhất**: `v2.0.68` (versionCode `20068`).
+- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.68/patches-2.0.68.mpp`
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.68.mpp` (227,438,739 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.68.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch 46 file Java và đóng gói thành công `patches-2.0.67.mpp` (227,435,479 bytes).
-  - [x] Loại bỏ 100% native Stockfish subprocess và toàn bộ mã fallback.
-  - [x] Komodo Dragon 3.3 WASM làm mặc định với WasmAwareXHR đồng bộ và nạp book.bin.
-  - [x] Stockfish 18 WASM chạy độc lập qua factory mode với stream output thời gian thực.
-  - [x] Hệ thống NnvcLogger ghi log ra file `nnvc_debug.log` và bộ nhớ RAM 1000 dòng.
-  - [x] NnvcLogViewerDialog và FloatingLogPillView mở xem log trực tiếp trên điện thoại.
-  - [x] EngineStatusHUD hiển thị trạng thái nạp engine rõ ràng trên đầu bàn cờ.
-  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.67.
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.68.mpp` (227,438,739 bytes).
+  - [x] Tích hợp `StockfishResourceCopier` và patch bytecode Morphe Patcher nhúng assets vào APK.
+  - [x] Trích xuất nội bộ ngoại tuyến 100% qua `extractBundledWasmFiles` từ assets/APK zip.
+  - [x] Xóa 100% URL GitHub và luồng tải ngầm từ xa trong `WasmEngineManager` & `TorchEngine`.
+  - [x] Dọn dẹp triệt để thông tin mã nguồn/repo URL trong comments và logs, bảo mật tối đa.
+  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.68.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
 
 

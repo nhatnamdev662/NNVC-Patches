@@ -1,6 +1,5 @@
 /*
  * Copyright 2026 NNVC
- * https://github.com/nhatnamdev662/Prathxm-Patches
  */
 
 package app.prathxm.chess.extension.stockfish;

@@ -37,8 +37,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TorchEngine {
 
     private static final String TAG = "TorchEngine";
-    private static final String TORCH_WASM_URL = "https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.9/torch.wasm";
-    private static final String TORCH_JS_URL = "https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.9/torch.js";
 
     private static volatile TorchEngine instance;
     private final Context context;
@@ -113,20 +111,40 @@ public class TorchEngine {
         File f = new File(getTorchDir(), "torch.wasm");
         if (f.exists() && f.length() > 10_000_000) return f;
 
-        // 2. Download folder
+        // 2. Asset copy
+        String[] candidatePaths = { "torch/torch.wasm", "assets/torch/torch.wasm", "torch.wasm" };
+        for (String p : candidatePaths) {
+            try (InputStream is = context.getAssets().open(p)) {
+                copyStream(is, f);
+                if (f.exists() && f.length() > 10_000_000) return f;
+            } catch (Throwable ignored) {}
+        }
+
+        // 3. APK Zip extraction
+        try {
+            String apkPath = context.getPackageResourcePath();
+            if (apkPath != null) {
+                try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(apkPath)) {
+                    for (String p : candidatePaths) {
+                        java.util.zip.ZipEntry ze = zip.getEntry(p);
+                        if (ze != null) {
+                            try (InputStream is = zip.getInputStream(ze)) {
+                                copyStream(is, f);
+                                if (f.exists() && f.length() > 10_000_000) return f;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 4. Download folder
         try {
             File dl = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "torch.wasm");
             if (dl.exists() && dl.length() > 10_000_000) {
                 copyFile(dl, f);
                 return f;
             }
-        } catch (Throwable ignored) {}
-
-        // 3. Asset copy
-        try {
-            InputStream is = context.getAssets().open("torch/torch.wasm");
-            copyStream(is, f);
-            if (f.exists() && f.length() > 10_000_000) return f;
         } catch (Throwable ignored) {}
 
         return null;
@@ -136,10 +154,29 @@ public class TorchEngine {
         File f = new File(getTorchDir(), "torch.js");
         if (f.exists() && f.length() > 50_000) return f;
 
+        String[] candidatePaths = { "torch/torch.js", "assets/torch/torch.js", "torch.js" };
+        for (String p : candidatePaths) {
+            try (InputStream is = context.getAssets().open(p)) {
+                copyStream(is, f);
+                if (f.exists() && f.length() > 50_000) return f;
+            } catch (Throwable ignored) {}
+        }
+
         try {
-            InputStream is = context.getAssets().open("torch/torch.js");
-            copyStream(is, f);
-            if (f.exists() && f.length() > 50_000) return f;
+            String apkPath = context.getPackageResourcePath();
+            if (apkPath != null) {
+                try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(apkPath)) {
+                    for (String p : candidatePaths) {
+                        java.util.zip.ZipEntry ze = zip.getEntry(p);
+                        if (ze != null) {
+                            try (InputStream is = zip.getInputStream(ze)) {
+                                copyStream(is, f);
+                                if (f.exists() && f.length() > 50_000) return f;
+                            }
+                        }
+                    }
+                }
+            }
         } catch (Throwable ignored) {}
 
         return null;
@@ -443,29 +480,23 @@ public class TorchEngine {
 
         new Thread(() -> {
             try {
-                log("[TORCH DOWNLOAD] Bắt đầu tải engine Torch (26MB)...");
+                log("[TORCH LOCAL] Kiểm tra và giải nén engine Torch...");
 
-                File dir = getTorchDir();
-                File wasmFile = new File(dir, "torch.wasm");
-                File jsFile = new File(dir, "torch.js");
-
-                if (!jsFile.exists() || jsFile.length() < 50_000) {
-                    downloadToFile(TORCH_JS_URL, jsFile);
-                }
-                if (!wasmFile.exists() || wasmFile.length() < 10_000_000) {
-                    downloadToFile(TORCH_WASM_URL, wasmFile);
-                }
+                File wasmFile = getWasmFile();
+                File jsFile = getJsFile();
 
                 isDownloading.set(false);
-                log("[TORCH DOWNLOAD] Tải hoàn tất! Đang khởi động WebView...");
-                mainHandler.post(() -> {
-                    initWebView();
-                });
+                if (wasmFile != null && jsFile != null) {
+                    log("[TORCH LOCAL] Giải nén hoàn tất! Đang khởi động WebView...");
+                    mainHandler.post(this::initWebView);
+                } else {
+                    log("[TORCH LOCAL] Không tìm thấy tệp Torch trong APK/bộ nhớ.");
+                }
 
             } catch (Throwable t) {
                 isDownloading.set(false);
-                Log.e(TAG, "Download torch files failed: " + t.getMessage(), t);
-                log("[TORCH DOWNLOAD ERROR] Tải engine thất bại: " + t.getMessage());
+                Log.e(TAG, "Extraction torch files failed: " + t.getMessage(), t);
+                log("[TORCH ERROR] Lỗi giải nén engine: " + t.getMessage());
             }
         }).start();
     }

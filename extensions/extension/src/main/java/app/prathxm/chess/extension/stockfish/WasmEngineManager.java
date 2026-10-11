@@ -46,10 +46,6 @@ public class WasmEngineManager {
     private static final String TAG = "WasmEngineManager";
     private static final String HOST = "https://nnvc-engine.local/";
 
-    // Official release assets URL
-    public static final String BASE_RELEASE_URL =
-            "https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.67/";
-
     private static volatile WasmEngineManager instance;
 
     private final Context context;
@@ -97,8 +93,8 @@ public class WasmEngineManager {
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.currentPlayEngineKey = StockfishSettings.getEngineChoice(context);
 
-        // Pre-scan / extract engine files immediately
-        extractEnginesFromMppIfAvailable();
+        // Pre-scan / extract engine files immediately from APK & assets
+        extractBundledWasmFiles();
 
         mainHandler.post(this::initWebView);
     }
@@ -174,6 +170,65 @@ public class WasmEngineManager {
         File dir = new File(context.getFilesDir(), "wasm_engines");
         if (!dir.exists()) dir.mkdirs();
         return dir;
+    }
+
+    /**
+     * Extracts bundled WASM engine files from:
+     * 1. Direct APK Zip (context.getPackageResourcePath())
+     * 2. Direct App Assets (context.getAssets())
+     * 3. External MPP bundle or files in storage
+     */
+    public void extractBundledWasmFiles() {
+        try {
+            // First: scan the APK zip for any matching files
+            extractFromApkZipIfAvailable();
+
+            // Second: extract via getAssetOrExtract for standard assets paths
+            getKomodoWasm();
+            getKomodoJs();
+            getKomodoBook();
+            getStockfishWasm();
+            getStockfishJs();
+
+            // Third: scan storage for mpp bundles
+            extractEnginesFromMppIfAvailable();
+        } catch (Throwable t) {
+            NnvcLogger.w(TAG, "extractBundledWasmFiles warning: " + t.getMessage());
+        }
+    }
+
+    public void extractFromApkZipIfAvailable() {
+        try {
+            String apkPath = context.getPackageResourcePath();
+            if (apkPath == null) return;
+            try (ZipFile zip = new ZipFile(apkPath)) {
+                java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry ze = entries.nextElement();
+                    String name = ze.getName();
+                    if (name == null) continue;
+
+                    String targetFileName = null;
+                    if (name.endsWith("dragon3.3.wasm")) targetFileName = "dragon3.3.wasm";
+                    else if (name.endsWith("komodo.js")) targetFileName = "komodo.js";
+                    else if (name.endsWith("book.bin")) targetFileName = "book.bin";
+                    else if (name.endsWith("stockfish-18-lite-single.wasm")) targetFileName = "stockfish-18-lite-single.wasm";
+                    else if (name.endsWith("stockfish-18-lite-single.js")) targetFileName = "stockfish-18-lite-single.js";
+
+                    if (targetFileName != null) {
+                        File dest = new File(getWasmDir(), targetFileName);
+                        if (!dest.exists() || dest.length() == 0) {
+                            try (InputStream is = zip.getInputStream(ze)) {
+                                copyStream(is, dest);
+                                NnvcLogger.i(TAG, "✓ Extracted from APK [" + name + "] -> " + targetFileName + " (" + dest.length() + " bytes)");
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            NnvcLogger.w(TAG, "extractFromApkZip error: " + t.getMessage());
+        }
     }
 
     /**
@@ -321,50 +376,20 @@ public class WasmEngineManager {
     }
 
     public void ensureEngineFilesAvailable(String engineKey, Runnable onReady) {
+        // Step 1: Scan and extract bundled files immediately
+        extractBundledWasmFiles();
+
         if (hasWasmFiles(engineKey)) {
-            if (onReady != null) onReady.run();
+            NnvcLogger.i(TAG, "✓ Tất cả tệp WASM cho " + engineKey + " đã sẵn sàng.");
+            mainHandler.post(() -> {
+                initWebView();
+                if (onReady != null) onReady.run();
+            });
             return;
         }
 
-        if (isDownloading.compareAndSet(false, true)) {
-            NnvcLogger.i(TAG, "Starting background download of WASM files for " + engineKey);
-            EngineStatusHUD.show(context, "📥 Đang tải engine " + engineKey.toUpperCase() + " WASM...", false, 0);
-
-            new Thread(() -> {
-                try {
-                    Map<String, String> filesToDownload = new HashMap<>();
-                    if (StockfishSettings.ENGINE_KOMODO.equals(engineKey)) {
-                        filesToDownload.put("dragon3.3.wasm", BASE_RELEASE_URL + "dragon3.3.wasm");
-                        filesToDownload.put("komodo.js", BASE_RELEASE_URL + "komodo.js");
-                        filesToDownload.put("book.bin", BASE_RELEASE_URL + "book.bin");
-                    } else {
-                        filesToDownload.put("stockfish-18-lite-single.wasm", BASE_RELEASE_URL + "stockfish-18-lite-single.wasm");
-                        filesToDownload.put("stockfish-18-lite-single.js", BASE_RELEASE_URL + "stockfish-18-lite-single.js");
-                    }
-
-                    for (Map.Entry<String, String> entry : filesToDownload.entrySet()) {
-                        File dest = new File(getWasmDir(), entry.getKey());
-                        if (!dest.exists() || dest.length() < 1000) {
-                            NnvcLogger.i(TAG, "Downloading: " + entry.getValue());
-                            downloadToFile(entry.getValue(), dest);
-                            NnvcLogger.i(TAG, "✓ Downloaded: " + entry.getKey() + " (" + dest.length() + " bytes)");
-                        }
-                    }
-
-                    EngineStatusHUD.show(context, "✓ Tải xong " + engineKey.toUpperCase() + "! Đang khởi động...", false, 3000);
-                    mainHandler.post(() -> {
-                        initWebView();
-                        if (onReady != null) onReady.run();
-                    });
-
-                } catch (Throwable t) {
-                    NnvcLogger.e(TAG, "Failed downloading WASM engine files: " + t.getMessage(), t);
-                    EngineStatusHUD.show(context, "⚠️ Lỗi tải Engine: " + t.getMessage(), true, 6000);
-                } finally {
-                    isDownloading.set(false);
-                }
-            }, "wasm-engine-downloader").start();
-        }
+        NnvcLogger.w(TAG, "WASM files for " + engineKey + " not present after extraction scan.");
+        EngineStatusHUD.show(context, "⚠️ Không tìm thấy tệp động cơ " + engineKey.toUpperCase() + " trong APK", true, 6000);
     }
 
     private static void downloadToFile(String urlStr, File dest) throws Exception {

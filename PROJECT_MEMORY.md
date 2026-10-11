@@ -1,7 +1,7 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.67*
-*Cập nhật lần cuối: 2026-10-10*
+*Phiên bản hiện tại: v2.0.68*
+*Cập nhật lần cuối: 2026-10-11*
 
 ---
 
@@ -354,16 +354,26 @@
 - **Bump phiên bản lên v2.0.67**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
 - **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói `patches-2.0.67.mpp` (227,435,479 bytes).
 
+### v2.0.68 (2026-10-11) — 100% Offline Local Engine Extraction & Bảo Mật Tuyệt Đối (Zero Source Leak)
+- **Đóng Gói Trực Tiếp Toàn Bộ File WebAssembly Vào APK Qua Resource Patcher:**
+  - Khắc phục triệt để lỗi "No WASM binaries present yet on disk": Xây dựng `StockfishResourceCopier` tích hợp trực tiếp vào bytecode của `stockfishResourcePatch`. Khi Morphe Manager thực hiện vá APK, toàn bộ tài nguyên WebAssembly (`komodo/dragon3.3.wasm`, `komodo/komodo.js`, `komodo/book.bin`, `stockfish18/stockfish-18-lite-single.wasm`, `stockfish18/stockfish-18-lite-single.js`, `torch/torch.wasm`, `torch/torch.js`) được sao chép thẳng vào thư mục `assets/` của APK Chess.com.
+  - Cải tiến `WasmEngineManager`: Bổ sung cơ chế quét đa tầng `extractBundledWasmFiles` (quét trực tiếp các mục trong tệp APK qua `context.getPackageResourcePath()`, mở trực tiếp qua `context.getAssets().open()`, và quét bộ nhớ máy nếu có). Động cơ được giải nén sẵn sàng ngay trong lần đầu khởi chạy mà không cần tải thêm bất kỳ file nào từ internet.
+- **Bảo Mật Tuyệt Đối & Loại Bỏ Hoàn Toàn Nguy Cơ Rò Rỉ Mã Nguồn:**
+  - Xóa bỏ 100% các URL GitHub cá nhân / kho lưu trữ mã nguồn trong toàn bộ mã nguồn extension (`WasmEngineManager`, `TorchEngine`, `AccuracyEloWidgetView`, `ArrowOverlayView`, `EloScanner`, `PlayerAccuracyPillView`, `SoundManager`), không còn xuất hiện trong chuỗi string, file log debug `nnvc_debug.log` hay màn hình hiển thị HUD.
+  - Loại bỏ tiến trình tải nền qua mạng gây ra lỗi HTTP 404 FileNotFoundException; chuyển sang kiến trúc 100% ngoại tuyến (offline-first).
+- **Bump phiên bản lên v2.0.68**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,730,400 bytes) và DEX gốc `classes.dex` (93,704 bytes), đóng gói `patches-2.0.68.mpp` (227,438,739 bytes).
+
 ---
 
 ## 3. TRẠNG THÁI HIỆN TẠI & KẾ HOẠCH TIẾP THEO
 
 ### 3.1. Trạng thái hiện tại
-- **Phiên bản mới nhất**: **v2.0.67** (`patches-2.0.67.mpp`).
+- **Phiên bản mới nhất**: **v2.0.68** (`patches-2.0.68.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Kiến trúc 100% WebAssembly độc lập: Komodo Dragon 3.3 WASM làm mặc định và Stockfish 18 WASM cho Eval Bar & Play.
-  2. Zero native subprocess, zero fallback.
+  1. Kiến trúc 100% Offline Local Engine Extraction: Toàn bộ tệp WASM được trích xuất trực tiếp từ APK hoặc assets.
+  2. Zero source code leakage, zero remote fallback downloads.
   3. Hệ thống chẩn đoán NnvcLogger + In-app Viewer `[📜]` + Floating Pill `[📜 LOG]` và EngineStatusHUD bảo toàn đầy đủ.
 
 

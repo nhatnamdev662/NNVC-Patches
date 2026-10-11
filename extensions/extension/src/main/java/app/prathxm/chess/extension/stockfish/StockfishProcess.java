@@ -57,8 +57,8 @@ public class StockfishProcess {
 
         wasmManager = WasmEngineManager.getInstance(context);
 
-        // Pre-extract files from mpp bundle if not already extracted
-        wasmManager.extractEnginesFromMppIfAvailable();
+        // Pre-extract files from APK & assets if not already extracted
+        wasmManager.extractBundledWasmFiles();
 
         if (wasmManager.hasWasmFiles(engineChoice)) {
             NnvcLogger.i(TAG, "WASM files found for " + engineChoice + ". Initializing WASM worker...");
