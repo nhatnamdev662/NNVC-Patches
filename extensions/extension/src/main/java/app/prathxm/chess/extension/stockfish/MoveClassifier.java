@@ -44,6 +44,14 @@ public class MoveClassifier {
     private static volatile Object lastPositionObject = null;
     private static volatile List<String> currentPositionMoves = null;
 
+    public static List<String> getCurrentPositionMoves() {
+        return currentPositionMoves != null ? new ArrayList<>(currentPositionMoves) : null;
+    }
+
+    public static boolean isStandardStartposFirstMove(String move) {
+        return move != null && STARTPOS_LEGAL_FIRST_MOVES.contains(move.trim().toLowerCase(java.util.Locale.US));
+    }
+
     private static volatile Class<?> cachedMoveConverterClass = null;
     private static volatile Method cachedConvertHistoryMethod = null;
     private static volatile Method cachedConvertMoveMethod = null;

@@ -1,6 +1,6 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.71*
+*Phiên bản hiện tại: v2.0.72*
 *Cập nhật lần cuối: 2026-10-11*
 
 ---
@@ -354,6 +354,27 @@
 - **Bump phiên bản lên v2.0.67**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
 - **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói `patches-2.0.67.mpp` (227,435,479 bytes).
 
+### v2.0.72 (2026-10-11) — Chuẩn Hóa 100% Eval Bar Chuẩn Extension NNVC, Race Condition & Scale Math Module 1921
+- **Khắc phục triệt để lỗi Race Condition đảo ngược điểm số & các dòng UCI cũ trong WASM Worker (`WasmEngineManager.java`)**:
+  - Phân tích nguyên nhân: Biến toàn cục tĩnh `currentClassifyWhiteToMove` bị nước đi mới ghi đè trong khi lượt tìm kiếm cũ chưa kịp nhả output. Khi các dòng `info ...` của nước cũ trả về, hệ thống đọc nhầm `whiteToMove` của nước mới dẫn tới đảo ngược dấu điểm số (trắng thành đen và ngược lại). Ngoài ra, các dòng `info ...` và `bestmove` cũ phát sinh trong lúc engine đang dừng (stopping) làm nhảy thanh Eval Bar sai lệch.
+  - Gắn phiên bản đánh giá `classifyEvalEpoch` và `whiteToMove` của từng lượt đánh giá độc lập: Mỗi lượt đánh giá được đánh số epoch tăng dần. Mọi dòng UCI output được gắn thẻ epoch và `whiteToMove` tương ứng; nếu epoch khác với `currentClassifyEpoch`, dòng dữ liệu bị hủy bỏ tức thì.
+  - Cờ `_isRequestedStop` trong Web Worker Stockfish 18 JS: Khi nhận lệnh `stop`, đặt `_isRequestedStop = true;` và bỏ qua hoàn toàn mọi dòng UCI output (`info ...`) phát sinh trong lúc engine unwinding / stopping. Chỉ khi nhận được `bestmove` của lượt cũ, mới giải phóng cờ `_isRequestedStop = false` và thực thi lệnh `position` + `go` của nước cờ tiếp theo trong `drainQueue`.
+  - Chuyển lệnh gửi vị trí cờ sang chuẩn Extension: Nếu có danh sách `moves` (bắt đầu từ thế cờ chuẩn), gửi `position startpos moves <move1> <move2> ...` để tận dụng 100% bảng băm hoán vị (Transposition Table) của Hash 64MB; fallback về `position fen <fen>` nếu không có moves hoặc là biến thể tùy chỉnh.
+- **Chuẩn hóa công thức tỷ lệ thanh đánh giá (Eval Bar Scale Math) theo chuẩn Extension Module 1921 (`EvalBarView.java`)**:
+  - Thay thế hàm Sigmoid `ReviewMath.whiteWin` bằng công thức Linear Clamp chuẩn Module 1921 của Extension:
+    `float cp = Math.max(-500.0f, Math.min(500.0f, scorePawns * 100.0f));`
+    `float norm = (cp + 500.0f) / 1000.0f;` // [0.0, 1.0]
+    `float whiteShare = 0.05f + 0.90f * norm;` // [0.05, 0.95]
+    `return Math.max(0.05f, Math.min(0.95f, whiteShare));`
+  - Khi có Chiếu Hết (`isMate`): `scorePawns > 0 ? 1.0f : 0.0f` (Trắng thắng = 100% thanh trắng; Đen thắng = 0% thanh trắng / 100% thanh đen).
+  - Loại bỏ hoàn toàn việc lọc 2 tầng (Double Smoothing / median filter 400ms) làm trễ thanh Eval Bar; `EvalBarView` cập nhật mượt mà trực tiếp bằng `ValueAnimator` 180ms Decelerate Interpolator.
+  - Nhãn điểm hiển thị chuẩn Extension: Không in dấu `+` hay `-` thừa trên thân thanh, chỉ in `M<n>` (nếu mate) hoặc `<score>` 1 chữ số thập phân.
+- **Kết nối danh sách nước đi và reset ván mới (`StockfishExtension.java` & `OverlayManager.java`)**:
+  - Trong `onBoardChanged`, trích xuất và truyền danh sách nước cờ: `WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, MoveClassifier.getCurrentPositionMoves());`.
+  - Khi ván cờ mới bắt đầu (FEN startpos), gọi `OverlayManager.resetEvalBar()` và `WasmEngineManager.getInstance(ctx).resetClassifyGame()` gửi `ucinewgame` vào Classify worker để xóa sạch lịch sử ván cũ.
+- **Bump phiên bản lên v2.0.72**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,753,168 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.72.mpp` (227,446,396 bytes).
+
 ### v2.0.71 (2026-10-11) — Sửa Lỗi Mũi Tên Nhảy Depth 12, Điểm Mate -97, Đảo Chiều Mate & Tách Rời Tuyệt Đối Eval Bar
 - **Khắc phục triệt để lỗi mũi tên nhảy / giật ở Depth 12 (Progress Drop Bug):**
   - Phân tích nguyên nhân: Trong `StockfishProcess.readSearchOutput`, khi `multiPV > 1` và nhận `depth >= 6` kèm `mpv == 1`, tiến trình vô tình dispatch danh sách chỉ có 1 nước đi (`Collections.singletonList(firstMoves[0])`) về UI. Điều này khiến UI bị xóa mất nhánh 2 và 3 giữa kỳ tính toán, gây ra hiện tượng mũi tên bị chớp giật liên tục khi đạt Depth 12.
@@ -413,12 +434,13 @@
 ## 3. TRẠNG THÁI HIỆN TẠI & KẾ HOẠCH TIẾP THEO
 
 ### 3.1. Trạng thái hiện tại
-- **Phiên bản mới nhất**: **v2.0.71** (`patches-2.0.71.mpp`).
+- **Phiên bản mới nhất**: **v2.0.72** (`patches-2.0.72.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Đã khắc phục triệt để lỗi mũi tên nhảy / giật ở Depth 12 (Progress Drop Bug).
-  2. Đã sửa lỗi điểm Mate hiển thị -97 và lỗi đảo chiều thứ tự Mate khi Black phòng thủ.
-  3. Đã tách rời tuyệt đối Eval Bar khỏi Play Engine khi chuyển engine/style.
-  4. Đã hỗ trợ Komodo Dragon 3.3 Option Parity (Contempt, Skill Level).
+  1. Đã chuẩn hóa 100% Eval Bar chuẩn Extension NNVC, triệt tiêu race condition đảo chiều điểm số.
+  2. Chuẩn hóa thang đo Eval Bar Linear Clamp Module 1921 `[-500, +500]` và Decelerate ValueAnimator 180ms.
+  3. Tận dụng 100% Transposition Table với `position startpos moves ...` và tự động reset ván mới `ucinewgame`.
+  4. Đã khắc phục triệt để lỗi mũi tên nhảy / giật ở Depth 12 và điểm mate hiển thị sai lệch.
+
 
 

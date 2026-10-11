@@ -350,6 +350,29 @@ public class OverlayManager {
         });
     }
 
+    public static void resetEvalBar() {
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Activity activity = StockfishExtension.getCurrentActivity();
+                    if (activity == null) return;
+                    Window window = activity.getWindow();
+                    if (window == null) return;
+                    ViewGroup decorView = (ViewGroup) window.getDecorView();
+                    if (decorView == null) return;
+
+                    View evalBar = decorView.findViewWithTag("stockfish_eval_bar");
+                    if (evalBar instanceof EvalBarView) {
+                        ((EvalBarView) evalBar).reset();
+                    }
+                } catch (Throwable t) {
+                    Log.e(TAG, "resetEvalBar failed: " + t.getMessage());
+                }
+            }
+        });
+    }
+
     public static void hideEvalBar() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override

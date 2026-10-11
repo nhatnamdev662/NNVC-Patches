@@ -73,9 +73,23 @@ public class WasmEngineManager {
     private volatile UciLineListener playLineListener;
     private volatile UciLineListener classifyLineListener;
 
-    // Track active position for classifyWorker
+    // Track active position & evaluation epoch for classifyWorker
+    private final java.util.concurrent.atomic.AtomicLong classifyEvalEpochCounter = new java.util.concurrent.atomic.AtomicLong(0);
+    private volatile long currentClassifyEpoch = 0L;
     private volatile String currentClassifyFen = null;
     private volatile boolean currentClassifyWhiteToMove = true;
+
+    private static final java.util.Set<String> STARTPOS_LEGAL_FIRST_MOVES = new java.util.HashSet<>(java.util.Arrays.asList(
+        "a2a3", "a2a4", "b2b3", "b2b4", "c2c3", "c2c4", "d2d3", "d2d4",
+        "e2e3", "e2e4", "f2f3", "f2f4", "g2g3", "g2g4", "h2h3", "h2h4",
+        "b1a3", "b1c3", "g1f3", "g1h3"
+    ));
+
+    public static boolean isStandardStartposMoves(List<String> moves) {
+        if (moves == null || moves.isEmpty()) return false;
+        String first = moves.get(0);
+        return first != null && STARTPOS_LEGAL_FIRST_MOVES.contains(first.trim().toLowerCase(java.util.Locale.US));
+    }
 
     public static WasmEngineManager getInstance(Context context) {
         if (instance == null) {
@@ -833,7 +847,10 @@ public class WasmEngineManager {
                 "var _cmdQueue = [];\n" +
                 "var _isSearching = false;\n" +
                 "var _stopRequested = false;\n" +
+                "var _isRequestedStop = false;\n" +
                 "var _searchWatchdog = null;\n" +
+                "var _currentEvalEpoch = 0;\n" +
+                "var _currentWhiteToMove = true;\n" +
                 "\n" +
                 "function clearWatchdog() {\n" +
                 "    if (_searchWatchdog) {\n" +
@@ -845,20 +862,43 @@ public class WasmEngineManager {
                 "function onDoneSearching() {\n" +
                 "    _isSearching = false;\n" +
                 "    _stopRequested = false;\n" +
+                "    _isRequestedStop = false;\n" +
                 "    clearWatchdog();\n" +
                 "    setTimeout(drainQueue, 0);\n" +
                 "}\n" +
                 "\n" +
                 "function drainQueue() {\n" +
-                "    if (!_eng || _isSearching) return;\n" +
+                "    if (!_eng || _isSearching || _isRequestedStop) return;\n" +
                 "    while (_cmdQueue.length > 0) {\n" +
                 "        var nextCmd = _cmdQueue.shift();\n" +
+                "        if (!nextCmd) continue;\n" +
+                "        if (typeof nextCmd === 'object' && nextCmd.type === 'evaluate') {\n" +
+                "            _currentEvalEpoch = nextCmd.epoch;\n" +
+                "            _currentWhiteToMove = nextCmd.whiteToMove;\n" +
+                "            _isSearching = true;\n" +
+                "            _stopRequested = false;\n" +
+                "            _isRequestedStop = false;\n" +
+                "            clearWatchdog();\n" +
+                "            _searchWatchdog = setTimeout(function() {\n" +
+                "                if (_isSearching) onDoneSearching();\n" +
+                "            }, 5000);\n" +
+                "            try {\n" +
+                "                _eng.ccall('command', null, ['string'], [nextCmd.posCmd]);\n" +
+                "                _eng.ccall('command', null, ['string'], [nextCmd.goCmd || 'go depth 10']);\n" +
+                "            } catch (err) {\n" +
+                "                _isSearching = false;\n" +
+                "                postMessage('__ENGINE_ERROR__:' + err);\n" +
+                "            }\n" +
+                "            break;\n" +
+                "        }\n" +
                 "        var trimmed = (typeof nextCmd === 'string' ? nextCmd : String(nextCmd || '')).trim();\n" +
                 "        if (!trimmed) continue;\n" +
                 "        if (trimmed === 'stop') continue;\n" +
                 "        if (trimmed.indexOf('go') === 0) {\n" +
+                "            _currentEvalEpoch = 0;\n" +
                 "            _isSearching = true;\n" +
                 "            _stopRequested = false;\n" +
+                "            _isRequestedStop = false;\n" +
                 "            clearWatchdog();\n" +
                 "            _searchWatchdog = setTimeout(function() {\n" +
                 "                if (_isSearching) onDoneSearching();\n" +
@@ -904,8 +944,24 @@ public class WasmEngineManager {
                 "            var _sfInstance = _sfInit({\n" +
                 "                wasmBinary: _injectedWasm,\n" +
                 "                listener: function(line) {\n" +
-                "                    postMessage(line);\n" +
                 "                    var str = (typeof line === 'string') ? line : String(line || '');\n" +
+                "                    if (_isRequestedStop) {\n" +
+                "                        if (str.indexOf('bestmove') === 0) {\n" +
+                "                            _isRequestedStop = false;\n" +
+                "                            onDoneSearching();\n" +
+                "                        }\n" +
+                "                        return;\n" +
+                "                    }\n" +
+                "                    if (_currentEvalEpoch > 0) {\n" +
+                "                        postMessage({\n" +
+                "                            type: 'eval_line',\n" +
+                "                            epoch: _currentEvalEpoch,\n" +
+                "                            whiteToMove: _currentWhiteToMove,\n" +
+                "                            line: str\n" +
+                "                        });\n" +
+                "                    } else {\n" +
+                "                        postMessage(str);\n" +
+                "                    }\n" +
                 "                    if (str.indexOf('bestmove') === 0) {\n" +
                 "                        onDoneSearching();\n" +
                 "                    }\n" +
@@ -917,11 +973,55 @@ public class WasmEngineManager {
                 "            _promise.then(function(eng) {\n" +
                 "                _eng = eng;\n" +
                 "                _engineProcess = function(ev) {\n" +
-                "                    var raw = (typeof ev === 'object' && ev && ev.data) ? ev.data : String(ev || '');\n" +
+                "                    var raw = (typeof ev === 'object' && ev && ev.data !== undefined) ? ev.data : ev;\n" +
+                "                    if (!raw) return;\n" +
+                "\n" +
+                "                    if (typeof raw === 'object' && raw.type === 'evaluate') {\n" +
+                "                        if (_isSearching) {\n" +
+                "                            _isRequestedStop = true;\n" +
+                "                            _stopRequested = true;\n" +
+                "                            var filtered = [];\n" +
+                "                            for (var i = 0; i < _cmdQueue.length; i++) {\n" +
+                "                                var item = _cmdQueue[i];\n" +
+                "                                if (typeof item === 'object' && item && item.type === 'evaluate') continue;\n" +
+                "                                var c = String(item || '').trim();\n" +
+                "                                if (c.indexOf('go') !== 0 && c.indexOf('position') !== 0) {\n" +
+                "                                    filtered.push(item);\n" +
+                "                                }\n" +
+                "                            }\n" +
+                "                            _cmdQueue = filtered;\n" +
+                "                            _cmdQueue.push(raw);\n" +
+                "                            try {\n" +
+                "                                _eng.ccall('command', null, ['string'], ['stop']);\n" +
+                "                            } catch (err) {\n" +
+                "                                onDoneSearching();\n" +
+                "                            }\n" +
+                "                        } else {\n" +
+                "                            _currentEvalEpoch = raw.epoch;\n" +
+                "                            _currentWhiteToMove = raw.whiteToMove;\n" +
+                "                            _isSearching = true;\n" +
+                "                            _stopRequested = false;\n" +
+                "                            _isRequestedStop = false;\n" +
+                "                            clearWatchdog();\n" +
+                "                            _searchWatchdog = setTimeout(function() {\n" +
+                "                                if (_isSearching) onDoneSearching();\n" +
+                "                            }, 5000);\n" +
+                "                            try {\n" +
+                "                                _eng.ccall('command', null, ['string'], [raw.posCmd]);\n" +
+                "                                _eng.ccall('command', null, ['string'], [raw.goCmd || 'go depth 10']);\n" +
+                "                            } catch (err) {\n" +
+                "                                _isSearching = false;\n" +
+                "                                postMessage('__ENGINE_ERROR__:' + err);\n" +
+                "                            }\n" +
+                "                        }\n" +
+                "                        return;\n" +
+                "                    }\n" +
+                "\n" +
                 "                    var cmd = String(raw || '').trim();\n" +
                 "                    if (!cmd) return;\n" +
                 "\n" +
                 "                    if (cmd === 'stop') {\n" +
+                "                        _isRequestedStop = true;\n" +
                 "                        if (_isSearching) {\n" +
                 "                            if (!_stopRequested) {\n" +
                 "                                _stopRequested = true;\n" +
@@ -934,9 +1034,11 @@ public class WasmEngineManager {
                 "                        }\n" +
                 "                        var filtered = [];\n" +
                 "                        for (var i = 0; i < _cmdQueue.length; i++) {\n" +
-                "                            var c = String(_cmdQueue[i] || '').trim();\n" +
+                "                            var item = _cmdQueue[i];\n" +
+                "                            if (typeof item === 'object' && item && item.type === 'evaluate') continue;\n" +
+                "                            var c = String(item || '').trim();\n" +
                 "                            if (c.indexOf('go') !== 0 && c.indexOf('position') !== 0) {\n" +
-                "                                filtered.push(_cmdQueue[i]);\n" +
+                "                                filtered.push(item);\n" +
                 "                            }\n" +
                 "                        }\n" +
                 "                        _cmdQueue = filtered;\n" +
@@ -947,8 +1049,10 @@ public class WasmEngineManager {
                 "                        _cmdQueue.push(cmd);\n" +
                 "                    } else {\n" +
                 "                        if (cmd.indexOf('go') === 0) {\n" +
+                "                            _currentEvalEpoch = 0;\n" +
                 "                            _isSearching = true;\n" +
                 "                            _stopRequested = false;\n" +
+                "                            _isRequestedStop = false;\n" +
                 "                            clearWatchdog();\n" +
                 "                            _searchWatchdog = setTimeout(function() {\n" +
                 "                                if (_isSearching) onDoneSearching();\n" +
@@ -1003,6 +1107,13 @@ public class WasmEngineManager {
                 "        const worker = new Worker(blobUrl);\n" +
                 "\n" +
                 "        worker.onmessage = function(e) {\n" +
+                "            var data = e.data;\n" +
+                "            if (data && typeof data === 'object' && data.type === 'eval_line') {\n" +
+                "                if (window.WasmEngineBridge && window.WasmEngineBridge.onClassifyEvalOutput) {\n" +
+                "                    window.WasmEngineBridge.onClassifyEvalOutput(data.line, data.epoch, data.whiteToMove);\n" +
+                "                }\n" +
+                "                return;\n" +
+                "            }\n" +
                 "            const line = (typeof e.data === 'string') ? e.data : String(e.data || '');\n" +
                 "            if (line === '__WORKER_READY__') {\n" +
                 "                if (kind === 'play') window._playWorkerReady = true;\n" +
@@ -1134,6 +1245,21 @@ public class WasmEngineManager {
                 "        }\n" +
                 "    };\n" +
                 "\n" +
+                "    window.evaluateClassifyPosition = function(epoch, whiteToMove, posCmd) {\n" +
+                "        var payload = {\n" +
+                "            type: 'evaluate',\n" +
+                "            epoch: epoch,\n" +
+                "            whiteToMove: whiteToMove,\n" +
+                "            posCmd: posCmd,\n" +
+                "            goCmd: 'go depth 10'\n" +
+                "        };\n" +
+                "        if (window._classifyWorker && window._classifyWorkerReady) {\n" +
+                "            window._classifyWorker.postMessage(payload);\n" +
+                "        } else {\n" +
+                "            window._classifyPendingCmds.push(payload);\n" +
+                "        }\n" +
+                "    };\n" +
+                "\n" +
                 "    window.startEngines('" + currentPlayEngineKey + "');\n" +
                 "})();\n" +
                 "</script></body></html>";
@@ -1165,19 +1291,56 @@ public class WasmEngineManager {
 
     public void evaluateClassifyPosition(String fen, List<String> moves) {
         if (fen == null) return;
+        final long epoch = classifyEvalEpochCounter.incrementAndGet();
+        currentClassifyEpoch = epoch;
         currentClassifyFen = fen;
-        currentClassifyWhiteToMove = isWhiteTurnFromFen(fen);
+        final boolean whiteToMove = isWhiteTurnFromFen(fen);
+        currentClassifyWhiteToMove = whiteToMove;
+
+        final String positionCmd;
+        if (moves != null && !moves.isEmpty() && isStandardStartposMoves(moves)) {
+            StringBuilder sb = new StringBuilder("position startpos moves");
+            for (String m : moves) {
+                if (m != null && !m.trim().isEmpty()) {
+                    sb.append(' ').append(m.trim().toLowerCase(java.util.Locale.US));
+                }
+            }
+            positionCmd = sb.toString();
+        } else {
+            positionCmd = "position fen " + fen;
+        }
+
+        final String escapedPos = positionCmd.replace("\\", "\\\\").replace("'", "\\'");
+
+        mainHandler.post(() -> {
+            try {
+                if (webView != null) {
+                    webView.evaluateJavascript(
+                        "if (window.evaluateClassifyPosition) window.evaluateClassifyPosition(" +
+                        epoch + ", " + whiteToMove + ", '" + escapedPos + "');",
+                        null
+                    );
+                }
+            } catch (Throwable t) {
+                NnvcLogger.e(TAG, "evaluateClassifyPosition error: " + t.getMessage());
+            }
+        });
+        NnvcLogger.d(TAG, "[CLASSIFY GO #" + epoch + " " + (whiteToMove ? "W" : "B") + "] " + positionCmd);
+    }
+
+    public void resetClassifyGame() {
+        final long epoch = classifyEvalEpochCounter.incrementAndGet();
+        currentClassifyEpoch = epoch;
+        currentClassifyFen = null;
+        lastClassifyScore = 0f;
+        lastClassifyHasMate = false;
+        lastClassifyMateIn = 0;
+        lastEvalBarUpdateTs = 0L;
 
         sendClassifyCommand("stop");
-        StringBuilder pos = new StringBuilder(fen.length() + 8 + (moves != null ? moves.size() * 6 : 0));
-        pos.append("position fen ").append(fen);
-        if (moves != null && !moves.isEmpty()) {
-            pos.append(" moves");
-            for (String m : moves) pos.append(' ').append(m);
-        }
-        sendClassifyCommand(pos.toString());
-        sendClassifyCommand("go depth 10");
-        NnvcLogger.d(TAG, "[CLASSIFY GO] depth 10 on FEN: " + fen);
+        sendClassifyCommand("ucinewgame");
+        sendClassifyCommand("isready");
+        NnvcLogger.d(TAG, "[CLASSIFY RESET] New game, epoch advanced to #" + epoch);
     }
 
     private static boolean isWhiteTurnFromFen(String fen) {
@@ -1264,6 +1427,18 @@ public class WasmEngineManager {
         }
 
         @JavascriptInterface
+        public void onClassifyEvalOutput(String line, long epoch, boolean whiteToMove) {
+            if (epoch != currentClassifyEpoch) {
+                return;
+            }
+            classifyUciOutputQueue.offer(line);
+            UciLineListener l = classifyLineListener;
+            if (l != null) l.onLine(line);
+
+            handleClassifyUciLineWithContext(line, epoch, whiteToMove);
+        }
+
+        @JavascriptInterface
         public void onEngineOutput(String kind, String line) {
             if ("play".equals(kind)) {
                 playUciOutputQueue.offer(line);
@@ -1285,7 +1460,11 @@ public class WasmEngineManager {
     private volatile long lastEvalBarUpdateTs = 0L;
 
     private void handleClassifyUciLine(String line) {
-        if (line == null) return;
+        handleClassifyUciLineWithContext(line, currentClassifyEpoch, currentClassifyWhiteToMove);
+    }
+
+    private void handleClassifyUciLineWithContext(String line, long epoch, boolean whiteToMove) {
+        if (line == null || epoch != currentClassifyEpoch) return;
 
         if (line.startsWith("bestmove")) {
             final float score = lastClassifyScore;
@@ -1330,7 +1509,6 @@ public class WasmEngineManager {
 
             if (!foundScore) return;
 
-            boolean whiteToMove = currentClassifyWhiteToMove;
             float whiteScore;
             int whiteMate = 0;
             if (isMate) {

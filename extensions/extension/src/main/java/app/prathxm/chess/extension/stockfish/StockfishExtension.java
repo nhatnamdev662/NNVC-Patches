@@ -306,6 +306,10 @@ public class StockfishExtension {
             ArrowInjector.clearEngineArrows(stateImplObject);
             TorchEngine.getInstance(getContext()).cancelPendingRequests();
             resetUserWhiteCache();
+            if (ctx != null) {
+                WasmEngineManager.getInstance(ctx).resetClassifyGame();
+            }
+            OverlayManager.resetEvalBar();
         }
         MoveClassifier.updateHistory(fen, positionObject);
         if (activity != null) {
@@ -314,7 +318,7 @@ public class StockfishExtension {
 
         // 1. Independent Eval Bar: Dedicated Stockfish 18 classify instance (Depth 10, MultiPV 3, Hash 64)
         if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx)) {
-            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, null);
+            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, MoveClassifier.getCurrentPositionMoves());
         }
 
         // 2. Independent Move Classification: Torch CEE with 100ms debounce
@@ -655,10 +659,10 @@ public class StockfishExtension {
                     String fen = extractFen(positionObject);
                     if (fen != null) {
                         Context ctx = getContext();
-                        if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx)) {
-                            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, null);
-                        }
                         MoveClassifier.updateHistory(fen, positionObject);
+                        if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx)) {
+                            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, MoveClassifier.getCurrentPositionMoves());
+                        }
                         scheduleAnalysis(fen, true);
                     }
                 }
