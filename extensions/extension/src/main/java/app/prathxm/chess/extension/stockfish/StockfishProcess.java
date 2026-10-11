@@ -242,8 +242,8 @@ public class StockfishProcess {
             applyPlayEngineOptions(context, elo, multiPV, honorLimit);
 
             StringBuilder pos = new StringBuilder(fen.length() + 32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
-            // Send position startpos moves if moves list is present to maximize Transposition Table reuse (3x faster)
-            if (uciMoves != null && !uciMoves.isEmpty()) {
+            // Send position startpos moves if moves list is present and matches standard startpos to maximize Transposition Table reuse (3x faster)
+            if (uciMoves != null && !uciMoves.isEmpty() && WasmEngineManager.isStandardStartposMoves(uciMoves)) {
                 pos.append("position startpos moves");
                 for (String m : uciMoves) pos.append(' ').append(m);
             } else {

@@ -385,6 +385,10 @@ public class StockfishExtension {
     /** Signature (position + moves) of the engine arrows currently on the board. */
     private static volatile String lastArrowSignature = null;
 
+    public static void resetArrowSignature() {
+        lastArrowSignature = null;
+    }
+
     /** Position (FEN key) of the most recently scheduled live analysis. */
     private static volatile String lastScheduledKey = null;
 
@@ -440,7 +444,7 @@ public class StockfishExtension {
 
                 if (result.moves.isEmpty()) {
                     if (result.terminal) {
-                        OverlayManager.hideArrowOverlay();
+                        OverlayManager.hideArrowOverlay(true);
                         ArrowInjector.clearEngineArrows(getStateImpl());
                         TorchEngine.getInstance(context).cancelPendingRequests();
                         TorchEngine.log("[GAME OVER] Ván đấu kết thúc (terminal=true). Đã ẩn mũi tên và hủy hàng chờ Torch.");
@@ -479,7 +483,7 @@ public class StockfishExtension {
 
         Activity activity = getCurrentActivity();
         if (activity != null && isGameOver(activity)) {
-            OverlayManager.hideArrowOverlay();
+            OverlayManager.hideArrowOverlay(true);
             ArrowInjector.clearEngineArrows(getStateImpl());
             StockfishBridge.stopSearch();
             TorchEngine.getInstance(context).cancelPendingRequests();
@@ -525,7 +529,11 @@ public class StockfishExtension {
                 ArrowInjector.injectThreatArrow(context, getStateImpl(), threatToInject);
             }
 
-            String sig = fen + '|' + (showArrows ? (result.moves != null ? result.moves.toString() : "") : "") + '|' + (showThreat && threatToInject != null ? threatToInject : "");
+            String sig = fen + '|' + (showArrows ? (result.moves != null ? result.moves.toString() : "") : "") + '|'
+                    + (showThreat && threatToInject != null ? threatToInject : "") + '|'
+                    + StockfishSettings.getArrowTierColor(context, 1) + '|'
+                    + StockfishSettings.getArrowTierColor(context, 2) + '|'
+                    + StockfishSettings.getArrowTierColor(context, 3);
             if (!sig.equals(lastArrowSignature)) {
                 lastArrowSignature = sig;
                 boolean whiteTurn = isWhiteTurnFromFen(fen);
@@ -708,7 +716,67 @@ public class StockfishExtension {
                 actClass = actClass.getSuperclass();
             }
 
-            // 2. Check decorView hierarchy for GameOver views
+            // 2. Check FragmentManager for DialogFragments (e.g. BaseGameOverDialog, BotGameOverDialog, LiveGameOverDialog, etc.)
+            try {
+                Method getFm = null;
+                try {
+                    getFm = activity.getClass().getMethod("getSupportFragmentManager");
+                } catch (NoSuchMethodException e) {
+                    try {
+                        getFm = activity.getClass().getMethod("getFragmentManager");
+                    } catch (Throwable ignored) {}
+                }
+                if (getFm != null) {
+                    Object fm = getFm.invoke(activity);
+                    if (fm != null) {
+                        String[] knownTags = new String[]{
+                                "BaseGameOverDialog",
+                                "LiveGameOverDialog",
+                                "LiveGameOverDialogV2",
+                                "LiveArenaGameOverDialog",
+                                "PracticePlayGameOverDialog",
+                                "BotGameOverDialog",
+                                "PassAndPlayGameOverDialog",
+                                "VisionChallengeCompleteDialog"
+                        };
+                        try {
+                            Method findByTag = fm.getClass().getMethod("findFragmentByTag", String.class);
+                            for (String tag : knownTags) {
+                                Object frag = findByTag.invoke(fm, tag);
+                                if (frag != null) {
+                                    boolean isVis = true;
+                                    try {
+                                        Method isVisM = frag.getClass().getMethod("isVisible");
+                                        isVis = (Boolean) isVisM.invoke(frag);
+                                    } catch (Throwable ignored2) {}
+                                    if (isVis) return true;
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+
+                        try {
+                            Method getFrags = fm.getClass().getMethod("getFragments");
+                            Object fragsList = getFrags.invoke(fm);
+                            if (fragsList instanceof List) {
+                                for (Object frag : (List<?>) fragsList) {
+                                    if (frag == null) continue;
+                                    String fName = frag.getClass().getName();
+                                    if (fName.contains("GameOver") || fName.contains("GameEnd") || fName.contains("GameFinished")) {
+                                        boolean isVis = true;
+                                        try {
+                                            Method isVisM = frag.getClass().getMethod("isVisible");
+                                            isVis = (Boolean) isVisM.invoke(frag);
+                                        } catch (Throwable ignored2) {}
+                                        if (isVis) return true;
+                                    }
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            // 3. Check decorView hierarchy for GameOver views
             if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
                 View decorView = activity.getWindow().getDecorView();
                 if (hasGameOverView(decorView)) {
@@ -761,7 +829,7 @@ public class StockfishExtension {
     public static void triggerAnalysisForCurrentState() {
         Activity act = getCurrentActivity();
         if (isGameOver(act)) {
-            OverlayManager.hideArrowOverlay();
+            OverlayManager.hideArrowOverlay(true);
             StockfishBridge.stopSearch();
             return;
         }
@@ -825,7 +893,7 @@ public class StockfishExtension {
     public static void triggerPlayAnalysisOnly() {
         Activity act = getCurrentActivity();
         if (isGameOver(act)) {
-            OverlayManager.hideArrowOverlay();
+            OverlayManager.hideArrowOverlay(true);
             StockfishBridge.stopSearch();
             return;
         }

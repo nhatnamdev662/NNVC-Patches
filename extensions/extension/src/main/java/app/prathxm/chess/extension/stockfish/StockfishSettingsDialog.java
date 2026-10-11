@@ -819,8 +819,9 @@ public class StockfishSettingsDialog {
 
         arrowsSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setArrowsVisible(activity, isChecked);
+            StockfishExtension.resetArrowSignature();
             if (!isChecked) {
-                OverlayManager.hideArrowOverlay();
+                OverlayManager.hideArrowOverlay(true);
             } else {
                 StockfishExtension.triggerAnalysisForCurrentState();
             }
@@ -1397,6 +1398,8 @@ public class StockfishSettingsDialog {
                     StockfishSettings.setArrowTierColor(activity, tier, c);
                     boxBg.setColor(c);
                     colorBox.invalidate();
+                    StockfishExtension.resetArrowSignature();
+                    OverlayManager.invalidateArrowOverlay();
                     StockfishExtension.invalidateAllBoards();
                     StockfishExtension.triggerAnalysisForCurrentState();
                     pickerDialog.dismiss();

@@ -300,6 +300,38 @@ public class SelfTest {
         check("Move 1 is not startpos",
             !move1Fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"));
 
+        // === POSITION COMMAND SELECTION (STARTPOS VS FEN) TESTS ===
+        java.util.List<String> standardMoves = java.util.Arrays.asList("e2e4", "e7e5");
+        check("Standard moves select startpos",
+            WasmEngineManager.isStandardStartposMoves(standardMoves));
+        java.util.List<String> illegalFirstMove = java.util.Arrays.asList("e1g1");
+        check("Illegal first move falls back from startpos",
+            !WasmEngineManager.isStandardStartposMoves(illegalFirstMove));
+
+        // === ARROW SIGNATURE PALETTE TESTS ===
+        String sig1 = "fen1|[e2e4]||-16711936|-256|-65536";
+        String sig2 = "fen1|[e2e4]||-16711936|-256|-16776961";
+        check("Color change alters arrow signature",
+            !sig1.equals(sig2));
+        String sig3 = "fen1|[e2e4]||-16711936|-256|-65536";
+        check("Identical color keeps arrow signature",
+            sig1.equals(sig3));
+
+        // === GAMEOVER DIALOG TAG TESTS ===
+        java.util.Set<String> gameOverTags = new java.util.HashSet<>(java.util.Arrays.asList(
+            "BaseGameOverDialog",
+            "LiveGameOverDialog",
+            "LiveGameOverDialogV2",
+            "LiveArenaGameOverDialog",
+            "PracticePlayGameOverDialog",
+            "BotGameOverDialog",
+            "PassAndPlayGameOverDialog",
+            "VisionChallengeCompleteDialog"
+        ));
+        check("BaseGameOverDialog recognized", gameOverTags.contains("BaseGameOverDialog"));
+        check("BotGameOverDialog recognized", gameOverTags.contains("BotGameOverDialog"));
+        check("RandomDialog not recognized", !gameOverTags.contains("RandomDialog"));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

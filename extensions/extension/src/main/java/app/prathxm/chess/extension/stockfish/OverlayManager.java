@@ -170,7 +170,7 @@ public class OverlayManager {
                 try {
                     Activity activity = StockfishExtension.getCurrentActivity();
                     if (activity == null || StockfishExtension.isGameOver(activity)) {
-                        hideArrowOverlay();
+                        hideArrowOverlay(true);
                         return;
                     }
                     Window window = activity.getWindow();
@@ -260,6 +260,10 @@ public class OverlayManager {
     }
 
     public static void hideArrowOverlay() {
+        hideArrowOverlay(false);
+    }
+
+    public static void hideArrowOverlay(final boolean clearBadges) {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
             public void run() {
@@ -274,6 +278,9 @@ public class OverlayManager {
                     if (v instanceof ArrowOverlayView) {
                         ArrowOverlayView aov = (ArrowOverlayView) v;
                         aov.clearArrowsOnly();
+                        if (clearBadges || StockfishExtension.isGameOver(activity)) {
+                            aov.clearClassificationBadge();
+                        }
                         if (!aov.hasBadges()) {
                             aov.setVisibility(View.GONE);
                         }
@@ -283,6 +290,26 @@ public class OverlayManager {
                 } catch (Throwable t) {
                     Log.e(TAG, "hideArrowOverlay failed: " + t.getMessage());
                 }
+            }
+        });
+    }
+
+    public static void invalidateArrowOverlay() {
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Activity activity = StockfishExtension.getCurrentActivity();
+                    if (activity == null) return;
+                    Window window = activity.getWindow();
+                    if (window == null) return;
+                    View decorView = window.getDecorView();
+                    if (decorView == null) return;
+                    View v = decorView.findViewWithTag("nnvc_arrow_overlay");
+                    if (v instanceof ArrowOverlayView) {
+                        v.invalidate();
+                    }
+                } catch (Throwable ignored) {}
             }
         });
     }
