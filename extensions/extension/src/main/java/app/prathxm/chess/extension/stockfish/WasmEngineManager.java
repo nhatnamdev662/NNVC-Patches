@@ -862,7 +862,7 @@ public class WasmEngineManager {
                 "            clearWatchdog();\n" +
                 "            _searchWatchdog = setTimeout(function() {\n" +
                 "                if (_isSearching) onDoneSearching();\n" +
-                "            }, 8000);\n" +
+                "            }, 5000);\n" +
                 "            try {\n" +
                 "                _eng.ccall('command', null, ['string'], [trimmed]);\n" +
                 "            } catch (err) {\n" +
@@ -952,7 +952,7 @@ public class WasmEngineManager {
                 "                            clearWatchdog();\n" +
                 "                            _searchWatchdog = setTimeout(function() {\n" +
                 "                                if (_isSearching) onDoneSearching();\n" +
-                "                            }, 8000);\n" +
+                "                            }, 5000);\n" +
                 "                            try {\n" +
                 "                                _eng.ccall('command', null, ['string'], [cmd]);\n" +
                 "                            } catch (err) {\n" +

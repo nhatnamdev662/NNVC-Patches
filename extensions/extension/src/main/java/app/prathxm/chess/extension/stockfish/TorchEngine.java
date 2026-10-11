@@ -325,7 +325,7 @@ public class TorchEngine {
                     "                if (window.TorchBridge) window.TorchBridge.onTorchError(data.substring(16));\n" +
                     "            } else if (typeof data === 'string' && data.startsWith('json ')) {\n" +
                     "                const jsonPayload = data.substring(5).trim();\n" +
-                    "                const reqId = window._activeReqId || 0;\n" +
+                    "                const reqId = (window._reqIdQueue && window._reqIdQueue.length > 0) ? window._reqIdQueue.shift() : (window._activeReqId || 0);\n" +
                     "                if (window.TorchBridge) window.TorchBridge.onTorchResult(jsonPayload, reqId);\n" +
                     "            }\n" +
                     "        };\n" +
@@ -333,9 +333,12 @@ public class TorchEngine {
                     "            console.error('[Torch Worker Error] ' + (err.message || err));\n" +
                     "            if (window.TorchBridge) window.TorchBridge.onTorchError(String(err.message || err));\n" +
                     "        };\n" +
+                    "        window._reqIdQueue = [];\n" +
                     "        window.sendTorchPosition = function(posCmd, userColor, depth, reqId) {\n" +
                     "            if (!worker) return;\n" +
                     "            window._activeReqId = reqId;\n" +
+                    "            if (!window._reqIdQueue) window._reqIdQueue = [];\n" +
+                    "            window._reqIdQueue.push(reqId);\n" +
                     "            if (userColor) worker.postMessage('setoption name UserColor value ' + userColor);\n" +
                     "            const d = depth || 2;\n" +
                     "            worker.postMessage('setoption name HandleContinuationsDepth value ' + d);\n" +
@@ -344,6 +347,7 @@ public class TorchEngine {
                     "        };\n" +
                     "        window.cancelTorchAnalysis = function() {\n" +
                     "            window._activeReqId = -1;\n" +
+                    "            window._reqIdQueue = [];\n" +
                     "            if (worker) worker.postMessage('stop');\n" +
                     "        };\n" +
                     "        window.sendTorchMove = function(movesStr, userColor, depth, reqId) {\n" +
@@ -368,10 +372,12 @@ public class TorchEngine {
     private final java.util.concurrent.atomic.AtomicLong currentRequestId = new java.util.concurrent.atomic.AtomicLong(0);
     private final java.util.concurrent.atomic.AtomicLong minValidRequestId = new java.util.concurrent.atomic.AtomicLong(0);
     private final java.util.Queue<TorchClassificationCallback> pendingCallbacks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final java.util.Map<Long, TorchClassificationCallback> pendingCallbacksMap = new java.util.concurrent.ConcurrentHashMap<>();
 
     public void cancelPendingRequests() {
         minValidRequestId.set(currentRequestId.incrementAndGet());
         pendingCallbacks.clear();
+        pendingCallbacksMap.clear();
         this.activeCallback = null;
         if (webView != null) {
             mainHandler.post(() -> {
@@ -396,6 +402,7 @@ public class TorchEngine {
         this.activeCallback = callback;
         if (callback != null) {
             pendingCallbacks.offer(callback);
+            pendingCallbacksMap.put(reqId, callback);
         }
         final String cmd = positionCmd.trim();
         final String color = (userColor != null) ? userColor : "white";
@@ -470,8 +477,14 @@ public class TorchEngine {
             log("[BRIDGE RESULT] Nhận json reqId=" + reqId + " độ dài: " + (jsonStr != null ? jsonStr.length() : 0));
             if (reqId > 0 && reqId < minValidRequestId.get()) {
                 log("[TORCH CANCELLED] Bỏ qua kết quả vì đã bị hủy (reqId=" + reqId + ", minValid=" + minValidRequestId.get() + ")");
+                if (reqId > 0) pendingCallbacksMap.remove(reqId);
                 return;
             }
+
+            TorchClassificationCallback cb = (reqId > 0) ? pendingCallbacksMap.remove(reqId) : null;
+            if (cb == null) cb = pendingCallbacks.poll();
+            if (cb == null) cb = activeCallback;
+
             try {
                 JSONObject root = new JSONObject(jsonStr);
                 JSONArray positions = root.optJSONArray("positions");
@@ -497,9 +510,6 @@ public class TorchEngine {
                     }
                 }
                 log("[BRIDGE PARSED] reqId=" + reqId + ", class=" + classificationName + ", played=" + playedMoveLan + ", best=" + bestMoveLan + ", speech=" + speechText);
-
-                TorchClassificationCallback cb = pendingCallbacks.poll();
-                if (cb == null) cb = activeCallback;
 
                 if (cb != null) {
                     cb.onClassification(classificationName, playedMoveLan, bestMoveLan, speechText, jsonStr);

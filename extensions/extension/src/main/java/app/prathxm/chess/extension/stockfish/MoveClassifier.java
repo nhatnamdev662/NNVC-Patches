@@ -396,25 +396,32 @@ public class MoveClassifier {
         if (context == null || currentFen == null) return;
         if (!StockfishSettings.isMoveClassificationEnabled(context)) return;
 
+        final List<String> snapshotMoves = (currentPositionMoves != null) ? new ArrayList<>(currentPositionMoves) : null;
+        final Context appContext = context.getApplicationContext();
+
         if (pendingClassifyRunnable != null) {
             classifyHandler.removeCallbacks(pendingClassifyRunnable);
         }
 
-        final Context appContext = context.getApplicationContext();
         pendingClassifyRunnable = () -> {
             pendingClassifyRunnable = null;
-            classifyMoveIfPossible(appContext, currentFen);
+            classifyMoveIfPossible(appContext, currentFen, null, snapshotMoves);
         };
         classifyHandler.postDelayed(pendingClassifyRunnable, 100);
     }
 
     @android.annotation.SuppressLint("MissingPermission")
     public static void classifyMoveIfPossible(Context context, String currentFen) {
-        classifyMoveIfPossible(context, currentFen, null);
+        classifyMoveIfPossible(context, currentFen, null, null);
     }
 
     @android.annotation.SuppressLint("MissingPermission")
     public static void classifyMoveIfPossible(Context context, String currentFen, StockfishProcess.AnalysisResult currentResult) {
+        classifyMoveIfPossible(context, currentFen, currentResult, null);
+    }
+
+    @android.annotation.SuppressLint("MissingPermission")
+    public static void classifyMoveIfPossible(Context context, String currentFen, StockfishProcess.AnalysisResult currentResult, List<String> explicitMoves) {
         StockfishExtension.silenceIllegalMoveSound();
         if (context == null) return;
         
@@ -426,7 +433,7 @@ public class MoveClassifier {
         if (!StockfishSettings.isMoveClassificationEnabled(context)) return;
 
         try {
-            List<String> hookMoves = currentPositionMoves;
+            List<String> hookMoves = (explicitMoves != null && !explicitMoves.isEmpty()) ? explicitMoves : currentPositionMoves;
             String currentKey = getFenKey(currentFen);
             if (currentKey == null && (hookMoves == null || hookMoves.isEmpty())) return;
             if (currentFen != null && currentKey != null) {
