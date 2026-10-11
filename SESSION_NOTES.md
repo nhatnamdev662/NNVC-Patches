@@ -366,23 +366,24 @@
         - Kích hoạt phân tích Eval Bar trực tiếp trong `onBoardChanged(boardView, fen)` qua `evaluateClassifyPosition(fen)`.
       - **Tách Rời Torch Move Classifier & Tránh Drop Kết Quả Khi Đối Thủ Đi Nhanh**:
         - Gọi độc lập `MoveClassifier.classifyMoveDebounced(context, fen)` (debounce 100ms) không phụ thuộc luồng phân tích nước đi Best Moves.
-        - Nâng cấp `TorchEngine`: FIFO queue `pendingCallbacks` và cửa sổ `minValidRequestId` không drop kết quả phân loại khi đối thủ đi nhanh.
+        - Khắc phục triệt để race condition khi đối thủ đi nhanh: Chụp snapshot bất biến `snapshotMoves = new ArrayList<>(currentPositionMoves)` ngay khi phát sinh nước đi để bảo vệ danh sách nước cờ không bị ghi đè.
+        - Đồng bộ hóa hàng đợi Request ID (`_reqIdQueue` & `pendingCallbacksMap`) trong TorchEngine: Khớp chính xác 1:1 reqId với callback tương ứng, triệt tiêu lỗi rò rỉ callback và nhầm lẫn thứ tự kết quả.
         - Debounce SeekBar settings: Chỉ kích hoạt lại phân tích bàn cờ khi `onStopTrackingTouch` (`onEloCommitted` / `onValueCommitted`).
       - **Biên dịch & Đóng gói**:
         - Bump phiên bản lên `v2.0.70` (versionCode `20070`) trong `patches-bundle.json` và `patches-list.json`.
-        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,740,264 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.70.mpp` (227,443,089 bytes).
+        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,741,028 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.70.mpp` (227,443,368 bytes).
 
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
 - **Phiên bản mới nhất**: `v2.0.70` (versionCode `20070`).
 - **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.70/patches-2.0.70.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.70.mpp` (227,443,089 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.70.mpp`.
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.70.mpp` (227,443,368 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.70.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.70.mpp` (227,443,089 bytes).
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.70.mpp` (227,443,368 bytes).
   - [x] Sửa triệt để lỗi Stockfish 18 WASM Classify Worker `RuntimeError: memory access out of bounds` bằng Asyncify serialized queue.
   - [x] Tách rời 100% Eval Bar khỏi Play Engine.
-  - [x] Tách rời Torch Move Classifier và ngăn chặn drop kết quả khi đối thủ đi nhanh.
+  - [x] Tách rời Torch Move Classifier và ngăn chặn drop kết quả khi đối thủ đi nhanh (snapshot bất biến + reqId queue).
   - [x] Debounce SeekBar settings trên `onStopTrackingTouch`.
   - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.70.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.

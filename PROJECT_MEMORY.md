@@ -363,10 +363,11 @@
   - Phân tích FEN trực tiếp khi bàn cờ thay đổi `onBoardChanged()`.
 - **Tách Rời Torch Move Classifier & Tránh Drop Kết Quả Khi Đối Thủ Đi Nhanh:**
   - Gọi độc lập `MoveClassifier.classifyMoveDebounced(context, fen)` (debounce 100ms) không phụ thuộc luồng phân tích nước đi Best Moves.
-  - Nâng cấp `TorchEngine`: FIFO queue `pendingCallbacks` và cửa sổ `minValidRequestId` không drop kết quả phân loại khi đối thủ đi nhanh.
+  - Khắc phục triệt để race condition khi đối thủ đi nhanh: Chụp snapshot bất biến `snapshotMoves = new ArrayList<>(currentPositionMoves)` ngay khi phát sinh nước đi để bảo vệ danh sách nước cờ không bị ghi đè.
+  - Đồng bộ hóa hàng đợi Request ID (`_reqIdQueue` & `pendingCallbacksMap`) trong TorchEngine: Khớp chính xác 1:1 reqId với callback tương ứng, triệt tiêu lỗi rò rỉ callback và nhầm lẫn thứ tự kết quả.
   - Debounce SeekBar settings: Chỉ kích hoạt lại phân tích bàn cờ khi `onStopTrackingTouch`.
 - **Bump phiên bản lên v2.0.70**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
-- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,740,264 bytes) và DEX gốc `classes.dex` (95,736 bytes), đóng gói `patches-2.0.70.mpp` (227,443,089 bytes).
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,741,028 bytes) và DEX gốc `classes.dex` (95,736 bytes), đóng gói `patches-2.0.70.mpp` (227,443,368 bytes).
 
 ### v2.0.69 (2026-10-11) — Sửa Triệt Để Lỗi Classify Stockfish 18 WASM Worker (Failed to Fetch)
 - **Khắc Phục Dứt Điểm Lỗi Classify Worker (TypeError: Failed to fetch):**
