@@ -1,6 +1,6 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.75*
+*Phiên bản hiện tại: v2.0.76*
 *Cập nhật lần cuối: 2026-10-11*
 
 ---
@@ -491,15 +491,14 @@
 ## 3. TRẠNG THÁI HIỆN TẠI & KẾ HOẠCH TIẾP THEO
 
 ### 3.1. Trạng thái hiện tại
-- **Phiên bản mới nhất**: **v2.0.75** (`patches-2.0.75.mpp`).
+- **Phiên bản mới nhất**: **v2.0.76** (`patches-2.0.76.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Tách biệt 100% Eval Bar khỏi các thiết lập Play Engine (Elo, Depth, AutoDepth, MultiPV, Opponent Arrows, Threat Arrow, Arrow Palette), triệt tiêu hoàn toàn tình trạng Eval Bar bị nhúc nhích khi thay đổi tham số.
-  2. Bổ sung cơ chế `isClassifySearching` và bỏ qua yêu cầu tìm kiếm dư thừa khi FEN không đổi trong `evaluateClassifyPosition`.
-  3. Khắc phục triệt để lỗi false-positive trong `isGameOver(Activity)`: Không coi các listener/callback/Lazy là game over, sửa lỗi khiến `isGameOver` luôn trả về `true` ngay khi vừa vào ván cờ.
-  4. Tự động nhận diện bàn cờ và kích hoạt phân tích Move 0 ngay trong `onActivityResumed` với chuỗi retry (100ms, 300ms, 600ms, 1200ms) kết hợp `OnAttachStateChangeListener` trên `ChessBoardView`.
-  5. Thêm hook `ChessBoardViewSetPositionFingerprint` và phương thức `onInitialPositionLoaded` đảm bảo thế cờ Move 0 được nạp và phân tích tức thì cho cả Trắng và Đen mà không cần người chơi phải đi nước cờ nào.
-  6. 76/76 test cases trong `SelfTest` vượt qua thành công.
+  1. Triệt tiêu 100% hiện tượng nháy / load lại giao diện Move 0 (arrows, eval bar, widget) khi sang ván mới bằng cách bỏ trigger phân tích trong `OnLayoutChangeListener`, bỏ gọi `hideAccuracyEloPills()` ở startpos (persistent mounting), và deduplication tác vụ Move 0.
+  2. Sửa dứt điểm bug đảo lượt đi trong `StockfishProcess.isWhiteToMove` (xóa bỏ đoạn code đảo turn theo moves lẻ); bổ sung `sideToMoveScores` và định dạng nhãn điểm số chuẩn Extension NNVC (`OverlayManager.formatArrowEvalLabel`).
+  3. Triển khai `GameOverWatchdog` (chu kỳ 300ms + `OnGlobalLayoutListener`) và kiểm tra `dialog.isShowing()` trong `isFragmentVisibleOrShowing` để phát hiện kết thúc ván đấu chủ động và tức thì.
+  4. 96/96 test cases trong `SelfTest` vượt qua thành công (100% passed).
+  5. Đóng gói hoàn tất `patches-2.0.76.mpp` (227,454,152 bytes) với đầy đủ WebAssembly engines và cập nhật metadata.
 
 
 

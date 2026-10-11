@@ -119,6 +119,7 @@ public class StockfishProcess {
         public final String ponder;
         public final List<String> pv;
         public final float[] lineScores;
+        public final float[] sideToMoveScores;
         public final boolean[] lineMates;
         public final int[] lineMateIn;
         public final int depth;
@@ -129,6 +130,7 @@ public class StockfishProcess {
             this(moves, score, hasMate, mateIn, wdlWin, wdlDraw, wdlLoss, ponder,
                     moves != null && !moves.isEmpty() ? Collections.singletonList(moves.get(0)) : new ArrayList<>(),
                     new float[]{score},
+                    new float[]{score},
                     new boolean[]{hasMate},
                     new int[]{mateIn},
                     0, false);
@@ -137,7 +139,7 @@ public class StockfishProcess {
         public AnalysisResult(List<String> moves, float score, boolean hasMate, int mateIn,
                               int wdlWin, int wdlDraw, int wdlLoss, String ponder,
                               List<String> pv, float[] lineScores, int depth, boolean terminal) {
-            this(moves, score, hasMate, mateIn, wdlWin, wdlDraw, wdlLoss, ponder, pv, lineScores,
+            this(moves, score, hasMate, mateIn, wdlWin, wdlDraw, wdlLoss, ponder, pv, lineScores, lineScores,
                     createDefaultLineMates(hasMate, lineScores != null ? lineScores.length : 0),
                     createDefaultLineMateIn(mateIn, lineScores != null ? lineScores.length : 0),
                     depth, terminal);
@@ -146,6 +148,15 @@ public class StockfishProcess {
         public AnalysisResult(List<String> moves, float score, boolean hasMate, int mateIn,
                               int wdlWin, int wdlDraw, int wdlLoss, String ponder,
                               List<String> pv, float[] lineScores,
+                              boolean[] lineMates, int[] lineMateIn,
+                              int depth, boolean terminal) {
+            this(moves, score, hasMate, mateIn, wdlWin, wdlDraw, wdlLoss, ponder, pv, lineScores, lineScores,
+                    lineMates, lineMateIn, depth, terminal);
+        }
+
+        public AnalysisResult(List<String> moves, float score, boolean hasMate, int mateIn,
+                              int wdlWin, int wdlDraw, int wdlLoss, String ponder,
+                              List<String> pv, float[] lineScores, float[] sideToMoveScores,
                               boolean[] lineMates, int[] lineMateIn,
                               int depth, boolean terminal) {
             this.moves = moves != null ? moves : new ArrayList<>();
@@ -158,6 +169,7 @@ public class StockfishProcess {
             this.ponder = ponder;
             this.pv = pv != null ? pv : new ArrayList<>();
             this.lineScores = lineScores != null ? lineScores : new float[0];
+            this.sideToMoveScores = sideToMoveScores != null ? sideToMoveScores : (lineScores != null ? lineScores.clone() : new float[0]);
             this.lineMates = lineMates != null ? lineMates : new boolean[this.lineScores.length];
             this.lineMateIn = lineMateIn != null ? lineMateIn : new int[this.lineScores.length];
             this.depth = depth;
@@ -178,7 +190,7 @@ public class StockfishProcess {
 
         public static AnalysisResult empty() {
             return new AnalysisResult(new ArrayList<>(), 0f, false, 0, 0, 0, 0, null,
-                    new ArrayList<>(), new float[0], new boolean[0], new int[0], 0, false);
+                    new ArrayList<>(), new float[0], new float[0], new boolean[0], new int[0], 0, false);
         }
 
         public boolean isValid() {
@@ -291,6 +303,7 @@ public class StockfishProcess {
                                             int targetDepth, ProgressListener progress) throws Exception {
         String[] firstMoves = new String[multiPV];
         float[] scores = new float[multiPV];
+        float[] sideScores = new float[multiPV];
         boolean[] lineMates = new boolean[multiPV];
         int[] lineMateIn = new int[multiPV];
         long[] evalNums = new long[multiPV];
@@ -404,10 +417,12 @@ public class StockfishProcess {
                     : (long) scoreVal;
 
             float currentScore;
+            float currentSideScore;
             int curWhiteMate = 0;
             if (isMate) {
                 curWhiteMate = whiteToMove ? scoreVal : -scoreVal;
                 currentScore = curWhiteMate > 0 ? (MATE_SCORE - Math.abs(curWhiteMate)) : (-MATE_SCORE + Math.abs(curWhiteMate));
+                currentSideScore = scoreVal > 0 ? (MATE_SCORE - Math.abs(scoreVal)) : (-MATE_SCORE + Math.abs(scoreVal));
                 if (mpv == 1) {
                     hasMate = true;
                     mateIn = curWhiteMate;
@@ -415,11 +430,13 @@ public class StockfishProcess {
             } else {
                 float pawns = scoreVal / 100.0f;
                 currentScore = whiteToMove ? pawns : -pawns;
+                currentSideScore = pawns;
                 if (mpv == 1) hasMate = false;
             }
 
             if (!bound) {
                 scores[idx] = currentScore;
+                sideScores[idx] = currentSideScore;
                 lineMates[idx] = isMate;
                 lineMateIn[idx] = scoreVal; // Side-to-move POV for arrow labels
                 evalNums[idx] = currentEvalNum;
@@ -427,6 +444,7 @@ public class StockfishProcess {
                 haveAny[idx] = true;
             } else if (!haveExact[idx]) {
                 scores[idx] = currentScore;
+                sideScores[idx] = currentSideScore;
                 lineMates[idx] = isMate;
                 lineMateIn[idx] = scoreVal;
                 evalNums[idx] = currentEvalNum;
@@ -448,7 +466,7 @@ public class StockfishProcess {
                     lastReport = now;
                     reportedDepth = depth;
                     try {
-                        AnalysisResult partial = buildResult(firstMoves, scores, lineMates, lineMateIn, evalNums,
+                        AnalysisResult partial = buildResult(firstMoves, scores, sideScores, lineMates, lineMateIn, evalNums,
                                 haveAny, multiPV, hasMate, mateIn, wdlW, wdlD, wdlL,
                                 bestPv != null && bestPv.size() > 1 ? bestPv.get(1) : null,
                                 bestPv, depth, false, null, whiteToMove);
@@ -458,7 +476,7 @@ public class StockfishProcess {
             }
         }
 
-        return buildResult(firstMoves, scores, lineMates, lineMateIn, evalNums,
+        return buildResult(firstMoves, scores, sideScores, lineMates, lineMateIn, evalNums,
                 haveAny, multiPV, hasMate, mateIn,
                 wdlW, wdlD, wdlL, ponder, bestPv, reachedDepth, terminal, bestmove, whiteToMove);
     }
@@ -466,12 +484,13 @@ public class StockfishProcess {
     private static class CandidateLine {
         String move;
         float score;
+        float sideScore;
         boolean isMate;
         int mateIn;
         long evalNum;
     }
 
-    private AnalysisResult buildResult(String[] firstMovesIn, float[] scoresIn,
+    private AnalysisResult buildResult(String[] firstMovesIn, float[] scoresIn, float[] sideScoresIn,
                                        boolean[] lineMatesIn, int[] lineMateInIn, long[] evalNumsIn,
                                        boolean[] haveAny, int multiPV, boolean hasMate, int mateIn,
                                        int wdlW, int wdlD, int wdlL, String ponder,
@@ -479,6 +498,7 @@ public class StockfishProcess {
                                        boolean terminal, String bestmove, boolean whiteToMove) {
         String[] firstMoves = firstMovesIn.clone();
         float[] scores = scoresIn.clone();
+        float[] sideScores = sideScoresIn.clone();
         boolean[] lineMates = lineMatesIn.clone();
         int[] lineMateIn = lineMateInIn.clone();
         long[] evalNums = evalNumsIn.clone();
@@ -503,6 +523,7 @@ public class StockfishProcess {
             CandidateLine c = new CandidateLine();
             c.move = firstMoves[i];
             c.score = haveAny[i] ? scores[i] : scores[0];
+            c.sideScore = haveAny[i] ? sideScores[i] : sideScores[0];
             c.isMate = haveAny[i] ? lineMates[i] : lineMates[0];
             c.mateIn = haveAny[i] ? lineMateIn[i] : lineMateIn[0];
             c.evalNum = haveAny[i] ? evalNums[i] : evalNums[0];
@@ -527,6 +548,7 @@ public class StockfishProcess {
 
         List<String> moves = new ArrayList<>(candidates.size());
         float[] finalLineScores = new float[candidates.size()];
+        float[] finalSideScores = new float[candidates.size()];
         boolean[] finalLineMates = new boolean[candidates.size()];
         int[] finalLineMateIn = new int[candidates.size()];
 
@@ -534,6 +556,7 @@ public class StockfishProcess {
             CandidateLine c = candidates.get(i);
             moves.add(c.move);
             finalLineScores[i] = c.score;
+            finalSideScores[i] = c.sideScore;
             finalLineMates[i] = c.isMate;
             finalLineMateIn[i] = c.mateIn;
         }
@@ -549,7 +572,7 @@ public class StockfishProcess {
 
         return new AnalysisResult(moves, finalScore, finalHasMate, finalMateIn, wdlW, wdlD, wdlL, ponder,
                 bestPv != null ? bestPv : new ArrayList<>(),
-                finalLineScores, finalLineMates, finalLineMateIn,
+                finalLineScores, finalSideScores, finalLineMates, finalLineMateIn,
                 reachedDepth, isTerminal);
     }
 
@@ -684,12 +707,17 @@ public class StockfishProcess {
         }
     }
 
-    private static boolean isWhiteToMove(String fen, List<String> moves) {
-        boolean white = true;
+    public static boolean isWhiteToMove(String fen) {
+        if (fen == null) return true;
         int sp = fen.indexOf(' ');
-        if (sp >= 0 && sp + 1 < fen.length()) white = fen.charAt(sp + 1) != 'b';
-        if (moves != null && (moves.size() & 1) == 1) white = !white;
-        return white;
+        if (sp >= 0 && sp + 1 < fen.length()) {
+            return fen.charAt(sp + 1) != 'b';
+        }
+        return true;
+    }
+
+    public static boolean isWhiteToMove(String fen, List<String> moves) {
+        return isWhiteToMove(fen);
     }
 
     private static int parseIntSafe(String s, int def) {

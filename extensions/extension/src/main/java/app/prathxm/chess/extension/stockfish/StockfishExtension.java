@@ -42,6 +42,35 @@ public class StockfishExtension {
     public static volatile boolean isReviewMode = false;
     public static volatile boolean isDeveloperMode = false;
 
+    private static volatile String lastLoadedMove0Fen = null;
+    private static volatile boolean isMove0AnalysisScheduled = false;
+    private static volatile android.os.Handler move0RetryHandler = null;
+
+    private static android.os.Handler getMove0RetryHandler() {
+        if (move0RetryHandler == null) {
+            try {
+                move0RetryHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            } catch (Throwable ignored) {}
+        }
+        return move0RetryHandler;
+    }
+
+    private static volatile android.os.Handler watchdogHandler = null;
+
+    private static android.os.Handler getWatchdogHandler() {
+        if (watchdogHandler == null) {
+            try {
+                watchdogHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            } catch (Throwable ignored) {}
+        }
+        return watchdogHandler;
+    }
+
+    private static Runnable gameOverWatchdogRunnable = null;
+    private static android.view.ViewTreeObserver.OnGlobalLayoutListener globalLayoutListener = null;
+    private static WeakReference<View> currentDecorViewRef = new WeakReference<>(null);
+    private static volatile boolean lastGameOverHandled = false;
+
     public static void registerChessBoardView(Object view) {
         // no-op, kept for compatibility
     }
@@ -319,7 +348,6 @@ public class StockfishExtension {
             OverlayManager.clearClassificationBadge();
             OverlayManager.hideArrowOverlay();
             OverlayManager.resetAccuracyEloWidget();
-            OverlayManager.hideAccuracyEloPills();
             if (stateImplObject != null) {
                 ArrowInjector.clearEngineArrows(stateImplObject);
             }
@@ -330,6 +358,9 @@ public class StockfishExtension {
             resetUserWhiteCache();
             MoveClassifier.clearHistory();
             OverlayManager.resetEvalBar();
+        } else {
+            isMove0AnalysisScheduled = false;
+            lastLoadedMove0Fen = null;
         }
         MoveClassifier.updateHistory(fen, positionObject);
         if (activity != null && stateImplObject != null) {
@@ -543,7 +574,7 @@ public class StockfishExtension {
             if (!sig.equals(lastArrowSignature)) {
                 lastArrowSignature = sig;
                 boolean whiteTurn = isWhiteTurnFromFen(fen);
-                OverlayManager.updateArrowOverlay(movesToInject, threatToInject, result.lineScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
+                OverlayManager.updateArrowOverlay(movesToInject, threatToInject, result.sideToMoveScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
             }
         } else if (isFinal) {
             lastArrowSignature = null;
@@ -619,30 +650,46 @@ public class StockfishExtension {
                 GestureInterceptor.registerGestureInterceptor(activity);
                 lastArrowSignature = null;
                 lastScheduledKey = null;
+
+                setupGameOverWatchdog(activity);
+
+                // Cancel any pending retries from prior resumed events
+                android.os.Handler h = getMove0RetryHandler();
+                if (h != null) h.removeCallbacksAndMessages(null);
+
                 // Multiple retry checks to catch Move 0 as board view loads into view hierarchy
                 for (long delay : new long[]{100, 300, 600, 1200, 2400, 4000}) {
-                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                if (activity.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
-                                if (!isGameOver(activity)) {
-                                    triggerAnalysisForCurrentState();
-                                    invalidateAllBoards();
-                                } else {
-                                    OverlayManager.hideArrowOverlay();
+                    if (h != null) {
+                        h.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    if (activity.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
+                                    if (!isGameOver(activity)) {
+                                        boolean loaded = tryLoadMove0(activity);
+                                        if (loaded) {
+                                            android.os.Handler curH = getMove0RetryHandler();
+                                            if (curH != null) curH.removeCallbacksAndMessages(null);
+                                        }
+                                        invalidateAllBoards();
+                                    } else {
+                                        OverlayManager.hideArrowOverlay(true);
+                                    }
+                                } catch (Throwable t) {
+                                    Log.e(TAG, "Failed to refresh onActivityResumed: " + t.getMessage());
                                 }
-                            } catch (Throwable t) {
-                                Log.e(TAG, "Failed to refresh onActivityResumed: " + t.getMessage());
                             }
-                        }
-                    }, delay);
+                        }, delay);
+                    }
                 }
             }
 
             @Override
             public void onActivityPaused(Activity activity) {
                 if (resumedActivity.get() == activity) resumedActivity = new WeakReference<>(null);
+                stopGameOverWatchdog();
+                android.os.Handler ph = getMove0RetryHandler();
+                if (ph != null) ph.removeCallbacksAndMessages(null);
             }
 
             @Override
@@ -652,8 +699,124 @@ public class StockfishExtension {
             public void onActivitySaveInstanceState(Activity activity, android.os.Bundle outState) {}
 
             @Override
-            public void onActivityDestroyed(Activity activity) {}
+            public void onActivityDestroyed(Activity activity) {
+                stopGameOverWatchdog();
+                android.os.Handler dh = getMove0RetryHandler();
+                if (dh != null) dh.removeCallbacksAndMessages(null);
+            }
         });
+    }
+
+    private static void setupGameOverWatchdog(final Activity activity) {
+        stopGameOverWatchdog();
+        lastGameOverHandled = false;
+
+        // Check immediately
+        checkAndHandleGameOver(activity);
+
+        // 1. Layout listener on decorView
+        try {
+            Window window = activity.getWindow();
+            if (window != null) {
+                View decorView = window.getDecorView();
+                if (decorView != null) {
+                    currentDecorViewRef = new WeakReference<>(decorView);
+                    globalLayoutListener = new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                        @Override
+                        public void onGlobalLayout() {
+                            checkAndHandleGameOver(activity);
+                        }
+                    };
+                    decorView.getViewTreeObserver().addOnGlobalLayoutListener(globalLayoutListener);
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to register OnGlobalLayoutListener: " + t.getMessage());
+        }
+
+        // 2. Periodic watchdog Runnable (300ms)
+        gameOverWatchdogRunnable = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if (activity.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
+                        return;
+                    }
+                    boolean over = checkAndHandleGameOver(activity);
+                    android.os.Handler wh = getWatchdogHandler();
+                    if (wh != null) wh.postDelayed(this, over ? 1000 : 300);
+                } catch (Throwable ignored) {}
+            }
+        };
+        android.os.Handler wh = getWatchdogHandler();
+        if (wh != null) wh.postDelayed(gameOverWatchdogRunnable, 300);
+    }
+
+    private static void stopGameOverWatchdog() {
+        android.os.Handler wh = getWatchdogHandler();
+        if (wh != null) wh.removeCallbacksAndMessages(null);
+        gameOverWatchdogRunnable = null;
+        View decor = currentDecorViewRef.get();
+        if (decor != null && globalLayoutListener != null) {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 16) {
+                    decor.getViewTreeObserver().removeOnGlobalLayoutListener(globalLayoutListener);
+                } else {
+                    decor.getViewTreeObserver().removeGlobalOnLayoutListener(globalLayoutListener);
+                }
+            } catch (Throwable ignored) {}
+        }
+        globalLayoutListener = null;
+        currentDecorViewRef = new WeakReference<>(null);
+    }
+
+    public static boolean checkAndHandleGameOver(Activity activity) {
+        if (activity == null) return false;
+        if (isGameOver(activity)) {
+            if (!lastGameOverHandled) {
+                lastGameOverHandled = true;
+                OverlayManager.hideArrowOverlay(true);
+                ArrowInjector.clearEngineArrows(getStateImpl());
+                StockfishBridge.stopSearch();
+                Context c = getContext();
+                if (c != null) {
+                    try {
+                        TorchEngine.getInstance(c).cancelPendingRequests();
+                    } catch (Throwable ignored) {}
+                }
+                Log.i(TAG, "[ACTIVE GAME OVER] Ván đấu kết thúc! Đã chủ động ẩn toàn bộ mũi tên và dừng engine.");
+            }
+            return true;
+        } else {
+            lastGameOverHandled = false;
+            return false;
+        }
+    }
+
+    private static boolean tryLoadMove0(Activity activity) {
+        if (activity == null || activity.getWindow() == null) return false;
+        View decorView = activity.getWindow().getDecorView();
+        if (decorView == null) return false;
+        View boardView = OverlayManager.findChessBoardView(decorView);
+        if (boardView == null) return false;
+
+        Object pos = extractPositionFromBoardView(boardView);
+        if (pos == null) return false;
+
+        String fen = extractFen(pos);
+        if (fen == null) return false;
+
+        boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        if (isMove0) {
+            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
+                return true; // Already loaded and scheduled!
+            }
+            lastLoadedMove0Fen = fen;
+            isMove0AnalysisScheduled = true;
+        }
+
+        onBoardChanged(getStateImpl(), pos);
+        return true;
     }
 
     public static void unlockScreenshots(final Activity activity) {
@@ -752,14 +915,7 @@ public class StockfishExtension {
                             Method findByTag = fm.getClass().getMethod("findFragmentByTag", String.class);
                             for (String tag : knownTags) {
                                 Object frag = findByTag.invoke(fm, tag);
-                                if (frag != null) {
-                                    boolean isVis = true;
-                                    try {
-                                        Method isVisM = frag.getClass().getMethod("isVisible");
-                                        isVis = (Boolean) isVisM.invoke(frag);
-                                    } catch (Throwable ignored2) {}
-                                    if (isVis) return true;
-                                }
+                                if (isFragmentVisibleOrShowing(frag)) return true;
                             }
                         } catch (Throwable ignored) {}
 
@@ -771,12 +927,7 @@ public class StockfishExtension {
                                     if (frag == null) continue;
                                     String fName = frag.getClass().getName();
                                     if (fName.contains("GameOver") || fName.contains("GameEnd") || fName.contains("GameFinished")) {
-                                        boolean isVis = true;
-                                        try {
-                                            Method isVisM = frag.getClass().getMethod("isVisible");
-                                            isVis = (Boolean) isVisM.invoke(frag);
-                                        } catch (Throwable ignored2) {}
-                                        if (isVis) return true;
+                                        if (isFragmentVisibleOrShowing(frag)) return true;
                                     }
                                 }
                             }
@@ -791,6 +942,23 @@ public class StockfishExtension {
                 if (hasGameOverView(decorView)) {
                     return true;
                 }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    private static boolean isFragmentVisibleOrShowing(Object frag) {
+        if (frag == null) return false;
+        try {
+            Method isVisM = frag.getClass().getMethod("isVisible");
+            if ((Boolean) isVisM.invoke(frag)) return true;
+        } catch (Throwable ignored) {}
+        try {
+            Method getDialogM = frag.getClass().getMethod("getDialog");
+            Object dlg = getDialogM.invoke(frag);
+            if (dlg != null) {
+                Method isShowingM = dlg.getClass().getMethod("isShowing");
+                if ((Boolean) isShowingM.invoke(dlg)) return true;
             }
         } catch (Throwable ignored) {}
         return false;
@@ -932,20 +1100,30 @@ public class StockfishExtension {
         if (obj == null) return;
         silenceIllegalMoveSound();
         try {
+            Object pos = null;
             if (obj instanceof View) {
                 View boardView = (View) obj;
-                Object pos = extractPositionFromBoardView(boardView);
-                if (pos != null) {
-                    onBoardChanged(getStateImpl(), pos);
-                    return;
-                }
+                pos = extractPositionFromBoardView(boardView);
             } else {
                 stateImplRef.set(new WeakReference<>(obj));
-                Object pos = resolveVariantPosition(obj);
-                if (pos != null) {
-                    onBoardChanged(obj, pos);
-                    return;
+                pos = resolveVariantPosition(obj);
+            }
+            if (pos != null) {
+                String fen = extractFen(pos);
+                if (fen != null) {
+                    boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+                    if (isMove0) {
+                        if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
+                            Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và phân tích, bỏ qua gọi lặp lại.");
+                            return;
+                        }
+                        lastLoadedMove0Fen = fen;
+                        android.os.Handler h = getMove0RetryHandler();
+                        if (h != null) h.removeCallbacksAndMessages(null);
+                    }
                 }
+                onBoardChanged(getStateImpl(), pos);
+                return;
             }
         } catch (Throwable ignored) {}
         triggerAnalysisForCurrentState();
@@ -991,7 +1169,6 @@ public class StockfishExtension {
                     if (isStartPos || (moves != null && moves.isEmpty())) {
                         OverlayManager.clearClassificationBadge();
                         OverlayManager.resetAccuracyEloWidget();
-                        OverlayManager.hideAccuracyEloPills();
                         if (state != null) ArrowInjector.clearEngineArrows(state);
                         if (ctx != null) {
                             TorchEngine.getInstance(ctx).cancelPendingRequests();

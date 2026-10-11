@@ -224,15 +224,9 @@ public class OverlayManager {
                                 int branchMateIn = (lineMateIn != null && i < lineMateIn.length) ? lineMateIn[i] : 0;
 
                                 if (branchHasMate && branchMateIn != 0) {
-                                    evalText = branchMateIn > 0 ? ("#" + branchMateIn) : ("#-" + Math.abs(branchMateIn));
+                                    evalText = formatArrowEvalLabel(true, branchMateIn, 0f);
                                 } else if (lineScores != null && i < lineScores.length) {
-                                    float score = lineScores[i];
-                                    float relativeScore = whiteToMove ? score : -score;
-                                    float rounded = Math.round(relativeScore * 10f) / 10f;
-                                    String fixed = Math.abs(rounded) >= 10f
-                                            ? String.format(java.util.Locale.US, "%.0f", (float) Math.abs(rounded))
-                                            : String.format(java.util.Locale.US, "%.1f", (float) Math.abs(rounded));
-                                    evalText = (rounded > 0 ? "+" : (rounded < 0 ? "-" : "")) + fixed;
+                                    evalText = formatArrowEvalLabel(false, 0, lineScores[i]);
                                 }
                                 list.add(new ArrowOverlayView.ArrowData(m, i + 1, false, evalText));
                             }
@@ -582,6 +576,21 @@ public class OverlayManager {
         return (depth > 0 ? "d" + depth + " \u00B7 " : "") + eval;
     }
 
+    /**
+     * NNVC Extension standard formatting (_formatArrowEvalLabel, nnvc_main_bundle.js lines 13303-13308).
+     * Formats evaluation from side-to-move POV (#mate or +cp / -cp).
+     */
+    public static String formatArrowEvalLabel(boolean branchHasMate, int branchMateIn, float sideToMovePawns) {
+        if (branchHasMate && branchMateIn != 0) {
+            return branchMateIn > 0 ? ("#" + branchMateIn) : ("#-" + Math.abs(branchMateIn));
+        }
+        float rounded = Math.round(sideToMovePawns * 10f) / 10f;
+        String fixed = Math.abs(rounded) >= 10f
+                ? String.format(java.util.Locale.US, "%.0f", (float) Math.abs(rounded))
+                : String.format(java.util.Locale.US, "%.1f", (float) Math.abs(rounded));
+        return (rounded > 0 ? "+" : (rounded < 0 ? "-" : "")) + fixed;
+    }
+
     public static void hideEngineInfo() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
@@ -653,7 +662,9 @@ public class OverlayManager {
                 @Override
                 public void onLayoutChange(View v, int left, int top, int right, int bottom,
                                            int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                    StockfishExtension.onInitialPositionLoaded(v);
+                    if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                        invalidateArrowOverlay();
+                    }
                 }
             });
         }

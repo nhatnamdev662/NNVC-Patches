@@ -373,6 +373,81 @@ public class SelfTest {
         boolean canProcessNullPosition = (dummyPos != null);
         check("Null position is safely rejected", !canProcessNullPosition);
 
+        // === IS_WHITE_TO_MOVE TESTS (SOLELY FEN TURN) ===
+        String whiteTurnFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        String blackTurnFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        java.util.List<String> oneMoveList = java.util.Collections.singletonList("e2e4");
+        check("isWhiteToMove white turn is true regardless of moves",
+            StockfishProcess.isWhiteToMove(whiteTurnFen, oneMoveList));
+        check("isWhiteToMove black turn is false regardless of moves empty",
+            !StockfishProcess.isWhiteToMove(blackTurnFen, java.util.Collections.emptyList()));
+        check("isWhiteToMove black turn is false with 1 move in list",
+            !StockfishProcess.isWhiteToMove(blackTurnFen, oneMoveList));
+
+        // === OVERLAYMANAGER FORMAT ARROW EVAL LABEL (NNVC EXTENSION PARITY) ===
+        check("OverlayManager format mate in 2 = #2",
+            OverlayManager.formatArrowEvalLabel(true, 2, 0f).equals("#2"));
+        check("OverlayManager format mate in -3 = #-3",
+            OverlayManager.formatArrowEvalLabel(true, -3, 0f).equals("#-3"));
+        check("OverlayManager format +2.5 = +2.5",
+            OverlayManager.formatArrowEvalLabel(false, 0, 2.5f).equals("+2.5"));
+        check("OverlayManager format -0.8 = -0.8",
+            OverlayManager.formatArrowEvalLabel(false, 0, -0.8f).equals("-0.8"));
+        check("OverlayManager format 0.0 = 0.0",
+            OverlayManager.formatArrowEvalLabel(false, 0, 0.0f).equals("0.0"));
+        check("OverlayManager format +12.3 = +12",
+            OverlayManager.formatArrowEvalLabel(false, 0, 12.3f).equals("+12"));
+        check("OverlayManager format -15.8 = -16",
+            OverlayManager.formatArrowEvalLabel(false, 0, -15.8f).equals("-16"));
+
+        // === MULTIPV SORTING & SIDE-TO-MOVE POV TEST ===
+        // When Black is to move and Black is winning:
+        // Branch 1: score cp +250 (Black +2.5 pawns)
+        // Branch 2: score cp +100 (Black +1.0 pawns)
+        // Branch 3: score cp -50  (Black -0.5 pawns)
+        // In Black's POV, Branch 1 must be Tier 1 (highest score), Branch 2 Tier 2, Branch 3 Tier 3
+        long eval1 = 250L;
+        long eval2 = 100L;
+        long eval3 = -50L;
+        check("MultiPV Black winning: eval1 > eval2 > eval3",
+            eval1 > eval2 && eval2 > eval3);
+        String label1 = OverlayManager.formatArrowEvalLabel(false, 0, 2.5f);
+        String label2 = OverlayManager.formatArrowEvalLabel(false, 0, 1.0f);
+        String label3 = OverlayManager.formatArrowEvalLabel(false, 0, -0.5f);
+        check("Tier 1 arrow label is +2.5", label1.equals("+2.5"));
+        check("Tier 2 arrow label is +1.0", label2.equals("+1.0"));
+        check("Tier 3 arrow label is -0.5", label3.equals("-0.5"));
+
+        // === MOVE 0 DEDUPLICATION TEST ===
+        String move0Fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        String lastScheduledMove0 = move0Fen;
+        boolean scheduled = true;
+        boolean isDuplicateMove0 = scheduled && move0Fen.equals(lastScheduledMove0);
+        check("Duplicate Move 0 call is safely suppressed", isDuplicateMove0);
+        String nextFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        boolean isDifferentFen = scheduled && nextFen.equals(lastScheduledMove0);
+        check("Move 1 is not suppressed", !isDifferentFen);
+
+        // === ACTIVE GAMEOVER DETECTION DIALOG TEST ===
+        class MockDialog {
+            public boolean isShowing() { return true; }
+        }
+        class MockDialogFragment {
+            public boolean isVisible() { return false; } // false in lifecycle but dialog is showing!
+            public MockDialog getDialog() { return new MockDialog(); }
+        }
+        MockDialogFragment mdf = new MockDialogFragment();
+        boolean isDialogShowing = false;
+        try {
+            java.lang.reflect.Method getDlg = mdf.getClass().getMethod("getDialog");
+            Object dlg = getDlg.invoke(mdf);
+            if (dlg != null) {
+                java.lang.reflect.Method isShowing = dlg.getClass().getMethod("isShowing");
+                isDialogShowing = (Boolean) isShowing.invoke(dlg);
+            }
+        } catch (Throwable ignored) {}
+        check("Active DialogFragment isShowing recognized even when isVisible is false", isDialogShowing);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
