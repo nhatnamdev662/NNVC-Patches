@@ -236,6 +236,42 @@ public class SelfTest {
         check("getSquareName(4) = e8",
             getSquareName(4).equals("e8"));
 
+        // === EVAL BAR TESTS (MODULE 1921 & NNVC PARITY) ===
+        check("EvalBar ratioFor(0.0) == 0.50",
+            Math.abs(EvalBarView.ratioFor(0.0f) - 0.50f) < 0.001f);
+        check("EvalBar ratioFor(+5.0) == 0.95 (capped)",
+            Math.abs(EvalBarView.ratioFor(5.0f) - 0.95f) < 0.001f);
+        check("EvalBar ratioFor(-5.0) == 0.05 (capped)",
+            Math.abs(EvalBarView.ratioFor(-5.0f) - 0.05f) < 0.001f);
+        check("EvalBar ratioFor(+10.0) == 0.95 (clamped)",
+            Math.abs(EvalBarView.ratioFor(10.0f) - 0.95f) < 0.001f);
+        check("EvalBar ratioFor(-10.0) == 0.05 (clamped)",
+            Math.abs(EvalBarView.ratioFor(-10.0f) - 0.05f) < 0.001f);
+        check("EvalBar ratioFor(+2.5) == 0.725",
+            Math.abs(EvalBarView.ratioFor(2.5f) - 0.725f) < 0.001f);
+        check("EvalBar ratioFor(-2.5) == 0.275",
+            Math.abs(EvalBarView.ratioFor(-2.5f) - 0.275f) < 0.001f);
+
+        check("EvalBar formatScore(0.0) = 0.0",
+            EvalBarView.formatScore(0.0f).equals("0.0"));
+        check("EvalBar formatScore(0.4) = 0.4",
+            EvalBarView.formatScore(0.4f).equals("0.4"));
+        check("EvalBar formatScore(-1.2) = 1.2 (no negative prefix)",
+            EvalBarView.formatScore(-1.2f).equals("1.2"));
+        check("EvalBar formatScore(12.3) = 12",
+            EvalBarView.formatScore(12.3f).equals("12"));
+        check("EvalBar formatScore(-15.8) = 16",
+            EvalBarView.formatScore(-15.8f).equals("16"));
+
+        check("isStandardStartposMoves legal e2e4",
+            WasmEngineManager.isStandardStartposMoves(java.util.Collections.singletonList("e2e4")));
+        check("isStandardStartposMoves legal d2d4",
+            WasmEngineManager.isStandardStartposMoves(java.util.Collections.singletonList("d2d4")));
+        check("isStandardStartposMoves illegal e1g1",
+            !WasmEngineManager.isStandardStartposMoves(java.util.Collections.singletonList("e1g1")));
+        check("isStandardStartposMoves empty is false",
+            !WasmEngineManager.isStandardStartposMoves(java.util.Collections.emptyList()));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

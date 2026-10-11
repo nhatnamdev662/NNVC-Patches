@@ -662,7 +662,7 @@ public class WasmEngineManager {
                 "    window._classifyPendingCmds = [];\n" +
                 "    window._playEngineKey = '" + currentPlayEngineKey + "';\n" +
                 "\n" +
-                "    function createWorkerPreamble(engineKey, jsCode) {\n" +
+                "    function createWorkerPreamble(engineKey, jsCode, kind) {\n" +
                 "        if (engineKey === 'komodo') {\n" +
                 "            return `\n" +
                 "var _injectedWasm = null;\n" +
@@ -780,6 +780,7 @@ public class WasmEngineManager {
                 "            return `\n" +
                 "var _injectedWasm = null;\n" +
                 "var _engineKey = 'stockfish18';\n" +
+                "var _workerKind = '${kind || \"play\"}';\n" +
                 "var _origFetch = self.fetch;\n" +
                 "\n" +
                 "self.importScripts = self.importScripts || function(){};\n" +
@@ -863,6 +864,7 @@ public class WasmEngineManager {
                 "    _isSearching = false;\n" +
                 "    _stopRequested = false;\n" +
                 "    _isRequestedStop = false;\n" +
+                "    _currentEvalEpoch = 0;\n" +
                 "    clearWatchdog();\n" +
                 "    setTimeout(drainQueue, 0);\n" +
                 "}\n" +
@@ -1021,7 +1023,9 @@ public class WasmEngineManager {
                 "                    if (!cmd) return;\n" +
                 "\n" +
                 "                    if (cmd === 'stop') {\n" +
-                "                        _isRequestedStop = true;\n" +
+                "                        if (_workerKind === 'classify') {\n" +
+                "                            _isRequestedStop = true;\n" +
+                "                        }\n" +
                 "                        if (_isSearching) {\n" +
                 "                            if (!_stopRequested) {\n" +
                 "                                _stopRequested = true;\n" +
@@ -1101,7 +1105,7 @@ public class WasmEngineManager {
                 "\n" +
                 "    function startWorker(kind, engineKey, jsCode, wasmBuf, bookBuf) {\n" +
                 "        console.log('[WasmManager] Starting worker: kind=' + kind + ', engine=' + engineKey);\n" +
-                "        const fullScript = createWorkerPreamble(engineKey, jsCode);\n" +
+                "        const fullScript = createWorkerPreamble(engineKey, jsCode, kind);\n" +
                 "        const blob = new Blob([fullScript], { type: 'application/javascript' });\n" +
                 "        const blobUrl = URL.createObjectURL(blob);\n" +
                 "        const worker = new Worker(blobUrl);\n" +
@@ -1335,6 +1339,7 @@ public class WasmEngineManager {
         lastClassifyScore = 0f;
         lastClassifyHasMate = false;
         lastClassifyMateIn = 0;
+        lastClassifyScoreEpoch = -1L;
         lastEvalBarUpdateTs = 0L;
 
         sendClassifyCommand("stop");
@@ -1448,8 +1453,6 @@ public class WasmEngineManager {
                 classifyUciOutputQueue.offer(line);
                 UciLineListener l = classifyLineListener;
                 if (l != null) l.onLine(line);
-
-                handleClassifyUciLine(line);
             }
         }
     }
@@ -1457,16 +1460,14 @@ public class WasmEngineManager {
     private volatile float lastClassifyScore = 0f;
     private volatile boolean lastClassifyHasMate = false;
     private volatile int lastClassifyMateIn = 0;
+    private volatile long lastClassifyScoreEpoch = -1L;
     private volatile long lastEvalBarUpdateTs = 0L;
-
-    private void handleClassifyUciLine(String line) {
-        handleClassifyUciLineWithContext(line, currentClassifyEpoch, currentClassifyWhiteToMove);
-    }
 
     private void handleClassifyUciLineWithContext(String line, long epoch, boolean whiteToMove) {
         if (line == null || epoch != currentClassifyEpoch) return;
 
         if (line.startsWith("bestmove")) {
+            if (lastClassifyScoreEpoch != epoch) return;
             final float score = lastClassifyScore;
             final boolean hasMate = lastClassifyHasMate;
             final int mateIn = lastClassifyMateIn;
@@ -1481,7 +1482,8 @@ public class WasmEngineManager {
         }
 
         if (!line.startsWith("info ") || line.indexOf(" score ") < 0) return;
-        if (line.indexOf("multipv 1 ") < 0 && !line.contains("multipv 1\t")) return;
+        boolean isMpv1 = (line.indexOf("multipv") < 0) || line.contains("multipv 1 ") || line.contains("multipv 1\t") || line.endsWith("multipv 1");
+        if (!isMpv1) return;
 
         try {
             String[] tokens = line.split("\\s+");
@@ -1522,6 +1524,7 @@ public class WasmEngineManager {
             lastClassifyScore = whiteScore;
             lastClassifyHasMate = isMate;
             lastClassifyMateIn = whiteMate;
+            lastClassifyScoreEpoch = epoch;
 
             if (depth >= 8) {
                 long now = android.os.SystemClock.uptimeMillis();

@@ -400,6 +400,11 @@
         - Gắn phiên bản đánh giá `classifyEvalEpoch` và `whiteToMove` của từng lượt đánh giá độc lập: Mỗi lượt đánh giá được đánh số epoch tăng dần. Mọi dòng UCI output được gắn thẻ epoch và `whiteToMove` tương ứng; nếu epoch khác với `currentClassifyEpoch`, dòng dữ liệu bị hủy bỏ tức thì.
         - Cờ `_isRequestedStop` trong Web Worker Stockfish 18 JS: Khi nhận lệnh `stop`, đặt `_isRequestedStop = true;` và bỏ qua hoàn toàn mọi dòng UCI output (`info ...`) phát sinh trong lúc engine unwinding / stopping. Chỉ khi nhận được `bestmove` của lượt cũ, mới giải phóng cờ `_isRequestedStop = false` và thực thi lệnh `position` + `go` của nước cờ tiếp theo trong `drainQueue`.
         - Chuyển lệnh gửi vị trí cờ sang chuẩn Extension: Nếu có danh sách `moves` (bắt đầu từ thế cờ chuẩn), gửi `position startpos moves <move1> <move2> ...` để tận dụng 100% bảng băm hoán vị (Transposition Table) của Hash 64MB; fallback về `position fen <fen>` nếu không có moves hoặc là biến thể tùy chỉnh.
+        - **Gia cố bảo vệ worker và epoch trong bản audit**:
+          - Phân tách `_workerKind` ('classify' vs 'play'): Chỉ bật `_isRequestedStop = true` trên Classify worker khi nhận `stop`, bảo toàn `bestmove` cho Play worker và triệt tiêu nguy cơ timeout 5000ms.
+          - Reset `_currentEvalEpoch = 0` trong `onDoneSearching()` loại trừ epoch rác trên các output nhàn rỗi.
+          - Gỡ bỏ `handleClassifyUciLine` khỏi `onEngineOutput`, chỉ xử lý điểm qua `onClassifyEvalOutput` với epoch và `whiteToMove` bất biến.
+          - Bổ sung `lastClassifyScoreEpoch`, chỉ áp dụng điểm tại `bestmove` nếu `lastClassifyScoreEpoch == epoch`, ngăn rò rỉ điểm số của ply cũ.
       - **Chuẩn hóa công thức tỷ lệ thanh đánh giá (Eval Bar Scale Math) theo chuẩn Extension Module 1921 (`EvalBarView.java`)**:
         - Thay thế hàm Sigmoid `ReviewMath.whiteWin` bằng công thức Linear Clamp chuẩn Module 1921 của Extension:
           `float cp = Math.max(-500.0f, Math.min(500.0f, scorePawns * 100.0f));`
@@ -411,22 +416,24 @@
         - Nhãn điểm hiển thị chuẩn Extension: Không in dấu `+` hay `-` thừa trên thân thanh, chỉ in `M<n>` (nếu mate) hoặc `<score>` 1 chữ số thập phân.
       - **Kết nối danh sách nước đi và reset ván mới (`StockfishExtension.java` & `OverlayManager.java`)**:
         - Trong `onBoardChanged`, trích xuất và truyền danh sách nước cờ: `WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, MoveClassifier.getCurrentPositionMoves());`.
-        - Khi ván cờ mới bắt đầu (FEN startpos), gọi `OverlayManager.resetEvalBar()` và `WasmEngineManager.getInstance(ctx).resetClassifyGame()` gửi `ucinewgame` vào Classify worker để xóa sạch lịch sử ván cũ.
+        - Khi ván cờ mới bắt đầu (FEN startpos), gọi `OverlayManager.resetEvalBar()`, `MoveClassifier.clearHistory()`, và `WasmEngineManager.getInstance(ctx).resetClassifyGame()` gửi `ucinewgame` vào Classify worker để xóa sạch lịch sử ván cũ.
       - **Biên dịch & Đóng gói**:
         - Bump phiên bản lên `v2.0.72` (versionCode `20072`) trong `patches-bundle.json` và `patches-list.json`.
-        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,753,168 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.72.mpp` (227,446,396 bytes).
+        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,754,792 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.72.mpp` (227,446,906 bytes).
 
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
 - **Phiên bản mới nhất**: `v2.0.72` (versionCode `20072`).
 - **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.72/patches-2.0.72.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.72.mpp` (227,446,396 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.72.mpp`.
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.72.mpp` (227,446,906 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.72.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.72.mpp` (227,446,396 bytes).
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.72.mpp` (227,446,906 bytes).
   - [x] Sửa triệt để race condition đảo ngược điểm số của Eval Bar khi đối thủ đi nhanh.
   - [x] Áp dụng chuẩn công thức Scale Math Module 1921 Linear Clamp `[-500, +500]` centipawns.
   - [x] 100% white/black trên Checkmate; Decelerate ValueAnimator 180ms loại bỏ double-smoothing.
   - [x] Gửi `position startpos moves ...` tái sử dụng Hash TT và gọi `ucinewgame` khi bắt đầu ván mới.
+  - [x] Phân tách `_workerKind` bảo toàn `bestmove` cho Play worker và triệt tiêu nguy cơ timeout 5000ms.
+  - [x] Chạy kiểm thử tự động `SelfTest` đạt 54/54 tests passed (0 failed).
   - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.72.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.

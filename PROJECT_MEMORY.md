@@ -441,6 +441,7 @@
   2. Chuẩn hóa thang đo Eval Bar Linear Clamp Module 1921 `[-500, +500]` và Decelerate ValueAnimator 180ms.
   3. Tận dụng 100% Transposition Table với `position startpos moves ...` và tự động reset ván mới `ucinewgame`.
   4. Đã khắc phục triệt để lỗi mũi tên nhảy / giật ở Depth 12 và điểm mate hiển thị sai lệch.
+  5. Đã gia cố kiểm toán v2.0.72: Phân tách `_workerKind` để cờ `_isRequestedStop` chỉ tác động lên Classify worker (không nuốt `bestmove` của Play worker gây lag 5000ms), dọn sạch `_currentEvalEpoch = 0` khi done searching, loại bỏ định tuyến UCI kép từ `onEngineOutput`, và theo dõi `lastClassifyScoreEpoch` ngăn rò rỉ điểm số của ply cũ.
 
 
 

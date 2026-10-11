@@ -306,6 +306,7 @@ public class StockfishExtension {
             ArrowInjector.clearEngineArrows(stateImplObject);
             TorchEngine.getInstance(getContext()).cancelPendingRequests();
             resetUserWhiteCache();
+            MoveClassifier.clearHistory();
             if (ctx != null) {
                 WasmEngineManager.getInstance(ctx).resetClassifyGame();
             }
