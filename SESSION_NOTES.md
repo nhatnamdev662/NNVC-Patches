@@ -373,21 +373,38 @@
         - Bump phiên bản lên `v2.0.70` (versionCode `20070`) trong `patches-bundle.json` và `patches-list.json`.
         - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,741,028 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.70.mpp` (227,443,368 bytes).
 
+35. **Phát Hành Bản v2.0.71 (Sửa Lỗi Mũi Tên Nhảy Depth 12, Điểm Mate -97, Đảo Chiều Mate & Tách Rời Tuyệt Đối Eval Bar)**:
+      - **Khắc phục triệt để lỗi mũi tên nhảy / giật ở Depth 12 (Progress Drop Bug)**:
+        - Phân tích nguyên nhân: Trong `StockfishProcess.readSearchOutput`, khi `multiPV > 1` và nhận `depth >= 6` kèm `mpv == 1`, tiến trình vô tình dispatch danh sách chỉ có 1 nước đi (`Collections.singletonList(firstMoves[0])`) về UI. Điều này khiến UI bị xóa mất nhánh 2 và 3 giữa kỳ tính toán, gây ra hiện tượng mũi tên bị chớp giật liên tục khi đạt Depth 12.
+        - Sửa đổi: Chỉ gửi báo cáo tiến trình khi `(multiPV <= 1 || mpv == multiPV)` và luôn luôn dispatch trọn vẹn toàn bộ danh sách `firstMoves` của các nhánh MultiPV đang có.
+      - **Sửa triệt để lỗi điểm Mate hiển thị "-97" và đảo chiều thứ tự Mate (Mate Inversion)**:
+        - `curMateIn` trước đây bị đảo ngược sai (`whiteToMove ? scoreVal : -scoreVal;`), dẫn đến khi Black cầm cự, nước thua sau 1 nước bị đánh giá cao hơn nước kéo dài 3 nước.
+        - Cập nhật công thức chuẩn hóa thứ tự `CandidateLine`:
+          `evalNum = isMate ? (mateVal > 0 ? (100000L - Math.abs(mateVal) * 100L) : (-100000L + Math.abs(mateVal) * 100L)) : (long) cpVal;`
+          Đảm bảo phe thua ưu tiên nước kéo dài ván cờ lâu nhất, phe thắng ưu tiên nước chiếu hết nhanh nhất.
+        - Bổ sung mảng `boolean[] lineMates` và `int[] lineMateIn` trong `AnalysisResult`, truyền trọn vẹn qua `StockfishBridge` và `OverlayManager`. Sửa `OverlayManager` hiển thị nhãn `#M` / `#-M` chuẩn xác cho cả 3 nhánh MultiPV, triệt tiêu hoàn toàn nhãn thô `-97.0f`.
+      - **Độc lập 100% Eval Bar khi đổi Engine (Komodo / SF18) hoặc Komodo Play Style**:
+        - Tách rời hàm `window.switchPlayEngine` trong `WasmEngineManager`: Chỉ khởi động/dừng `_playWorker`, tuyệt đối không đụng chạm đến `_classifyWorker`.
+        - Bộ lọc Classify Eval Bar: Chặn các điểm số sơ bộ không ổn định ở Depth 1..7; chỉ cập nhật Eval Bar khi `depth >= 8` (debounce 150ms) hoặc khi nhận `bestmove` ổn định cuối cùng.
+        - Sửa `StockfishSettingsDialog`: Khi đổi engine hoặc play style, chỉ gọi `triggerPlayAnalysisOnly()`, không kích hoạt lại classify position nếu FEN không đổi.
+      - **Tương thích toàn diện Komodo Dragon 3.3 Option Parity**:
+        - Ánh xạ `StockfishSettings.getKomodoStyle()` sang UCI option `Contempt` (`Aggressive`: 50, `Defensive`: -50, `Default`: 0).
+        - Chặn các option không tương thích (`UCI_LimitStrength`, `UCI_Elo`, `UCI_ShowWDL`) khi chạy Komodo Dragon.
+      - **Biên dịch & Đóng gói**:
+        - Bump phiên bản lên `v2.0.71` (versionCode `20071`) trong `patches-bundle.json` và `patches-list.json`.
+        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,746,220 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.71.mpp` (227,445,421 bytes).
+
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
-- **Phiên bản mới nhất**: `v2.0.70` (versionCode `20070`).
-- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.70/patches-2.0.70.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.70.mpp` (227,443,368 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.70.mpp`.
+- **Phiên bản mới nhất**: `v2.0.71` (versionCode `20071`).
+- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.71/patches-2.0.71.mpp`
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.71.mpp` (227,445,421 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.71.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.70.mpp` (227,443,368 bytes).
-  - [x] Sửa triệt để lỗi Stockfish 18 WASM Classify Worker `RuntimeError: memory access out of bounds` bằng Asyncify serialized queue.
-  - [x] Tách rời 100% Eval Bar khỏi Play Engine.
-  - [x] Tách rời Torch Move Classifier và ngăn chặn drop kết quả khi đối thủ đi nhanh (snapshot bất biến + reqId queue).
-  - [x] Debounce SeekBar settings trên `onStopTrackingTouch`.
-  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.70.
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.71.mpp` (227,445,421 bytes).
+  - [x] Sửa triệt để lỗi mũi tên nhảy / giật ở Depth 12 (chỉ dispatch progress khi full MultiPV).
+  - [x] Sửa triệt để lỗi điểm Mate hiển thị -97 và lỗi đảo chiều thứ tự Mate khi Black phòng thủ.
+  - [x] Độc lập 100% Eval Bar khi đổi Engine (Komodo / SF18) hoặc Komodo Play Style.
+  - [x] Tương thích toàn diện Komodo Dragon 3.3 Option Parity (Contempt, Skill Level).
+  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.71.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
-
-
-
-

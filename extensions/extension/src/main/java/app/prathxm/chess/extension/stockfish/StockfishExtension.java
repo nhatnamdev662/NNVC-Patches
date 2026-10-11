@@ -492,11 +492,11 @@ public class StockfishExtension {
                 ArrowInjector.injectThreatArrow(context, getStateImpl(), threatToInject);
             }
 
-            String sig = fen + '|' + (showArrows ? result.moves : "") + '|' + (showThreat ? result.ponder : "");
+            String sig = fen + '|' + (showArrows ? (result.moves != null ? result.moves.toString() : "") : "") + '|' + (showThreat && threatToInject != null ? threatToInject : "");
             if (!sig.equals(lastArrowSignature)) {
                 lastArrowSignature = sig;
                 boolean whiteTurn = isWhiteTurnFromFen(fen);
-                OverlayManager.updateArrowOverlay(movesToInject, threatToInject, result.lineScores, result.hasMate, result.mateIn, whiteTurn, getStateImpl());
+                OverlayManager.updateArrowOverlay(movesToInject, threatToInject, result.lineScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
             }
         } else if (isFinal) {
             lastArrowSignature = null;
@@ -664,6 +664,30 @@ public class StockfishExtension {
                 }
             } catch (Throwable t) {
                 Log.e(TAG, "triggerAnalysisForCurrentState failed: " + t.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Re-triggers only the play analysis (best moves / arrows) without touching the Classify Eval Bar.
+     * Used when toggling play engines or Komodo play styles so that Eval Bar remains rock-solid.
+     */
+    public static void triggerPlayAnalysisOnly() {
+        lastArrowSignature = null;
+        lastScheduledKey = null;
+        Object state = getStateImpl();
+        if (state != null) {
+            try {
+                Method getPosition = state.getClass().getMethod("getPosition");
+                Object positionObject = getPosition.invoke(state);
+                if (positionObject != null) {
+                    String fen = extractFen(positionObject);
+                    if (fen != null) {
+                        scheduleAnalysis(fen, true);
+                    }
+                }
+            } catch (Throwable t) {
+                Log.e(TAG, "triggerPlayAnalysisOnly failed: " + t.getMessage());
             }
         }
     }

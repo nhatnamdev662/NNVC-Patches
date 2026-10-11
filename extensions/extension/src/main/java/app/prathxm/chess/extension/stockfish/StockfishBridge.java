@@ -108,8 +108,10 @@ public class StockfishBridge {
         if (r.moves.size() <= multiPV) return r;
         java.util.List<String> moves = new java.util.ArrayList<>(r.moves.subList(0, multiPV));
         float[] lines = java.util.Arrays.copyOf(r.lineScores, Math.min(multiPV, r.lineScores.length));
+        boolean[] lineMates = r.lineMates != null ? java.util.Arrays.copyOf(r.lineMates, Math.min(multiPV, r.lineMates.length)) : new boolean[lines.length];
+        int[] lineMateIn = r.lineMateIn != null ? java.util.Arrays.copyOf(r.lineMateIn, Math.min(multiPV, r.lineMateIn.length)) : new int[lines.length];
         return new StockfishProcess.AnalysisResult(moves, r.score, r.hasMate, r.mateIn,
-                r.wdlWin, r.wdlDraw, r.wdlLoss, r.ponder, r.pv, lines, r.depth, r.terminal);
+                r.wdlWin, r.wdlDraw, r.wdlLoss, r.ponder, r.pv, lines, lineMates, lineMateIn, r.depth, r.terminal);
     }
 
     private static void putCache(String fen, StockfishProcess.AnalysisResult r, int depth, int multiPV, int limited) {

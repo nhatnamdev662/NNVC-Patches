@@ -43,6 +43,7 @@ public class StockfishProcess {
     private int curSkillLevel = -1;
     private int curSkillErr = -1;
     private int curSkillProb = -1;
+    private int curContempt = -999;
     private String curEngineChoice = null;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -71,7 +72,9 @@ public class StockfishProcess {
                 waitForLine("uciok", 5000);
                 sendUciCommand("setoption name Threads value 1");
                 sendUciCommand("setoption name Hash value 16");
-                sendUciCommand("setoption name UCI_ShowWDL value true");
+                if (!StockfishSettings.ENGINE_KOMODO.equals(engineChoice)) {
+                    sendUciCommand("setoption name UCI_ShowWDL value true");
+                }
                 sendUciCommand("isready");
                 waitForLine("readyok", 5000);
 
@@ -116,6 +119,8 @@ public class StockfishProcess {
         public final String ponder;
         public final List<String> pv;
         public final float[] lineScores;
+        public final boolean[] lineMates;
+        public final int[] lineMateIn;
         public final int depth;
         public final boolean terminal;
 
@@ -123,12 +128,26 @@ public class StockfishProcess {
                               int wdlWin, int wdlDraw, int wdlLoss, String ponder) {
             this(moves, score, hasMate, mateIn, wdlWin, wdlDraw, wdlLoss, ponder,
                     moves != null && !moves.isEmpty() ? Collections.singletonList(moves.get(0)) : new ArrayList<>(),
-                    new float[]{score}, 0, false);
+                    new float[]{score},
+                    new boolean[]{hasMate},
+                    new int[]{mateIn},
+                    0, false);
         }
 
         public AnalysisResult(List<String> moves, float score, boolean hasMate, int mateIn,
                               int wdlWin, int wdlDraw, int wdlLoss, String ponder,
                               List<String> pv, float[] lineScores, int depth, boolean terminal) {
+            this(moves, score, hasMate, mateIn, wdlWin, wdlDraw, wdlLoss, ponder, pv, lineScores,
+                    createDefaultLineMates(hasMate, lineScores != null ? lineScores.length : 0),
+                    createDefaultLineMateIn(mateIn, lineScores != null ? lineScores.length : 0),
+                    depth, terminal);
+        }
+
+        public AnalysisResult(List<String> moves, float score, boolean hasMate, int mateIn,
+                              int wdlWin, int wdlDraw, int wdlLoss, String ponder,
+                              List<String> pv, float[] lineScores,
+                              boolean[] lineMates, int[] lineMateIn,
+                              int depth, boolean terminal) {
             this.moves = moves != null ? moves : new ArrayList<>();
             this.score = score;
             this.hasMate = hasMate;
@@ -139,13 +158,27 @@ public class StockfishProcess {
             this.ponder = ponder;
             this.pv = pv != null ? pv : new ArrayList<>();
             this.lineScores = lineScores != null ? lineScores : new float[0];
+            this.lineMates = lineMates != null ? lineMates : new boolean[this.lineScores.length];
+            this.lineMateIn = lineMateIn != null ? lineMateIn : new int[this.lineScores.length];
             this.depth = depth;
             this.terminal = terminal;
         }
 
+        private static boolean[] createDefaultLineMates(boolean hasMate, int size) {
+            boolean[] res = new boolean[size];
+            if (hasMate && size > 0) res[0] = true;
+            return res;
+        }
+
+        private static int[] createDefaultLineMateIn(int mateIn, int size) {
+            int[] res = new int[size];
+            if (size > 0) res[0] = mateIn;
+            return res;
+        }
+
         public static AnalysisResult empty() {
             return new AnalysisResult(new ArrayList<>(), 0f, false, 0, 0, 0, 0, null,
-                    new ArrayList<>(), new float[0], 0, false);
+                    new ArrayList<>(), new float[0], new boolean[0], new int[0], 0, false);
         }
 
         public boolean isValid() {
@@ -248,6 +281,9 @@ public class StockfishProcess {
                                             int targetDepth, ProgressListener progress) throws Exception {
         String[] firstMoves = new String[multiPV];
         float[] scores = new float[multiPV];
+        boolean[] lineMates = new boolean[multiPV];
+        int[] lineMateIn = new int[multiPV];
+        long[] evalNums = new long[multiPV];
         boolean[] haveExact = new boolean[multiPV];
         boolean[] haveAny = new boolean[multiPV];
         List<String> bestPv = null;
@@ -353,13 +389,18 @@ public class StockfishProcess {
                 }
             }
 
+            long currentEvalNum = isMate
+                    ? (scoreVal > 0 ? (100000L - Math.abs(scoreVal) * 100L) : (-100000L + Math.abs(scoreVal) * 100L))
+                    : (long) scoreVal;
+
             float currentScore;
+            int curWhiteMate = 0;
             if (isMate) {
-                int curMateIn = whiteToMove ? scoreVal : -scoreVal;
-                currentScore = curMateIn > 0 ? (MATE_SCORE - curMateIn) : (-MATE_SCORE - curMateIn);
+                curWhiteMate = whiteToMove ? scoreVal : -scoreVal;
+                currentScore = curWhiteMate > 0 ? (MATE_SCORE - Math.abs(curWhiteMate)) : (-MATE_SCORE + Math.abs(curWhiteMate));
                 if (mpv == 1) {
                     hasMate = true;
-                    mateIn = curMateIn;
+                    mateIn = curWhiteMate;
                 }
             } else {
                 float pawns = scoreVal / 100.0f;
@@ -369,10 +410,16 @@ public class StockfishProcess {
 
             if (!bound) {
                 scores[idx] = currentScore;
+                lineMates[idx] = isMate;
+                lineMateIn[idx] = scoreVal; // Side-to-move POV for arrow labels
+                evalNums[idx] = currentEvalNum;
                 haveExact[idx] = true;
                 haveAny[idx] = true;
             } else if (!haveExact[idx]) {
                 scores[idx] = currentScore;
+                lineMates[idx] = isMate;
+                lineMateIn[idx] = scoreVal;
+                evalNums[idx] = currentEvalNum;
                 haveAny[idx] = true;
             }
 
@@ -384,58 +431,116 @@ public class StockfishProcess {
 
             if (depth > reachedDepth) reachedDepth = depth;
 
-            if (progress != null && depth >= PROGRESS_MIN_DEPTH && mpv == 1 && firstMoves[0] != null) {
+            // Only report progress when ALL multiPV branches for this depth are received, never drop lines!
+            if (progress != null && depth >= PROGRESS_MIN_DEPTH && (multiPV <= 1 || mpv == multiPV) && firstMoves[0] != null) {
                 long now = System.currentTimeMillis();
-                float whiteScore = scores[0];
                 if (now - lastReport >= PROGRESS_INTERVAL_MS) {
                     lastReport = now;
                     reportedDepth = depth;
                     try {
-                        progress.onProgress(new AnalysisResult(
-                                Collections.singletonList(firstMoves[0]),
-                                whiteScore, hasMate,
-                                mateIn, wdlW, wdlD, wdlL,
+                        AnalysisResult partial = buildResult(firstMoves, scores, lineMates, lineMateIn, evalNums,
+                                haveAny, multiPV, hasMate, mateIn, wdlW, wdlD, wdlL,
                                 bestPv != null && bestPv.size() > 1 ? bestPv.get(1) : null,
-                                bestPv, new float[]{whiteScore}, depth, false));
+                                bestPv, depth, false, null, whiteToMove);
+                        progress.onProgress(partial);
                     } catch (Throwable ignored) {}
                 }
             }
         }
 
-        return buildResult(firstMoves, scores, haveAny, multiPV, hasMate, mateIn,
-                wdlW, wdlD, wdlL, ponder, bestPv, reachedDepth, terminal, bestmove);
+        return buildResult(firstMoves, scores, lineMates, lineMateIn, evalNums,
+                haveAny, multiPV, hasMate, mateIn,
+                wdlW, wdlD, wdlL, ponder, bestPv, reachedDepth, terminal, bestmove, whiteToMove);
+    }
+
+    private static class CandidateLine {
+        String move;
+        float score;
+        boolean isMate;
+        int mateIn;
+        long evalNum;
     }
 
     private AnalysisResult buildResult(String[] firstMovesIn, float[] scoresIn,
+                                       boolean[] lineMatesIn, int[] lineMateInIn, long[] evalNumsIn,
                                        boolean[] haveAny, int multiPV, boolean hasMate, int mateIn,
                                        int wdlW, int wdlD, int wdlL, String ponder,
                                        List<String> bestPv, int reachedDepth,
-                                       boolean terminal, String bestmove) {
+                                       boolean terminal, String bestmove, boolean whiteToMove) {
         String[] firstMoves = firstMovesIn.clone();
         float[] scores = scoresIn.clone();
+        boolean[] lineMates = lineMatesIn.clone();
+        int[] lineMateIn = lineMateInIn.clone();
+        long[] evalNums = evalNumsIn.clone();
 
-        List<String> moves = new ArrayList<>(multiPV);
-        List<Float> lineScoreList = new ArrayList<>(multiPV);
         if (bestmove != null && firstMoves[0] == null) {
             firstMoves[0] = bestmove;
             haveAny[0] = true;
         }
+
+        List<CandidateLine> candidates = new ArrayList<>();
         for (int i = 0; i < multiPV; i++) {
             if (firstMoves[i] == null) continue;
-            if (moves.contains(firstMoves[i])) continue;
-            moves.add(firstMoves[i]);
-            lineScoreList.add(haveAny[i] ? scores[i] : scores[0]);
+            boolean dup = false;
+            for (CandidateLine c : candidates) {
+                if (firstMoves[i].equals(c.move)) {
+                    dup = true;
+                    break;
+                }
+            }
+            if (dup) continue;
+
+            CandidateLine c = new CandidateLine();
+            c.move = firstMoves[i];
+            c.score = haveAny[i] ? scores[i] : scores[0];
+            c.isMate = haveAny[i] ? lineMates[i] : lineMates[0];
+            c.mateIn = haveAny[i] ? lineMateIn[i] : lineMateIn[0];
+            c.evalNum = haveAny[i] ? evalNums[i] : evalNums[0];
+            candidates.add(c);
         }
-        float[] lineScores = new float[lineScoreList.size()];
-        for (int i = 0; i < lineScores.length; i++) lineScores[i] = lineScoreList.get(i);
+
+        // Sort candidates descending by evalNum: strongest move for side-to-move first!
+        Collections.sort(candidates, (a, b) -> Long.compare(b.evalNum, a.evalNum));
+
+        // If bestmove is present, prioritize it at index 0
+        if (bestmove != null) {
+            for (int i = 0; i < candidates.size(); i++) {
+                if (bestmove.equals(candidates.get(i).move)) {
+                    if (i > 0) {
+                        CandidateLine top = candidates.remove(i);
+                        candidates.add(0, top);
+                    }
+                    break;
+                }
+            }
+        }
+
+        List<String> moves = new ArrayList<>(candidates.size());
+        float[] finalLineScores = new float[candidates.size()];
+        boolean[] finalLineMates = new boolean[candidates.size()];
+        int[] finalLineMateIn = new int[candidates.size()];
+
+        for (int i = 0; i < candidates.size(); i++) {
+            CandidateLine c = candidates.get(i);
+            moves.add(c.move);
+            finalLineScores[i] = c.score;
+            finalLineMates[i] = c.isMate;
+            finalLineMateIn[i] = c.mateIn;
+        }
+
+        boolean finalHasMate = finalLineMates.length > 0 ? finalLineMates[0] : hasMate;
+        int finalMateIn = finalLineMates.length > 0 ? (whiteToMove ? finalLineMateIn[0] : -finalLineMateIn[0]) : mateIn;
+        float finalScore = finalLineScores.length > 0 ? finalLineScores[0] : (scores.length > 0 ? scores[0] : 0f);
 
         boolean isTerminal = terminal && moves.isEmpty();
-        if (isTerminal && !hasMate) {
-            scores[0] = 0f;
+        if (isTerminal && !finalHasMate) {
+            finalScore = 0f;
         }
 
-        return new AnalysisResult(moves, scores[0], hasMate, mateIn, wdlW, wdlD, wdlL, ponder,
-                bestPv != null ? bestPv : new ArrayList<>(), lineScores, reachedDepth, isTerminal);
+        return new AnalysisResult(moves, finalScore, finalHasMate, finalMateIn, wdlW, wdlD, wdlL, ponder,
+                bestPv != null ? bestPv : new ArrayList<>(),
+                finalLineScores, finalLineMates, finalLineMateIn,
+                reachedDepth, isTerminal);
     }
 
     // ── Communication Helpers ──────────────────────────────────────────────────
@@ -476,9 +581,13 @@ public class StockfishProcess {
         curSkillLevel = -1;
         curSkillErr = -1;
         curSkillProb = -1;
+        curContempt = -999;
     }
 
     private void applyPlayEngineOptions(Context context, int elo, int multiPV, boolean honorLimit) {
+        String engineChoice = StockfishSettings.getEngineChoice(context);
+        boolean isKomodo = StockfishSettings.ENGINE_KOMODO.equals(engineChoice);
+
         int neededMpv = Math.max(3, multiPV);
         int finalMpv = Math.max(1, Math.min(8, neededMpv));
         if (finalMpv != curMultiPV) {
@@ -497,24 +606,70 @@ public class StockfishProcess {
 
         sendUciCommand("setoption name Ponder value false");
 
-        if (elo >= 1320) {
-            if (curLimitStrength == null || !curLimitStrength) {
-                sendUciCommand("setoption name UCI_LimitStrength value true");
-                curLimitStrength = true;
-            }
-            if (curElo != elo) {
-                sendUciCommand("setoption name UCI_Elo value " + elo);
-                curElo = elo;
-            }
-        } else {
-            if (curLimitStrength == null || curLimitStrength) {
-                sendUciCommand("setoption name UCI_LimitStrength value false");
-                curLimitStrength = false;
-            }
+        if (isKomodo) {
+            // Komodo Dragon 3.3 UCI options
             int skillFromElo = Math.max(0, Math.min(20, Math.round((elo - 600f) / 130f)));
             if (curSkillLevel != skillFromElo) {
                 sendUciCommand("setoption name Skill Level value " + skillFromElo);
                 curSkillLevel = skillFromElo;
+            }
+            if (elo < 2000) {
+                int maxErr = Math.round((2000f - elo) / 70f) + 2;
+                int prob = Math.round((2000f - elo) / 50f) + 1;
+                if (curSkillErr != maxErr) {
+                    sendUciCommand("setoption name Skill Level Maximum Error value " + maxErr);
+                    curSkillErr = maxErr;
+                }
+                if (curSkillProb != prob) {
+                    sendUciCommand("setoption name Skill Level Probability value " + prob);
+                    curSkillProb = prob;
+                }
+            } else {
+                if (curSkillErr != 0) {
+                    sendUciCommand("setoption name Skill Level Maximum Error value 0");
+                    curSkillErr = 0;
+                }
+                if (curSkillProb != 0) {
+                    sendUciCommand("setoption name Skill Level Probability value 0");
+                    curSkillProb = 0;
+                }
+            }
+
+            // Komodo Style maps directly to Contempt option
+            String style = StockfishSettings.getKomodoStyle(context);
+            int contempt = 0;
+            if (StockfishSettings.STYLE_AGGRESSIVE.equalsIgnoreCase(style)) {
+                contempt = 50;
+            } else if (StockfishSettings.STYLE_DEFENSIVE.equalsIgnoreCase(style)) {
+                contempt = -50;
+            } else {
+                contempt = 0;
+            }
+            if (curContempt != contempt) {
+                sendUciCommand("setoption name Contempt value " + contempt);
+                curContempt = contempt;
+            }
+        } else {
+            // Stockfish 18 options
+            if (elo >= 1320) {
+                if (curLimitStrength == null || !curLimitStrength) {
+                    sendUciCommand("setoption name UCI_LimitStrength value true");
+                    curLimitStrength = true;
+                }
+                if (curElo != elo) {
+                    sendUciCommand("setoption name UCI_Elo value " + elo);
+                    curElo = elo;
+                }
+            } else {
+                if (curLimitStrength == null || curLimitStrength) {
+                    sendUciCommand("setoption name UCI_LimitStrength value false");
+                    curLimitStrength = false;
+                }
+                int skillFromElo = Math.max(0, Math.min(20, Math.round((elo - 600f) / 130f)));
+                if (curSkillLevel != skillFromElo) {
+                    sendUciCommand("setoption name Skill Level value " + skillFromElo);
+                    curSkillLevel = skillFromElo;
+                }
             }
         }
     }

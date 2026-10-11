@@ -123,7 +123,7 @@ public class OverlayManager {
     }
 
     public static void updateArrowOverlay(final List<String> moves, final Object stateImpl) {
-        updateArrowOverlay(moves, null, null, false, 0, true, stateImpl);
+        updateArrowOverlay(moves, null, null, null, null, true, stateImpl);
     }
 
     public static void updateArrowOverlay(final List<String> moves,
@@ -132,7 +132,13 @@ public class OverlayManager {
                                           final int mateIn,
                                           final boolean whiteToMove,
                                           final Object stateImpl) {
-        updateArrowOverlay(moves, null, lineScores, hasMate, mateIn, whiteToMove, stateImpl);
+        boolean[] lineMates = new boolean[lineScores != null ? lineScores.length : 0];
+        int[] lineMateIn = new int[lineScores != null ? lineScores.length : 0];
+        if (hasMate && lineMates.length > 0) {
+            lineMates[0] = true;
+            lineMateIn[0] = mateIn;
+        }
+        updateArrowOverlay(moves, null, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
     }
 
     public static void updateArrowOverlay(final List<String> moves,
@@ -140,6 +146,22 @@ public class OverlayManager {
                                           final float[] lineScores,
                                           final boolean hasMate,
                                           final int mateIn,
+                                          final boolean whiteToMove,
+                                          final Object stateImpl) {
+        boolean[] lineMates = new boolean[lineScores != null ? lineScores.length : 0];
+        int[] lineMateIn = new int[lineScores != null ? lineScores.length : 0];
+        if (hasMate && lineMates.length > 0) {
+            lineMates[0] = true;
+            lineMateIn[0] = mateIn;
+        }
+        updateArrowOverlay(moves, threatMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
+    }
+
+    public static void updateArrowOverlay(final List<String> moves,
+                                          final String threatMove,
+                                          final float[] lineScores,
+                                          final boolean[] lineMates,
+                                          final int[] lineMateIn,
                                           final boolean whiteToMove,
                                           final Object stateImpl) {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
@@ -162,7 +184,7 @@ public class OverlayManager {
                             bv.post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    updateArrowOverlay(moves, threatMove, lineScores, hasMate, mateIn, whiteToMove, stateImpl);
+                                    updateArrowOverlay(moves, threatMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
                                 }
                             });
                         }
@@ -195,18 +217,19 @@ public class OverlayManager {
                             String m = moves.get(i);
                             if (m != null && m.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
                                 String evalText = null;
-                                if (lineScores != null && i < lineScores.length) {
+                                boolean branchHasMate = (lineMates != null && i < lineMates.length && lineMates[i]);
+                                int branchMateIn = (lineMateIn != null && i < lineMateIn.length) ? lineMateIn[i] : 0;
+
+                                if (branchHasMate && branchMateIn != 0) {
+                                    evalText = branchMateIn > 0 ? ("#" + branchMateIn) : ("#-" + Math.abs(branchMateIn));
+                                } else if (lineScores != null && i < lineScores.length) {
                                     float score = lineScores[i];
-                                    if (i == 0 && hasMate && mateIn != 0) {
-                                        evalText = mateIn > 0 ? ("#" + mateIn) : ("#-" + Math.abs(mateIn));
-                                    } else {
-                                        float relativeScore = whiteToMove ? score : -score;
-                                        float rounded = Math.round(relativeScore * 10f) / 10f;
-                                        String fixed = Math.abs(rounded) >= 10f
-                                                ? String.format(java.util.Locale.US, "%.0f", (float) Math.abs(rounded))
-                                                : String.format(java.util.Locale.US, "%.1f", (float) Math.abs(rounded));
-                                        evalText = (rounded > 0 ? "+" : (rounded < 0 ? "-" : "")) + fixed;
-                                    }
+                                    float relativeScore = whiteToMove ? score : -score;
+                                    float rounded = Math.round(relativeScore * 10f) / 10f;
+                                    String fixed = Math.abs(rounded) >= 10f
+                                            ? String.format(java.util.Locale.US, "%.0f", (float) Math.abs(rounded))
+                                            : String.format(java.util.Locale.US, "%.1f", (float) Math.abs(rounded));
+                                    evalText = (rounded > 0 ? "+" : (rounded < 0 ? "-" : "")) + fixed;
                                 }
                                 list.add(new ArrowOverlayView.ArrowData(m, i + 1, false, evalText));
                             }

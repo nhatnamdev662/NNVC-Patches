@@ -487,7 +487,7 @@ public class StockfishSettingsDialog {
             updateTabStyle(btnStockfish, false, density);
             komodoStyleLayout.setVisibility(View.VISIBLE);
             if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
 
@@ -499,7 +499,7 @@ public class StockfishSettingsDialog {
             updateTabStyle(btnStockfish, true, density);
             komodoStyleLayout.setVisibility(View.GONE);
             if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
 
@@ -511,7 +511,7 @@ public class StockfishSettingsDialog {
             updateTabStyle(btnStyleAgg, false, density);
             updateTabStyle(btnStyleDefens, false, density);
             if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
         btnStyleAgg.setOnClickListener(v -> {
@@ -522,7 +522,7 @@ public class StockfishSettingsDialog {
             updateTabStyle(btnStyleAgg, true, density);
             updateTabStyle(btnStyleDefens, false, density);
             if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
         btnStyleDefens.setOnClickListener(v -> {
@@ -533,7 +533,7 @@ public class StockfishSettingsDialog {
             updateTabStyle(btnStyleAgg, false, density);
             updateTabStyle(btnStyleDefens, true, density);
             if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
 

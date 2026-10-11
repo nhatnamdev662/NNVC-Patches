@@ -1,6 +1,6 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.70*
+*Phiên bản hiện tại: v2.0.71*
 *Cập nhật lần cuối: 2026-10-11*
 
 ---
@@ -354,6 +354,26 @@
 - **Bump phiên bản lên v2.0.67**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
 - **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói `patches-2.0.67.mpp` (227,435,479 bytes).
 
+### v2.0.71 (2026-10-11) — Sửa Lỗi Mũi Tên Nhảy Depth 12, Điểm Mate -97, Đảo Chiều Mate & Tách Rời Tuyệt Đối Eval Bar
+- **Khắc phục triệt để lỗi mũi tên nhảy / giật ở Depth 12 (Progress Drop Bug):**
+  - Phân tích nguyên nhân: Trong `StockfishProcess.readSearchOutput`, khi `multiPV > 1` và nhận `depth >= 6` kèm `mpv == 1`, tiến trình vô tình dispatch danh sách chỉ có 1 nước đi (`Collections.singletonList(firstMoves[0])`) về UI. Điều này khiến UI bị xóa mất nhánh 2 và 3 giữa kỳ tính toán, gây ra hiện tượng mũi tên bị chớp giật liên tục khi đạt Depth 12.
+  - Sửa đổi: Chỉ gửi báo cáo tiến trình khi `(multiPV <= 1 || mpv == multiPV)` và luôn luôn dispatch trọn vẹn toàn bộ danh sách `firstMoves` của các nhánh MultiPV đang có.
+- **Sửa triệt để lỗi điểm Mate hiển thị "-97" và đảo chiều thứ tự Mate (Mate Inversion):**
+  - `curMateIn` trước đây bị đảo ngược sai (`whiteToMove ? scoreVal : -scoreVal;`), dẫn đến khi Black cầm cự, nước thua sau 1 nước bị đánh giá cao hơn nước kéo dài 3 nước.
+  - Cập nhật công thức chuẩn hóa thứ tự `CandidateLine`:
+    `evalNum = isMate ? (mateVal > 0 ? (100000L - Math.abs(mateVal) * 100L) : (-100000L + Math.abs(mateVal) * 100L)) : (long) cpVal;`
+    Đảm bảo phe thua ưu tiên nước kéo dài ván cờ lâu nhất, phe thắng ưu tiên nước chiếu hết nhanh nhất.
+  - Bổ sung mảng `boolean[] lineMates` và `int[] lineMateIn` trong `AnalysisResult`, truyền trọn vẹn qua `StockfishBridge` và `OverlayManager`. Sửa `OverlayManager` hiển thị nhãn `#M` / `#-M` chuẩn xác cho cả 3 nhánh MultiPV, triệt tiêu hoàn toàn nhãn thô `-97.0f`.
+- **Độc lập 100% Eval Bar khi đổi Engine (Komodo / SF18) hoặc Komodo Play Style:**
+  - Tách rời hàm `window.switchPlayEngine` trong `WasmEngineManager`: Chỉ khởi động/dừng `_playWorker`, tuyệt đối không đụng chạm đến `_classifyWorker`.
+  - Bộ lọc Classify Eval Bar: Chặn các điểm số sơ bộ không ổn định ở Depth 1..7; chỉ cập nhật Eval Bar khi `depth >= 8` (debounce 150ms) hoặc khi nhận `bestmove` ổn định cuối cùng.
+  - Sửa `StockfishSettingsDialog`: Khi đổi engine hoặc play style, chỉ gọi `triggerPlayAnalysisOnly()`, không kích hoạt lại classify position nếu FEN không đổi.
+- **Tương thích toàn diện Komodo Dragon 3.3 Option Parity:**
+  - Ánh xạ `StockfishSettings.getKomodoStyle()` sang UCI option `Contempt` (`Aggressive`: 50, `Defensive`: -50, `Default`: 0).
+  - Chặn các option không tương thích (`UCI_LimitStrength`, `UCI_Elo`, `UCI_ShowWDL`) khi chạy Komodo Dragon.
+- **Bump phiên bản lên v2.0.71**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,746,220 bytes) và DEX gốc `classes.dex` (95,736 bytes), đóng gói `patches-2.0.71.mpp` (227,445,421 bytes).
+
 ### v2.0.70 (2026-10-11) — Tối Ưu Kiến Trúc Engine (Asyncify Queue, Độc Lập Eval Bar & Torch Move Classifier)
 - **Sửa Triệt Để Lỗi Classify Stockfish 18 WASM Worker (RuntimeError: memory access out of bounds):**
   - Khắc phục xung đột Asyncify re-entrancy khi Emscripten ccall('command') bị gọi trong khi Worker chưa unwound stack.
@@ -393,12 +413,12 @@
 ## 3. TRẠNG THÁI HIỆN TẠI & KẾ HOẠCH TIẾP THEO
 
 ### 3.1. Trạng thái hiện tại
-- **Phiên bản mới nhất**: **v2.0.70** (`patches-2.0.70.mpp`).
+- **Phiên bản mới nhất**: **v2.0.71** (`patches-2.0.71.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Khắc phục triệt để lỗi Classify Worker Stockfish 18 WASM (`RuntimeError: memory access out of bounds`) bằng Asyncify serialized command queue.
-  2. Tách rời hoàn toàn Eval Bar (Classify Engine) khỏi Play Engine.
-  3. Tách rời Torch Move Classifier và ngăn ngừa drop kết quả khi đối thủ đi nhanh.
-  4. Debounce SeekBar settings trên `onStopTrackingTouch`.
+  1. Đã khắc phục triệt để lỗi mũi tên nhảy / giật ở Depth 12 (Progress Drop Bug).
+  2. Đã sửa lỗi điểm Mate hiển thị -97 và lỗi đảo chiều thứ tự Mate khi Black phòng thủ.
+  3. Đã tách rời tuyệt đối Eval Bar khỏi Play Engine khi chuyển engine/style.
+  4. Đã hỗ trợ Komodo Dragon 3.3 Option Parity (Contempt, Skill Level).
 
 

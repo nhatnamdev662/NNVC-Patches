@@ -1062,11 +1062,12 @@ public class WasmEngineManager {
                 "        }, 4000);\n" +
                 "    }\n" +
                 "\n" +
-                "    window.startEngines = function(playKey) {\n" +
-                "        const activeKey = playKey || '" + currentPlayEngineKey + "';\n" +
+                "    window.startPlayWorker = function(playKey) {\n" +
+                "        const activeKey = playKey || window._playEngineKey || '" + currentPlayEngineKey + "';\n" +
                 "        console.log('[WasmManager] Loading assets for active play engine: ' + activeKey);\n" +
+                "        window._playWorkerReady = false;\n" +
+                "        if (window._playWorker) { try { window._playWorker.terminate(); } catch(e){} window._playWorker = null; }\n" +
                 "\n" +
-                "        // 1. Play Engine Assets\n" +
                 "        if (activeKey === 'komodo') {\n" +
                 "            Promise.all([\n" +
                 "                fetch('" + HOST + "komodo.js').then(r => r.text()),\n" +
@@ -1089,8 +1090,11 @@ public class WasmEngineManager {
                 "                if (window.WasmEngineBridge) window.WasmEngineBridge.onEngineError('play', String(err));\n" +
                 "            });\n" +
                 "        }\n" +
+                "    };\n" +
                 "\n" +
-                "        // 2. Classify Engine Assets (Dedicated Stockfish 18 for Eval Bar)\n" +
+                "    window.startClassifyWorker = function() {\n" +
+                "        if (window._classifyWorker && window._classifyWorkerReady) return;\n" +
+                "        console.log('[WasmManager] Loading dedicated Classify Stockfish 18 assets...');\n" +
                 "        Promise.all([\n" +
                 "            fetch('" + HOST + "stockfish-18-lite-single.js').then(r => r.text()),\n" +
                 "            fetch('" + HOST + "stockfish-18-lite-single.wasm').then(r => r.arrayBuffer())\n" +
@@ -1102,9 +1106,16 @@ public class WasmEngineManager {
                 "        });\n" +
                 "    };\n" +
                 "\n" +
+                "    window.startEngines = function(playKey) {\n" +
+                "        const activeKey = playKey || '" + currentPlayEngineKey + "';\n" +
+                "        window._playEngineKey = activeKey;\n" +
+                "        window.startPlayWorker(activeKey);\n" +
+                "        window.startClassifyWorker();\n" +
+                "    };\n" +
+                "\n" +
                 "    window.switchPlayEngine = function(playKey) {\n" +
-                "        window._playWorkerReady = false;\n" +
-                "        window.startEngines(playKey);\n" +
+                "        window._playEngineKey = playKey;\n" +
+                "        window.startPlayWorker(playKey);\n" +
                 "    };\n" +
                 "\n" +
                 "    window.sendPlayCmd = function(cmd) {\n" +
@@ -1268,29 +1279,51 @@ public class WasmEngineManager {
         }
     }
 
+    private volatile float lastClassifyScore = 0f;
+    private volatile boolean lastClassifyHasMate = false;
+    private volatile int lastClassifyMateIn = 0;
+    private volatile long lastEvalBarUpdateTs = 0L;
+
     private void handleClassifyUciLine(String line) {
-        if (line == null || !line.startsWith("info ") || line.indexOf(" score ") < 0) return;
+        if (line == null) return;
+
+        if (line.startsWith("bestmove")) {
+            final float score = lastClassifyScore;
+            final boolean hasMate = lastClassifyHasMate;
+            final int mateIn = lastClassifyMateIn;
+            mainHandler.post(() -> {
+                try {
+                    if (StockfishSettings.isEvalBarEnabled(context)) {
+                        OverlayManager.updateEvalBar(score, hasMate, mateIn, StockfishExtension.getStateImpl());
+                    }
+                } catch (Throwable ignored) {}
+            });
+            return;
+        }
+
+        if (!line.startsWith("info ") || line.indexOf(" score ") < 0) return;
         if (line.indexOf("multipv 1 ") < 0 && !line.contains("multipv 1\t")) return;
 
         try {
             String[] tokens = line.split("\\s+");
+            int depth = 0;
             boolean isMate = false;
             int scoreVal = 0;
             boolean foundScore = false;
 
-            for (int i = 0; i < tokens.length - 2; i++) {
-                if ("score".equals(tokens[i])) {
+            for (int i = 0; i < tokens.length - 1; i++) {
+                if ("depth".equals(tokens[i]) && i + 1 < tokens.length) {
+                    try { depth = Integer.parseInt(tokens[i + 1]); } catch (Throwable ignored) {}
+                } else if ("score".equals(tokens[i]) && i + 2 < tokens.length) {
                     String type = tokens[i + 1];
                     if ("cp".equals(type)) {
                         scoreVal = Integer.parseInt(tokens[i + 2]);
                         isMate = false;
                         foundScore = true;
-                        break;
                     } else if ("mate".equals(type)) {
                         scoreVal = Integer.parseInt(tokens[i + 2]);
                         isMate = true;
                         foundScore = true;
-                        break;
                     }
                 }
             }
@@ -1302,23 +1335,33 @@ public class WasmEngineManager {
             int whiteMate = 0;
             if (isMate) {
                 whiteMate = whiteToMove ? scoreVal : -scoreVal;
-                whiteScore = whiteMate > 0 ? (StockfishProcess.MATE_SCORE - whiteMate) : (-StockfishProcess.MATE_SCORE - whiteMate);
+                whiteScore = whiteMate > 0 ? (StockfishProcess.MATE_SCORE - Math.abs(whiteMate)) : (-StockfishProcess.MATE_SCORE + Math.abs(whiteMate));
             } else {
                 float pawns = scoreVal / 100.0f;
                 whiteScore = whiteToMove ? pawns : -pawns;
             }
 
-            final float finalScore = whiteScore;
-            final boolean finalHasMate = isMate;
-            final int finalMateIn = whiteMate;
+            lastClassifyScore = whiteScore;
+            lastClassifyHasMate = isMate;
+            lastClassifyMateIn = whiteMate;
 
-            mainHandler.post(() -> {
-                try {
-                    if (StockfishSettings.isEvalBarEnabled(context)) {
-                        OverlayManager.updateEvalBar(finalScore, finalHasMate, finalMateIn, StockfishExtension.getStateImpl());
-                    }
-                } catch (Throwable ignored) {}
-            });
+            if (depth >= 8) {
+                long now = android.os.SystemClock.uptimeMillis();
+                if (now - lastEvalBarUpdateTs >= 150) {
+                    lastEvalBarUpdateTs = now;
+                    final float finalScore = whiteScore;
+                    final boolean finalHasMate = isMate;
+                    final int finalMateIn = whiteMate;
+
+                    mainHandler.post(() -> {
+                        try {
+                            if (StockfishSettings.isEvalBarEnabled(context)) {
+                                OverlayManager.updateEvalBar(finalScore, finalHasMate, finalMateIn, StockfishExtension.getStateImpl());
+                            }
+                        } catch (Throwable ignored) {}
+                    });
+                }
+            }
         } catch (Throwable ignored) {}
     }
 }
