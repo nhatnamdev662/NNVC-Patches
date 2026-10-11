@@ -1,6 +1,6 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.68*
+*Phiên bản hiện tại: v2.0.69*
 *Cập nhật lần cuối: 2026-10-11*
 
 ---
@@ -354,6 +354,15 @@
 - **Bump phiên bản lên v2.0.67**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
 - **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói `patches-2.0.67.mpp` (227,435,479 bytes).
 
+### v2.0.69 (2026-10-11) — Sửa Triệt Để Lỗi Classify Stockfish 18 WASM Worker (Failed to Fetch)
+- **Khắc Phục Dứt Điểm Lỗi Classify Worker (TypeError: Failed to fetch):**
+  - Trong Android WebView, khi Web Worker tạo từ blob URL khởi chạy Stockfish 18 WASM phục vụ Classify Engine (Eval Bar và phân tích), mã nguồn Emscripten JS tự động gọi `fetch('stockfish.wasm')` hoặc kiểm tra `typeof onmessage`, gây lỗi `Uncaught TypeError: Failed to fetch`.
+  - Tích hợp bộ đệm `WasmAwareXHR` và Mock `fetch()` đồng bộ trực tiếp trong Worker Preamble, chặn và hoàn trả ngay `_injectedWasm` đã nạp sẵn từ bộ nhớ (ArrayBuffer) dưới dạng `Response` hoặc `XMLHttpRequest.response`.
+  - Đóng gói mã nguồn Stockfish 18 JavaScript trong IIFE khép kín che giấu biến `onmessage`, ngăn chặn việc ghi đè ngoài ý muốn.
+  - Khởi tạo an toàn chuẩn factory Promise `_sfInit({ wasmBinary: _injectedWasm })`, phản hồi `uciok`, `readyok` và stream kết quả phân tích Eval Bar / MultiPV trơn tru.
+- **Bump phiên bản lên v2.0.69**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,734,972 bytes) và DEX gốc `classes.dex` (95,736 bytes), đóng gói `patches-2.0.69.mpp` (227,441,939 bytes).
+
 ### v2.0.68 (2026-10-11) — 100% Offline Local Engine Extraction & Bảo Mật Tuyệt Đối (Zero Source Leak)
 - **Đóng Gói Trực Tiếp Toàn Bộ File WebAssembly Vào APK Qua Resource Patcher:**
   - Khắc phục triệt để lỗi "No WASM binaries present yet on disk": Xây dựng `StockfishResourceCopier` tích hợp trực tiếp vào bytecode của `stockfishResourcePatch`. Khi Morphe Manager thực hiện vá APK, toàn bộ tài nguyên WebAssembly (`komodo/dragon3.3.wasm`, `komodo/komodo.js`, `komodo/book.bin`, `stockfish18/stockfish-18-lite-single.wasm`, `stockfish18/stockfish-18-lite-single.js`, `torch/torch.wasm`, `torch/torch.js`) được sao chép thẳng vào thư mục `assets/` của APK Chess.com.
@@ -369,11 +378,12 @@
 ## 3. TRẠNG THÁI HIỆN TẠI & KẾ HOẠCH TIẾP THEO
 
 ### 3.1. Trạng thái hiện tại
-- **Phiên bản mới nhất**: **v2.0.68** (`patches-2.0.68.mpp`).
+- **Phiên bản mới nhất**: **v2.0.69** (`patches-2.0.69.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Kiến trúc 100% Offline Local Engine Extraction: Toàn bộ tệp WASM được trích xuất trực tiếp từ APK hoặc assets.
-  2. Zero source code leakage, zero remote fallback downloads.
-  3. Hệ thống chẩn đoán NnvcLogger + In-app Viewer `[📜]` + Floating Pill `[📜 LOG]` và EngineStatusHUD bảo toàn đầy đủ.
+  1. Khắc phục triệt để lỗi Classify Worker Stockfish 18 WASM (`TypeError: Failed to fetch`).
+  2. Kiến trúc 100% Offline Local Engine Extraction: Toàn bộ tệp WASM được trích xuất trực tiếp từ APK hoặc assets.
+  3. Zero source code leakage, zero remote fallback downloads.
+  4. Hệ thống chẩn đoán NnvcLogger + In-app Viewer `[📜]` + Floating Pill `[📜 LOG]` và EngineStatusHUD bảo toàn đầy đủ.
 
 

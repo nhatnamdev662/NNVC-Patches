@@ -337,19 +337,40 @@
           - Bump phiên bản lên `v2.0.68` (versionCode `20068`) trong `patches-bundle.json` và `patches-list.json`.
           - Biên dịch sạch toàn bộ Java Extension thành `extension.mpe` (2,731,908 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.68.mpp` (227,441,697 bytes).
 
+33. **Phát Hành Bản v2.0.69 (Sửa Triệt Để Lỗi Classify Stockfish 18 WASM Worker - Failed to fetch)**:
+      - **Phân tích lỗi từ Log Thực Tế của Người Dùng**:
+        - Trích xuất ngoại tuyến 100% tài nguyên WASM từ APK hoạt động hoàn hảo: `dragon3.3.wasm`, `komodo.js`, `book.bin`, `stockfish-18-lite-single.wasm`, `stockfish-18-lite-single.js` đều được giải nén sẵn sàng.
+        - Động cơ Play Komodo 3.3 WASM chạy trơn tru mượt mà (`✓ WASM engine komodo ready!`, tìm kiếm depth 12).
+        - Tuy nhiên Classify Engine (Stockfish 18 WASM chạy độc lập cho Eval Bar) gặp lỗi: `[WASM BRIDGE ERROR] kind=classify, error=Uncaught TypeError: Failed to fetch (blob:...:34)`.
+        - Nguyên nhân: Trong Web Worker chạy trên WebView Android tạo từ blob URL, Emscripten JS của Stockfish 18 kiểm tra môi trường và cố gắng gọi `fetch('stockfish.wasm')` hoặc chạm vào `onmessage` toàn cục, trong khi WebView không chặn/bắt được fetch trong blob worker dẫn đến `Failed to fetch`.
+      - **Giải pháp hoàn thiện triệt để**:
+        - **WasmAwareXHR & Mock Fetch Trong Worker Preamble**:
+          - Xây dựng lớp Mock `fetch()` và `WasmAwareXHR` trực tiếp trong Worker Preamble của Stockfish 18.
+          - Chặn mọi yêu cầu tải tệp `.wasm` hoặc `stockfish` và lập tức trả về `_injectedWasm` đã chuyển qua `postMessage` ArrayBuffer dưới dạng `Response` hoặc `response` ArrayBuffer, triệt tiêu 100% nhu cầu gọi network request.
+        - **Bao Bọc JavaScript Trong IIFE Khép Kín**:
+          - Đóng gói mã nguồn `stockfish-18-lite-single.js` trong hàm IIFE với biến `onmessage = undefined`, bảo vệ luồng message handler của worker.
+        - **Khởi Tạo Promise Chuẩn Xác**:
+          - Gọi `_sfInit({ wasmBinary: _injectedWasm, listener })` và xử lý linh hoạt cả `_sfInstance.then()` lẫn `_sfInstance.ready.then()`.
+          - Worker phát tín hiệu `__WORKER_READY__`, phản hồi `uciok`, `readyok` và stream kết quả phân tích Eval Bar / MultiPV trơn tru.
+      - **Biên dịch & Đóng gói**:
+        - Bump phiên bản lên `v2.0.69` (versionCode `20069`) trong `patches-bundle.json` và `patches-list.json`.
+        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,734,972 bytes, `dex\035\0`), đóng gói thành công `patches-2.0.69.mpp` (227,441,939 bytes).
+
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
-- **Phiên bản mới nhất**: `v2.0.68` (versionCode `20068`).
-- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.68/patches-2.0.68.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.68.mpp` (227,441,697 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.68.mpp`.
+- **Phiên bản mới nhất**: `v2.0.69` (versionCode `20069`).
+- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.69/patches-2.0.69.mpp`
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.69.mpp` (227,441,939 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.69.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.68.mpp` (227,441,697 bytes).
-  - [x] Tích hợp `StockfishResourceCopier` và patch bytecode Morphe Patcher nhúng assets vào APK.
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.69.mpp` (227,441,939 bytes).
+  - [x] Sửa triệt để lỗi Stockfish 18 WASM Classify Worker `TypeError: Failed to fetch`.
+  - [x] Tích hợp `WasmAwareXHR` và Mock `fetch` đồng bộ trong Stockfish 18 Worker Preamble.
+  - [x] Đóng gói JS trong IIFE khép kín che giấu biến `onmessage`.
   - [x] Trích xuất nội bộ ngoại tuyến 100% qua `extractBundledWasmFiles` từ assets/APK zip.
   - [x] Xóa 100% URL GitHub và luồng tải ngầm từ xa trong `WasmEngineManager` & `TorchEngine`.
   - [x] Dọn dẹp triệt để thông tin mã nguồn/repo URL trong comments và logs, bảo mật tối đa.
-  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.68.
+  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.69.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
 
 

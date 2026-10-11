@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-11T09:00:00",
-  "description": "## [2.0.68] (2026-10-11)\n\n### ⚡ NNVC v2.0.68 — 100% Offline Local Engine Extraction (Bảo Mật Tuyệt Đối & Không Lộ Mã Nguồn)\n\n* **Đóng Gói Trực Tiếp Tài Nguyên WASM Vào APK Thông Qua Resource Patcher:**\n  - Xây dựng StockfishResourceCopier chạy trực tiếp trong tiến trình vá của Morphe Manager, tự động sao chép toàn bộ tệp WebAssembly (Komodo Dragon 3.3 WASM, komodo.js, book.bin, Stockfish 18 WASM, Torch WASM CEE) vào thư mục assets của APK Chess.com được xuất xưởng.\n  - Triệt tiêu hoàn toàn lỗi không tìm thấy tệp WASM trên bộ nhớ máy (No WASM binaries present yet on disk).\n* **Bảo Mật Tuyệt Đối — Không Rò Rỉ Mã Nguồn / URL Kho Lưu Trữ:**\n  - Loại bỏ 100% các đường dẫn GitHub / kho mã nguồn trong code, log chẩn đoán NnvcLogger và giao diện người dùng.\n  - Khởi tạo và nạp động cơ tức thì ngoại tuyến 100% không cần mạng.\n* **Author:** NNVC (@nncutett)",
-  "download_url": "https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.68/patches-2.0.68.mpp",
+  "created_at": "2026-10-11T10:00:00",
+  "description": "## [2.0.69] (2026-10-11)\n\n### ⚡ NNVC v2.0.69 — Sửa Triệt Để Lỗi Classify Stockfish 18 WASM Worker (Failed to Fetch)\n\n* **Khắc Phục Dứt Điểm Lỗi Classify Worker (TypeError: Failed to fetch):**\n  - Sửa lỗi trong Web Worker của Stockfish 18 WASM (Classify Engine phục vụ Eval Bar và phân tích):\n  - Tích hợp bộ đệm WasmAwareXHR và Mock Fetch đồng bộ chuẩn xác ngay trong Worker Preamble, chặn và cung cấp trực tiếp WebAssembly binary đã nạp sẵn từ bộ nhớ (in-memory buffer).\n  - Bao bọc đóng gói mã nguồn Stockfish 18 JS bằng IIFE che giấu onmessage toàn cục, vô hiệu hóa việc gọi fetch('stockfish.wasm') tự phát của Emscripten.\n  - Khởi tạo chuẩn xác factory Promise `_sfInit({ wasmBinary })`, gửi phản hồi `uciok`, `readyok` và stream đánh giá Eval Bar / MultiPV trơn tru không còn lỗi.\n* **Author:** NNVC (@nncutett)",
+  "download_url": "https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.69/patches-2.0.69.mpp",
   "signature_download_url": "",
-  "version": "2.0.68"
+  "version": "2.0.69"
 }

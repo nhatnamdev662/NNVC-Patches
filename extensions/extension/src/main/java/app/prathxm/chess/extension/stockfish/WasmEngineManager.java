@@ -766,6 +766,66 @@ public class WasmEngineManager {
                 "            return `\n" +
                 "var _injectedWasm = null;\n" +
                 "var _engineKey = 'stockfish18';\n" +
+                "var _origFetch = self.fetch;\n" +
+                "\n" +
+                "self.importScripts = self.importScripts || function(){};\n" +
+                "\n" +
+                "self.fetch = function(url) {\n" +
+                "    var u = String(url || '').toLowerCase();\n" +
+                "    if (u.indexOf('.wasm') !== -1 || u.indexOf('stockfish') !== -1) {\n" +
+                "        if (_injectedWasm) {\n" +
+                "            return Promise.resolve(new Response(_injectedWasm.slice(0), {\n" +
+                "                headers: { 'Content-Type': 'application/wasm' }\n" +
+                "            }));\n" +
+                "        }\n" +
+                "    }\n" +
+                "    if (_origFetch) return _origFetch.apply(this, arguments);\n" +
+                "    return Promise.reject(new Error('Unknown url: ' + url));\n" +
+                "};\n" +
+                "\n" +
+                "var _NativeXHR = self.XMLHttpRequest;\n" +
+                "function WasmAwareXHR() {\n" +
+                "    this.readyState = 0; this.response = null; this.responseText = ''; this.responseType = '';\n" +
+                "    this.status = 0; this.statusText = ''; this._async = true; this._headers = {};\n" +
+                "    this._url = '';\n" +
+                "    this._native = _NativeXHR ? new _NativeXHR() : null;\n" +
+                "}\n" +
+                "WasmAwareXHR.prototype.open = function(method, url, async) {\n" +
+                "    this._url = String(url || ''); this._async = async !== false;\n" +
+                "    var u = this._url.toLowerCase();\n" +
+                "    if (u.indexOf('.wasm') !== -1 || u.indexOf('stockfish') !== -1) {\n" +
+                "        this.readyState = 1; return;\n" +
+                "    }\n" +
+                "    if (this._native) this._native.open(method, url, async);\n" +
+                "};\n" +
+                "WasmAwareXHR.prototype.send = function(body) {\n" +
+                "    var u = this._url.toLowerCase();\n" +
+                "    var isWasm = u.indexOf('.wasm') !== -1 || u.indexOf('stockfish') !== -1;\n" +
+                "    if (!isWasm && this._native) return this._native.send(body);\n" +
+                "    this.status = 200; this.statusText = 'OK'; this.readyState = 4;\n" +
+                "    if (_injectedWasm) {\n" +
+                "        if (this.responseType === 'arraybuffer' || !this.responseType) {\n" +
+                "            this.response = _injectedWasm.slice(0);\n" +
+                "        } else if (this.responseType === 'blob' && typeof Blob === 'function') {\n" +
+                "            this.response = new Blob([_injectedWasm], { type: 'application/wasm' });\n" +
+                "        } else {\n" +
+                "            var bytes = new Uint8Array(_injectedWasm);\n" +
+                "            var res = '';\n" +
+                "            for (var i = 0; i < bytes.length; i += 32768) {\n" +
+                "                res += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));\n" +
+                "            }\n" +
+                "            this.responseText = res;\n" +
+                "            this.response = res;\n" +
+                "        }\n" +
+                "    }\n" +
+                "    if (typeof this.onreadystatechange === 'function') this.onreadystatechange();\n" +
+                "    if (typeof this.onload === 'function') this.onload();\n" +
+                "};\n" +
+                "WasmAwareXHR.prototype.setRequestHeader = function(h, v) { if (this._native) this._native.setRequestHeader(h, v); };\n" +
+                "WasmAwareXHR.prototype.getResponseHeader = function(n) { return null; };\n" +
+                "WasmAwareXHR.prototype.getAllResponseHeaders = function() { return ''; };\n" +
+                "self.XMLHttpRequest = WasmAwareXHR;\n" +
+                "\n" +
                 "var _queuedCmds = [];\n" +
                 "var _engineReady = false;\n" +
                 "var _engineProcess = null;\n" +
@@ -779,23 +839,28 @@ public class WasmEngineManager {
                 "            hash: '#https://nnvc-engine.local/stockfish-18-lite-single.wasm',\n" +
                 "            href: 'https://nnvc-engine.local/stockfish-18-lite-single.js#https://nnvc-engine.local/stockfish-18-lite-single.wasm'\n" +
                 "        };\n" +
-                "        self.onmessage = null;\n" +
                 "        try {\n" +
                 "            var module = { exports: {} };\n" +
                 "            var exports = module.exports;\n" +
                 "            var global = undefined;\n" +
                 "            var process = undefined;\n" +
                 "\n" +
-                "            ${jsCode}\n" +
+                "            (function(self, module, exports, onmessage) {\n" +
+                "                ${jsCode}\n" +
+                "            })(self, module, exports, undefined);\n" +
                 "\n" +
-                "            var _sfInit = module.exports;\n" +
+                "            var _exported = module.exports;\n" +
+                "            var _sfInit = (typeof _exported === 'function' && _exported.name === 't') ? _exported() : _exported;\n" +
                 "            var _sfInstance = _sfInit({\n" +
                 "                wasmBinary: _injectedWasm,\n" +
                 "                listener: function(line) {\n" +
                 "                    postMessage(line);\n" +
                 "                }\n" +
                 "            });\n" +
-                "            _sfInstance.then(function(eng) {\n" +
+                "            var _promise = (_sfInstance && typeof _sfInstance.then === 'function') ? _sfInstance : (_sfInstance && _sfInstance.ready ? _sfInstance.ready : null);\n" +
+                "            if (!_promise) throw new Error('Stockfish 18 init failed to return Promise');\n" +
+                "\n" +
+                "            _promise.then(function(eng) {\n" +
                 "                _engineProcess = function(ev) {\n" +
                 "                    var cmd = (typeof ev === 'object' && ev && ev.data) ? ev.data : String(ev || '');\n" +
                 "                    eng.ccall('command', null, ['string'], [cmd]);\n" +
