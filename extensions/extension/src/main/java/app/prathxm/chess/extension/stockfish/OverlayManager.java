@@ -623,18 +623,31 @@ public class OverlayManager {
         });
     }
 
+    private static final java.util.Set<Integer> hookedBoardViews = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
     public static View findChessBoardView(View root) {
         if (root == null) return null;
         // 1. First priority: Find the actual, inner ChessBoardView (NOT a Layout or Container)
         View board = findInnerChessBoardView(root);
-        if (board != null) return board;
-
-        // 2. Second priority: Any view with "BoardView" in class name (excluding Layouts)
-        board = findFallbackBoardView(root);
-        if (board != null) return board;
-
-        // 3. Third priority: Last resort fallback (any layout matching ChessBoard)
-        return findAnyBoardLayout(root);
+        if (board == null) {
+            // 2. Second priority: Any view with "BoardView" in class name (excluding Layouts)
+            board = findFallbackBoardView(root);
+        }
+        if (board == null) {
+            // 3. Third priority: Last resort fallback (any layout matching ChessBoard)
+            board = findAnyBoardLayout(root);
+        }
+        if (board != null && hookedBoardViews.add(System.identityHashCode(board))) {
+            board.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(View v) {
+                    StockfishExtension.onInitialPositionLoaded(v);
+                }
+                @Override
+                public void onViewDetachedFromWindow(View v) {}
+            });
+        }
+        return board;
     }
 
     private static volatile boolean lastKnownFlipped = false;

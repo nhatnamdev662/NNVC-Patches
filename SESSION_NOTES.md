@@ -453,20 +453,41 @@
         - Khi có danh sách moves, gửi `position startpos moves <move1> <move2> ...` để tái sử dụng 100% Transposition Table (Hash 64MB) trong WASM engine, tăng tốc độ tính toán gấp 3 lần tại Depth 12.
       - **Biên dịch & Đóng gói**:
         - Bump phiên bản lên `v2.0.74` (versionCode `20074`) trong `patches-bundle.json` và `patches-list.json`.
-        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,760,612 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.74.mpp` (227,449,228 bytes).
+        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,763,056 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.74.mpp` (227,450,118 bytes).
+   - **Phiên bản v2.0.75 (Độc Lập Eval Bar Khi Đổi Elo/Depth & Nhận Diện Trận Đấu Mới Move 0 Ngay Lập Tức)**:
+     - **Độc Lập Tuyệt Đối Eval Bar Khi Đổi Elo / Depth / Mũi Tên (`StockfishSettingsDialog.java`)**:
+       - Chuyển toàn bộ các bộ lắng nghe Elo SeekBar (`onValueChanged`, `onEloCommitted`), Depth SeekBar (`onValueChanged`, `onValueCommitted`), AutoDepth Switch, MultiPV SeekBar, Opponent Arrows Switch, Threat Arrow Switch và màu sắc mũi tên (Arrow Palette swatch) từ `triggerAnalysisForCurrentState()` sang `triggerPlayAnalysisOnly()`.
+       - Tách biệt 100% việc điều chỉnh thiết lập Play Engine khỏi luồng Classify Eval Bar: Thay đổi Elo, Depth hay số mũi tên không bao giờ kích hoạt lại hay làm gián đoạn việc tính toán của Eval Bar.
+       - Chỉ gọi `triggerAnalysisForCurrentState()` duy nhất tại Switch Bật/Tắt Tổng Engine và Switch Bật/Tắt riêng thanh Eval Bar.
+     - **Triệt Tiêu Tìm Kiếm Dư Thừa Eval Bar (`WasmEngineManager.java`)**:
+       - Bổ sung biến trạng thái `isClassifySearching`: Trong `evaluateClassifyPosition(fen, moves)`, nếu `fen.equals(currentClassifyFen)` và worker đang chạy hoặc đã có kết quả (`lastClassifyScoreEpoch == currentClassifyEpoch`), hệ thống lập tức bỏ qua lệnh tìm kiếm (`[CLASSIFY SKIP]`), không gửi lệnh `stop` và không khởi động lại search depth 1..10, giữ thanh Eval Bar hoàn toàn tĩnh lặng và không bị nhúc nhích.
+       - Đặt lại `isClassifySearching = false` khi nhận `bestmove`, trong `resetClassifyGame()` và khi xảy ra lỗi worker `onEngineError`.
+     - **Sửa Dứt Điểm False-Positive Trong `isGameOver` (`StockfishExtension.java`)**:
+       - Phân tích nguyên nhân: Trong `RealGameActivity`, tồn tại các trường như `gameOverV6Listener = new b();` và `isGameOverModalV2 = Lazy` chứa chuỗi "gameover" và không bao giờ null. Nhánh `else if (val != null) { return true; }` trước đây khiến `isGameOver` luôn trả về `true` ngay khi vừa vào ván cờ, chặn đứng toàn bộ việc hiển thị mũi tên ở Move 0!
+       - Loại bỏ triệt để nhánh kiểm tra non-View non-Boolean; chỉ trả về `true` khi `val instanceof View && getVisibility() == View.VISIBLE && getParent() != null`, hoặc `val instanceof Boolean && booleanValue()`. Các trường listener, callback, Lazy không bao giờ bị coi là game over.
+     - **Tự Động Nhận Diện Trận Đấu Mới (Move 0) Cho Cả Trắng & Đen Ngay Lập Tức**:
+       - **Multiple Retries Trong `onActivityResumed`**: Đặt chuỗi kiểm tra và kích hoạt phân tích tại các mốc thời gian 100ms, 300ms, 600ms, 1200ms để đảm bảo khi `ChessBoardView` vừa được khởi tạo và nạp vào phân cấp View, phân tích Move 0 được kích hoạt ngay lập tức mà không cần người chơi phải đi nước cờ nào.
+       - **Hook Tự Động Gắn Vào `ChessBoardView` (`OverlayManager.java`)**: Khi `findChessBoardView` phát hiện `ChessBoardView`, tự động đăng ký `OnAttachStateChangeListener` để gọi `StockfishExtension.onInitialPositionLoaded(v)` ngay khi View gắn vào Window.
+       - **Hàm `extractPositionFromBoardView` & `onInitialPositionLoaded` (`StockfishExtension.java`)**: Trích xuất đa tầng FEN/Position từ `getPositionWithPremoves()`, `getPosition()`, `getViewModel().getState()`, hoặc trường phản chiếu `position`. Tự động dọn sạch lịch sử ván cũ (`clearHistory()`, `resetEvalBar()`, `resetClassifyGame()`) khi ở Move 0 / startpos.
+       - **Hook Bytecode Mới (`Fingerprints.kt` & `StockfishPatch.kt`)**: Thêm hook `ChessBoardViewSetPositionFingerprint` khớp `ChessBoardView.setPosition` / `setPositionWithPremoves` và constructor `CBViewModelStateImpl.<init>`, kết nối trực tiếp vào `StockfishExtension.onInitialPositionLoaded`.
+     - **Biên dịch & Đóng gói**:
+       - Bump phiên bản lên `v2.0.75` (versionCode `20075`) trong `patches-bundle.json` và `patches-list.json`.
+       - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,765,412 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.75.mpp` (227,451,053 bytes).
 
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
-- **Phiên bản mới nhất**: `v2.0.74` (versionCode `20074`).
-- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.74/patches-2.0.74.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.74.mpp` (227,449,228 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.74.mpp`.
+- **Phiên bản mới nhất**: `v2.0.75` (versionCode `20075`).
+- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.75/patches-2.0.75.mpp`
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.75.mpp` (227,451,053 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.75.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.74.mpp` (227,449,228 bytes).
-  - [x] Real-time Reactivity: Thay đổi depth, elo, engine, komodo style phản ứng tức thì sau 100ms debounce.
-  - [x] Game Lifecycle: Tự động phân tích Move 0 cho cả Trắng & Đen, nhận diện Game Over triệt để và ẩn overlays.
-  - [x] Soft Movetime Depth 12 và Transposition Table startpos moves tối ưu tốc độ x3.
-  - [x] Chạy kiểm thử tự động `SelfTest` đạt 64/64 tests passed (0 failed).
-  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.74.
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.75.mpp` (227,451,053 bytes).
+  - [x] Độc lập tuyệt đối Eval Bar khi thay đổi Elo/Depth: chuyển sang `triggerPlayAnalysisOnly()`, Eval Bar không bị nhúc nhích.
+  - [x] Bỏ qua tìm kiếm dư thừa Eval Bar khi cùng FEN (`isClassifySearching` check).
+  - [x] Sửa dứt điểm false-positive trong `isGameOver(Activity)` (bỏ nhánh non-View non-Boolean).
+  - [x] Nhận diện trận đấu mới Move 0 mượt mà cho cả Trắng & Đen ngay lập tức (multiple retries + attach listener + hook 1b).
+  - [x] Chạy kiểm thử tự động `SelfTest` đạt 76/76 tests passed (0 failed).
+  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.75.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
+
 

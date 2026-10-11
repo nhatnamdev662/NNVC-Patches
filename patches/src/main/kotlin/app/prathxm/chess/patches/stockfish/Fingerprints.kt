@@ -31,6 +31,29 @@ object PositionSetterFingerprint : Fingerprint(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Fingerprint 1b – ChessBoardView.setPosition / CBViewModelStateImpl.<init>
+//
+// Matches initial position setup (Move 0 / New Game) so extension is notified
+// immediately without having to make a move.
+// ─────────────────────────────────────────────────────────────────────────────
+object ChessBoardViewSetPositionFingerprint : Fingerprint(
+    custom = { method, classDef ->
+        if (classDef.type == "Lcom/chess/chessboard/view/ChessBoardView;" || classDef.type == "Lcom/chess/chessboard/v2/ChessBoardView;") {
+            (method.name == "setPosition" || method.name == "setPositionWithPremoves") &&
+                method.parameterTypes.isNotEmpty() &&
+                method.returnType == "V"
+        } else if (classDef.type == "Lcom/chess/chessboard/vm/movesinput/CBViewModelStateImpl;") {
+            method.name == "<init>" && method.parameterTypes.any { paramType ->
+                val posType = classDef.methods.find { it.name == "getPosition" }?.returnType
+                posType != null && posType == paramType
+            }
+        } else {
+            false
+        }
+    }
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Fingerprint 2 – CBViewModelStateImpl setMoveArrows(List<HintArrow>)
 //
 // Matched by body rather than by obfuscated name (G2 in 4.10.17): the (List)V setter that

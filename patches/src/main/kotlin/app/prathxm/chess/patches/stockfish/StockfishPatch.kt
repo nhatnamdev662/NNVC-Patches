@@ -57,6 +57,17 @@ val stockfishPatch = bytecodePatch(
         )
 
         // ─────────────────────────────────────────────────────────────────
+        // Hook 1b – Initial position setup (Move 0 / New Game)
+        // ─────────────────────────────────────────────────────────────────
+        ChessBoardViewSetPositionFingerprint.method.addInstructions(
+            0,
+            """
+                move-object/from16 v0, p0
+                invoke-static {v0}, $EXTENSION_CLASS->onInitialPositionLoaded(Ljava/lang/Object;)V
+            """
+        )
+
+        // ─────────────────────────────────────────────────────────────────
         // Hook 2 – Expose the setMoveArrows method to our extension
         // ─────────────────────────────────────────────────────────────────
         SetMoveArrowsFingerprint.method.addInstructions(

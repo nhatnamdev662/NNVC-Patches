@@ -78,6 +78,7 @@ public class WasmEngineManager {
     private volatile long currentClassifyEpoch = 0L;
     private volatile String currentClassifyFen = null;
     private volatile boolean currentClassifyWhiteToMove = true;
+    private volatile boolean isClassifySearching = false;
 
     private static final java.util.Set<String> STARTPOS_LEGAL_FIRST_MOVES = new java.util.HashSet<>(java.util.Arrays.asList(
         "a2a3", "a2a4", "b2b3", "b2b4", "c2c3", "c2c4", "d2d3", "d2d4",
@@ -1295,6 +1296,11 @@ public class WasmEngineManager {
 
     public void evaluateClassifyPosition(String fen, List<String> moves) {
         if (fen == null) return;
+        if (fen.equals(currentClassifyFen) && (isClassifySearching || (lastClassifyScoreEpoch == currentClassifyEpoch && currentClassifyEpoch > 0))) {
+            NnvcLogger.d(TAG, "[CLASSIFY SKIP] Position already evaluating or evaluated for FEN: " + fen);
+            return;
+        }
+        isClassifySearching = true;
         final long epoch = classifyEvalEpochCounter.incrementAndGet();
         currentClassifyEpoch = epoch;
         currentClassifyFen = fen;
@@ -1333,6 +1339,7 @@ public class WasmEngineManager {
     }
 
     public void resetClassifyGame() {
+        isClassifySearching = false;
         final long epoch = classifyEvalEpochCounter.incrementAndGet();
         currentClassifyEpoch = epoch;
         currentClassifyFen = null;
@@ -1428,6 +1435,9 @@ public class WasmEngineManager {
         @JavascriptInterface
         public void onEngineError(String kind, String error) {
             NnvcLogger.e(TAG, "[WASM BRIDGE ERROR] kind=" + kind + ", error=" + error);
+            if ("classify".equals(kind)) {
+                isClassifySearching = false;
+            }
             EngineStatusHUD.show(context, "⚠️ Lỗi Engine (" + kind + "): " + error, true, 5000);
         }
 
@@ -1467,6 +1477,7 @@ public class WasmEngineManager {
         if (line == null || epoch != currentClassifyEpoch) return;
 
         if (line.startsWith("bestmove")) {
+            isClassifySearching = false;
             if (lastClassifyScoreEpoch != epoch) return;
             final float score = lastClassifyScore;
             final boolean hasMate = lastClassifyHasMate;

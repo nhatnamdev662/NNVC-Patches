@@ -624,7 +624,7 @@ public class StockfishSettingsDialog {
                             if (StockfishSettings.isEngineEnabled(activity)) {
                                 StockfishBridge.clearCache();
                                 StockfishBridge.stopSearch();
-                                StockfishExtension.triggerAnalysisForCurrentState();
+                                StockfishExtension.triggerPlayAnalysisOnly();
                             }
                         };
                         realtimeDebounceHandler.postDelayed(pendingRealtimeReanalysis[0], 100);
@@ -637,7 +637,7 @@ public class StockfishSettingsDialog {
                         if (StockfishSettings.isEngineEnabled(activity)) {
                             StockfishBridge.clearCache();
                             StockfishBridge.stopSearch();
-                            StockfishExtension.triggerAnalysisForCurrentState();
+                            StockfishExtension.triggerPlayAnalysisOnly();
                         }
                     }
                 });
@@ -667,7 +667,7 @@ public class StockfishSettingsDialog {
                             if (StockfishSettings.isEngineEnabled(activity)) {
                                 StockfishBridge.clearCache();
                                 StockfishBridge.stopSearch();
-                                StockfishExtension.triggerAnalysisForCurrentState();
+                                StockfishExtension.triggerPlayAnalysisOnly();
                             }
                         };
                         realtimeDebounceHandler.postDelayed(pendingRealtimeReanalysis[0], 100);
@@ -680,7 +680,7 @@ public class StockfishSettingsDialog {
                         if (StockfishSettings.isEngineEnabled(activity)) {
                             StockfishBridge.clearCache();
                             StockfishBridge.stopSearch();
-                            StockfishExtension.triggerAnalysisForCurrentState();
+                            StockfishExtension.triggerPlayAnalysisOnly();
                         }
                     }
                 });
@@ -706,7 +706,7 @@ public class StockfishSettingsDialog {
                 depthSeekBar.setEnabled(true);
             }
             if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
 
@@ -823,7 +823,7 @@ public class StockfishSettingsDialog {
             if (!isChecked) {
                 OverlayManager.hideArrowOverlay(true);
             } else {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
 
@@ -847,7 +847,7 @@ public class StockfishSettingsDialog {
                             if (StockfishSettings.isEngineEnabled(activity)) {
                                 StockfishBridge.clearCache();
                                 StockfishBridge.stopSearch();
-                                StockfishExtension.triggerAnalysisForCurrentState();
+                                StockfishExtension.triggerPlayAnalysisOnly();
                             }
                         };
                         realtimeDebounceHandler.postDelayed(pendingRealtimeReanalysis[0], 100);
@@ -860,7 +860,7 @@ public class StockfishSettingsDialog {
                         if (StockfishSettings.isEngineEnabled(activity)) {
                             StockfishBridge.clearCache();
                             StockfishBridge.stopSearch();
-                            StockfishExtension.triggerAnalysisForCurrentState();
+                            StockfishExtension.triggerPlayAnalysisOnly();
                         }
                     }
                 });
@@ -876,7 +876,7 @@ public class StockfishSettingsDialog {
         oppArrowsSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setMySideOnly(activity, !isChecked);
             if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
 
@@ -891,7 +891,7 @@ public class StockfishSettingsDialog {
         threatSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setThreatArrowsEnabled(activity, isChecked);
             if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerAnalysisForCurrentState();
+                StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
 
@@ -1401,7 +1401,7 @@ public class StockfishSettingsDialog {
                     StockfishExtension.resetArrowSignature();
                     OverlayManager.invalidateArrowOverlay();
                     StockfishExtension.invalidateAllBoards();
-                    StockfishExtension.triggerAnalysisForCurrentState();
+                    StockfishExtension.triggerPlayAnalysisOnly();
                     pickerDialog.dismiss();
                 });
 

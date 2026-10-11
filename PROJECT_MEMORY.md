@@ -1,6 +1,6 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.74*
+*Phiên bản hiện tại: v2.0.75*
 *Cập nhật lần cuối: 2026-10-11*
 
 ---
@@ -354,6 +354,26 @@
 - **Bump phiên bản lên v2.0.67**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
 - **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói `patches-2.0.67.mpp` (227,435,479 bytes).
 
+### v2.0.75 (2026-10-11) — Độc Lập Eval Bar Khi Đổi Elo/Depth & Nhận Diện Trận Đấu Mới (Move 0) Ngay Lập Tức
+- **Độc Lập Tuyệt Đối Eval Bar Khi Đổi Elo / Depth / Mũi Tên (`StockfishSettingsDialog.java`)**:
+  - Chuyển toàn bộ các bộ lắng nghe Elo SeekBar (`onValueChanged`, `onEloCommitted`), Depth SeekBar (`onValueChanged`, `onValueCommitted`), AutoDepth Switch, MultiPV SeekBar, Opponent Arrows Switch, Threat Arrow Switch và màu sắc mũi tên (Arrow Palette swatch) từ `triggerAnalysisForCurrentState()` sang `triggerPlayAnalysisOnly()`.
+  - Tách biệt 100% việc điều chỉnh thiết lập Play Engine khỏi luồng Classify Eval Bar: Thay đổi Elo, Depth hay số mũi tên không bao giờ kích hoạt lại hay làm gián đoạn việc tính toán của Eval Bar.
+  - Chỉ gọi `triggerAnalysisForCurrentState()` duy nhất tại Switch Bật/Tắt Tổng Engine và Switch Bật/Tắt riêng thanh Eval Bar.
+- **Triệt Tiêu Tìm Kiếm Dư Thừa Eval Bar (`WasmEngineManager.java`)**:
+  - Bổ sung biến trạng thái `isClassifySearching`: Trong `evaluateClassifyPosition(fen, moves)`, nếu `fen.equals(currentClassifyFen)` và worker đang chạy hoặc đã có kết quả (`lastClassifyScoreEpoch == currentClassifyEpoch`), hệ thống lập tức bỏ qua lệnh tìm kiếm (`[CLASSIFY SKIP]`), không gửi lệnh `stop` và không khởi động lại search depth 1..10, giữ thanh Eval Bar hoàn toàn tĩnh lặng và không bị nhúc nhích.
+  - Đặt lại `isClassifySearching = false` khi nhận `bestmove`, trong `resetClassifyGame()` và khi xảy ra lỗi worker `onEngineError`.
+- **Sửa Dứt Điểm False-Positive Trong `isGameOver` (`StockfishExtension.java`)**:
+  - Phân tích nguyên nhân: Trong `RealGameActivity`, tồn tại các trường như `gameOverV6Listener = new b();` và `isGameOverModalV2 = Lazy` chứa chuỗi "gameover" và không bao giờ null. Nhánh `else if (val != null) { return true; }` trước đây khiến `isGameOver` luôn trả về `true` ngay khi vừa vào ván cờ, chặn đứng toàn bộ việc hiển thị mũi tên ở Move 0!
+  - Loại bỏ triệt để nhánh kiểm tra non-View non-Boolean; chỉ trả về `true` khi `val instanceof View && getVisibility() == View.VISIBLE && getParent() != null`, hoặc `val instanceof Boolean && booleanValue()`. Các trường listener, callback, Lazy không bao giờ bị coi là game over.
+- **Tự Động Nhận Diện Trận Đấu Mới (Move 0) Cho Cả Trắng & Đen Ngay Lập Tức**:
+  - **Multiple Retries Trong `onActivityResumed`**: Đặt chuỗi kiểm tra và kích hoạt phân tích tại các mốc thời gian 100ms, 300ms, 600ms, 1200ms để đảm bảo khi `ChessBoardView` vừa được khởi tạo và nạp vào phân cấp View, phân tích Move 0 được kích hoạt ngay lập tức mà không cần người chơi phải đi nước cờ nào.
+  - **Hook Tự Động Gắn Vào `ChessBoardView` (`OverlayManager.java`)**: Khi `findChessBoardView` phát hiện `ChessBoardView`, tự động đăng ký `OnAttachStateChangeListener` để gọi `StockfishExtension.onInitialPositionLoaded(v)` ngay khi View gắn vào Window.
+  - **Hàm `extractPositionFromBoardView` & `onInitialPositionLoaded` (`StockfishExtension.java`)**: Trích xuất đa tầng FEN/Position từ `getPositionWithPremoves()`, `getPosition()`, `getViewModel().getState()`, hoặc trường phản chiếu `position`. Tự động dọn sạch lịch sử ván cũ (`clearHistory()`, `resetEvalBar()`, `resetClassifyGame()`) khi ở Move 0 / startpos.
+  - **Hook Bytecode Mới (`Fingerprints.kt` & `StockfishPatch.kt`)**: Thêm hook `ChessBoardViewSetPositionFingerprint` khớp `ChessBoardView.setPosition` / `setPositionWithPremoves` và constructor `CBViewModelStateImpl.<init>`, kết nối trực tiếp vào `StockfishExtension.onInitialPositionLoaded`.
+- **Bộ kiểm thử tự động `SelfTest`**: 76/76 test cases vượt qua thành công (bao gồm kiểm tra chống false-positive isGameOver, classify skip khi trùng FEN, soft movetime, move 0 startpos detection, scale math, classification thresholds, startpos vs fen command selection, signature palette color altered checks, gameover dialog tags).
+- **Bump phiên bản lên v2.0.75**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,765,412 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.75.mpp` (227,451,053 bytes).
+
 ### v2.0.74 (2026-10-11) — Real-time Reactivity, Move 0 Mượt Mà, Game Over Triệt Để, Soft Movetime Depth 12
 - **Real-time Reactivity (Phản Ứng Tức Thì Khi Đổi Cài Đặt)**:
   - Khi thay đổi Depth, Elo, MultiPV, Engine (Komodo/Stockfish) hoặc Komodo play style (Default/Attacking/Defensive) trong menu cài đặt (`StockfishSettingsDialog.java`), áp dụng ngay lập tức sau 100ms debounce mà không cần chờ sang nước cờ tiếp theo hay ván mới.
@@ -468,14 +488,15 @@
 ## 3. TRẠNG THÁI HIỆN TẠI & KẾ HOẠCH TIẾP THEO
 
 ### 3.1. Trạng thái hiện tại
-- **Phiên bản mới nhất**: **v2.0.72** (`patches-2.0.72.mpp`).
+- **Phiên bản mới nhất**: **v2.0.75** (`patches-2.0.75.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Đã chuẩn hóa 100% Eval Bar chuẩn Extension NNVC, triệt tiêu race condition đảo chiều điểm số.
-  2. Chuẩn hóa thang đo Eval Bar Linear Clamp Module 1921 `[-500, +500]` và Decelerate ValueAnimator 180ms.
-  3. Tận dụng 100% Transposition Table với `position startpos moves ...` và tự động reset ván mới `ucinewgame`.
-  4. Đã khắc phục triệt để lỗi mũi tên nhảy / giật ở Depth 12 và điểm mate hiển thị sai lệch.
-  5. Đã gia cố kiểm toán v2.0.72: Phân tách `_workerKind` để cờ `_isRequestedStop` chỉ tác động lên Classify worker (không nuốt `bestmove` của Play worker gây lag 5000ms), dọn sạch `_currentEvalEpoch = 0` khi done searching, loại bỏ định tuyến UCI kép từ `onEngineOutput`, và theo dõi `lastClassifyScoreEpoch` ngăn rò rỉ điểm số của ply cũ.
+  1. Tách biệt 100% Eval Bar khỏi các thiết lập Play Engine (Elo, Depth, AutoDepth, MultiPV, Opponent Arrows, Threat Arrow, Arrow Palette), triệt tiêu hoàn toàn tình trạng Eval Bar bị nhúc nhích khi thay đổi tham số.
+  2. Bổ sung cơ chế `isClassifySearching` và bỏ qua yêu cầu tìm kiếm dư thừa khi FEN không đổi trong `evaluateClassifyPosition`.
+  3. Khắc phục triệt để lỗi false-positive trong `isGameOver(Activity)`: Không coi các listener/callback/Lazy là game over, sửa lỗi khiến `isGameOver` luôn trả về `true` ngay khi vừa vào ván cờ.
+  4. Tự động nhận diện bàn cờ và kích hoạt phân tích Move 0 ngay trong `onActivityResumed` với chuỗi retry (100ms, 300ms, 600ms, 1200ms) kết hợp `OnAttachStateChangeListener` trên `ChessBoardView`.
+  5. Thêm hook `ChessBoardViewSetPositionFingerprint` và phương thức `onInitialPositionLoaded` đảm bảo thế cờ Move 0 được nạp và phân tích tức thì cho cả Trắng và Đen mà không cần người chơi phải đi nước cờ nào.
+  6. 76/76 test cases trong `SelfTest` vượt qua thành công.
 
 
 

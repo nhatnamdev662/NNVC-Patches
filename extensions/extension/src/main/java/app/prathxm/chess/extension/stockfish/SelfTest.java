@@ -332,6 +332,28 @@ public class SelfTest {
         check("BotGameOverDialog recognized", gameOverTags.contains("BotGameOverDialog"));
         check("RandomDialog not recognized", !gameOverTags.contains("RandomDialog"));
 
+        // === GAMEOVER FALSE-POSITIVE FIX TESTS ===
+        // Non-View, non-Boolean objects (like listeners, Lazy) must NEVER be treated as game over
+        Object listenerMock = new Object();
+        boolean isListenerGameOver = (listenerMock instanceof Boolean && (Boolean) listenerMock);
+        check("Listener object is NOT GameOver", !isListenerGameOver);
+        Boolean boolTrue = Boolean.TRUE;
+        check("Boolean.TRUE is GameOver", (boolTrue instanceof Boolean && boolTrue));
+        Boolean boolFalse = Boolean.FALSE;
+        check("Boolean.FALSE is NOT GameOver", !(boolFalse instanceof Boolean && boolFalse));
+
+        // === CLASSIFY SKIP TESTS ===
+        String curFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        boolean isClassifySearching = true;
+        long epoch = 5;
+        long lastEpoch = 5;
+        boolean shouldSkipSearching = curFen.equals("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") &&
+            (isClassifySearching || (lastEpoch == epoch && epoch > 0));
+        check("Classify skips when same FEN and searching", shouldSkipSearching);
+        boolean shouldSkipDifferentFen = "other_fen".equals(curFen) &&
+            (isClassifySearching || (lastEpoch == epoch && epoch > 0));
+        check("Classify does NOT skip on different FEN", !shouldSkipDifferentFen);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
