@@ -480,31 +480,32 @@
       - **Triệt Tiêu 100% Hiện Tượng Nháy / Tải Lại Giao Diện Move 0 (`OverlayManager.java` & `StockfishExtension.java`)**:
         - Xóa bỏ việc gọi `StockfishExtension.onInitialPositionLoaded(v)` trong `OnLayoutChangeListener` của `ChessBoardView`. Giờ đây chỉ gọi `invalidateArrowOverlay()` khi bounds thay đổi.
         - Giữ persistent mounting cho widget Accuracy/Elo pill: Xóa bỏ `OverlayManager.hideAccuracyEloPills()` trong nhánh `isStartPos` của `StockfishExtension.onBoardChanged` và `triggerAnalysisForCurrentState`.
-        - Deduplication Move 0 retries: Bổ sung cờ `isMove0AnalysisScheduled` và `lastLoadedMove0Fen` ngăn chặn chạy lặp lại các tác vụ phân tích Move 0.
+        - Deduplication Move 0 retries & hooks: Khắc phục triệt để lỗi thiếu gán `isMove0AnalysisScheduled = true` trong phiên bản trước. Bổ sung kiểm tra deduplication trực tiếp trong điểm nút `onBoardChanged` để chặn đứng việc gọi đi gọi lại reset Eval Bar, Accuracy Widget và xóa mũi tên.
+        - Đồng bộ Lifecycle Reset: Tự động reset flags khi GameOver hoặc Activity lifecycle resume/pause/destroy, đảm bảo thế cờ Move 0 của ván mới luôn được nạp và phân tích tức thì.
       - **Sửa Triệt Để Thứ Tự Ưu Tiên & Nhãn Điểm Số Mũi Tên Đối Thủ (Side-to-move POV)**:
-        - Sửa dứt điểm bug đảo lượt đi trong `StockfishProcess.java`: Loại bỏ dòng `if (moves != null && (moves.size() & 1) == 1) white = !white;` gây sai lệch biến boolean lượt đi của FEN.
+        - Sửa dứt điểm bug đảo lượt đi trong `StockfishProcess.java`: Loại bỏ dòng `if (moves != null && (moves.size() & 1) == 1) white = !white;` gây sai lệch biến boolean lượt đi của FEN. Chuẩn hóa `isWhiteTurnFromFen` trong `StockfishExtension.java` an toàn tuyệt đối với mọi chuỗi FEN.
         - Bổ sung `sideToMoveScores` vào `AnalysisResult` (`sideToMovePawns = whiteToMove ? pawns : -pawns`).
         - Đồng bộ hàm `OverlayManager.formatArrowEvalLabel` chuẩn hóa 100% theo Extension NNVC: Mate (`#<n>` / `#-<n>`), Centipawns (`(sideToMovePawns > 0 ? "+" : "") + %.1f`). Mũi tên 1 luôn là nước tối ưu nhất cho bên tới lượt.
       - **Nhận Diện Game Over Chủ Động Tức Thì (Active Game Over Watchdog & Dialog `isShowing()`)**:
         - Triển khai `GameOverWatchdog` (chu kỳ 300ms + `OnGlobalLayoutListener`) trên `DecorView` của Activity.
-        - Kiểm tra `dialog.isShowing()` trong `isFragmentVisibleOrShowing(frag)` để nhận diện Dialog kết thúc ván ngay cả khi Fragment chưa đồng bộ `isVisible()`.
-        - Dọn sạch mũi tên, huy hiệu, dừng engine và watchdog tức khắc khi Game Over.
+        - Kiểm tra `dialog.isShowing()` và `frag.getView().getVisibility() == View.VISIBLE` trong `isFragmentVisibleOrShowing(frag)` để nhận diện Dialog kết thúc ván ngay cả khi Fragment chưa đồng bộ `isVisible()`.
+        - Dọn sạch mũi tên (`OverlayManager.hideArrowOverlay(true)`), đặt `View.GONE` vô điều kiện, dừng engine và watchdog tức khắc khi Game Over.
       - **Biên dịch & Đóng gói**:
         - Bump phiên bản lên `v2.0.76` (versionCode `20076`) trong `patches-bundle.json` và `patches-list.json`.
-        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,773,212 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.76.mpp` (227,454,152 bytes).
+        - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,776,612 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.76.mpp` (227,455,389 bytes).
 
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
 - **Phiên bản mới nhất**: `v2.0.76` (versionCode `20076`).
 - **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.76/patches-2.0.76.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.76.mpp` (227,454,152 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.76.mpp`.
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.76.mpp` (227,455,389 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.76.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.76.mpp` (227,454,152 bytes).
-  - [x] Triệt tiêu 100% hiện tượng nháy / load lại giao diện Move 0 (loại bỏ layout trigger, giữ nguyên pills ở startpos, deduplication retries).
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.76.mpp` (227,455,389 bytes).
+  - [x] Triệt tiêu 100% hiện tượng nháy / load lại giao diện Move 0 (loại bỏ layout trigger, giữ nguyên pills ở startpos, deduplication retries và onBoardChanged).
   - [x] Sửa dứt điểm thứ tự ưu tiên và nhãn điểm số mũi tên đối thủ theo chuẩn Extension NNVC Side-to-move POV (loại bỏ nghịch đảo moves lẻ, formatArrowEvalLabel chuẩn).
-  - [x] Nhận diện Game Over chủ động tức thì (Active GameOverWatchdog 300ms + onGlobalLayout + dialog.isShowing()).
-  - [x] Chạy kiểm thử tự động `SelfTest` đạt 96/96 tests passed (0 failed).
+  - [x] Nhận diện Game Over chủ động tức thì (Active GameOverWatchdog 300ms + onGlobalLayout + dialog.isShowing() + getView().isShown()).
+  - [x] Chạy kiểm thử tự động `SelfTest` đạt 113/113 tests passed (0 failed).
   - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.76.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
 

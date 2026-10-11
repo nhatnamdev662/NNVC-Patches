@@ -494,11 +494,11 @@
 - **Phiên bản mới nhất**: **v2.0.76** (`patches-2.0.76.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Triệt tiêu 100% hiện tượng nháy / load lại giao diện Move 0 (arrows, eval bar, widget) khi sang ván mới bằng cách bỏ trigger phân tích trong `OnLayoutChangeListener`, bỏ gọi `hideAccuracyEloPills()` ở startpos (persistent mounting), và deduplication tác vụ Move 0.
-  2. Sửa dứt điểm bug đảo lượt đi trong `StockfishProcess.isWhiteToMove` (xóa bỏ đoạn code đảo turn theo moves lẻ); bổ sung `sideToMoveScores` và định dạng nhãn điểm số chuẩn Extension NNVC (`OverlayManager.formatArrowEvalLabel`).
-  3. Triển khai `GameOverWatchdog` (chu kỳ 300ms + `OnGlobalLayoutListener`) và kiểm tra `dialog.isShowing()` trong `isFragmentVisibleOrShowing` để phát hiện kết thúc ván đấu chủ động và tức thì.
-  4. 96/96 test cases trong `SelfTest` vượt qua thành công (100% passed).
-  5. Đóng gói hoàn tất `patches-2.0.76.mpp` (227,454,152 bytes) với đầy đủ WebAssembly engines và cập nhật metadata.
+  1. Triệt tiêu 100% hiện tượng nháy / load lại giao diện Move 0 (arrows, eval bar, widget) khi sang ván mới bằng cách bỏ trigger phân tích trong `OnLayoutChangeListener`, bỏ gọi `hideAccuracyEloPills()` ở startpos (persistent mounting), sửa lỗi thiếu gán `isMove0AnalysisScheduled = true` và bổ sung kiểm tra deduplication trực tiếp trong điểm nút `onBoardChanged`.
+  2. Sửa dứt điểm bug đảo lượt đi trong `StockfishProcess.isWhiteToMove` (xóa bỏ đoạn code đảo turn theo moves lẻ); bổ sung `sideToMoveScores` và định dạng nhãn điểm số chuẩn Extension NNVC (`OverlayManager.formatArrowEvalLabel`). Chuẩn hóa `isWhiteTurnFromFen` an toàn với mọi biến thể FEN.
+  3. Triển khai `GameOverWatchdog` (chu kỳ 300ms + `OnGlobalLayoutListener`) và kiểm tra `dialog.isShowing()` cùng `frag.getView().getVisibility() == View.VISIBLE` trong `isFragmentVisibleOrShowing` để phát hiện kết thúc ván đấu chủ động và tức thì; tự động ẩn arrow overlay vô điều kiện (`View.GONE`) khi clearBadges.
+  4. 113/113 test cases trong `SelfTest` vượt qua thành công (100% passed).
+  5. Đóng gói hoàn tất `patches-2.0.76.mpp` (227,455,389 bytes) với đầy đủ WebAssembly engines và cập nhật metadata.
 
 
 
