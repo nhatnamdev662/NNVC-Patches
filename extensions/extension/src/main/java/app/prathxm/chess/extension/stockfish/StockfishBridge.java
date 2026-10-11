@@ -31,12 +31,16 @@ public class StockfishBridge {
         final int multiPV;
         /** 0 = full strength, otherwise the UCI_Elo the result was searched with. */
         final int limited;
+        final String engineChoice;
+        final String komodoStyle;
 
-        CacheEntry(StockfishProcess.AnalysisResult result, int depth, int multiPV, int limited) {
+        CacheEntry(StockfishProcess.AnalysisResult result, int depth, int multiPV, int limited, String engineChoice, String komodoStyle) {
             this.result = result;
             this.depth = depth;
             this.multiPV = multiPV;
             this.limited = limited;
+            this.engineChoice = engineChoice != null ? engineChoice : "";
+            this.komodoStyle = komodoStyle != null ? komodoStyle : "";
         }
     }
 
@@ -82,25 +86,28 @@ public class StockfishBridge {
         return analyze(fen, depth, multiPV).moves;
     }
 
-    /** Strength key for the cache: 0 = full strength, otherwise the clamped Elo. */
+    /** Strength key for the cache: 0 = full strength, otherwise the actual Elo rating. */
     private static int strengthKey(Context ctx) {
         if (!StockfishSettings.isLimitStrength(ctx)) return 0;
-        return Math.max(1320, Math.min(3190, StockfishSettings.getElo(ctx)));
+        return StockfishSettings.getElo(ctx);
     }
 
     /**
-     * Returns a cached result for the position if one exists that is at least as deep and was
-     * searched at the same strength. A result with more lines than requested is trimmed, so e.g.
-     * browsing a reviewed game (3 lines) still shows only the number of arrows the user chose.
+     * Returns a cached result for the position if one exists that exactly matches the depth,
+     * engineChoice, komodoStyle, and limited strength.
      */
-    public static StockfishProcess.AnalysisResult getCached(String fen, int depth, int multiPV, int limited) {
+    public static StockfishProcess.AnalysisResult getCached(String fen, int depth, int multiPV, int limited, String engineChoice, String komodoStyle) {
         String key = positionKey(fen);
         if (key == null) return null;
         CacheEntry e;
         synchronized (cache) {
             e = cache.get(key);
         }
-        if (e == null || e.depth < depth || e.multiPV < multiPV || e.limited != limited) return null;
+        if (e == null || e.depth != depth || e.multiPV < multiPV || e.limited != limited
+                || !e.engineChoice.equals(engineChoice != null ? engineChoice : "")
+                || !e.komodoStyle.equals(komodoStyle != null ? komodoStyle : "")) {
+            return null;
+        }
         return trimLines(e.result, multiPV);
     }
 
@@ -114,19 +121,14 @@ public class StockfishBridge {
                 r.wdlWin, r.wdlDraw, r.wdlLoss, r.ponder, r.pv, lines, lineMates, lineMateIn, r.depth, r.terminal);
     }
 
-    private static void putCache(String fen, StockfishProcess.AnalysisResult r, int depth, int multiPV, int limited) {
+    private static void putCache(String fen, StockfishProcess.AnalysisResult r, int depth, int multiPV, int limited, String engineChoice, String komodoStyle) {
         if (r == null || !r.isValid()) return;
         // Never cache a search that was interrupted before reaching the requested depth.
         if (!r.terminal && !r.hasMate && r.depth < depth) return;
         String key = positionKey(fen);
         if (key == null) return;
         synchronized (cache) {
-            CacheEntry old = cache.get(key);
-            // Keep the more informative entry: deeper wins; at equal depth, more lines win.
-            if (old == null || old.limited != limited || depth > old.depth
-                    || (depth == old.depth && multiPV >= old.multiPV)) {
-                cache.put(key, new CacheEntry(r, depth, multiPV, limited));
-            }
+            cache.put(key, new CacheEntry(r, depth, multiPV, limited, engineChoice, komodoStyle));
         }
     }
 
@@ -158,22 +160,26 @@ public class StockfishBridge {
         if (ctx == null) return StockfishProcess.AnalysisResult.empty();
 
         int limited = strengthKey(ctx);
-        StockfishProcess.AnalysisResult cached = getCached(fen, depth, multiPV, limited);
+        String engineChoice = StockfishSettings.getEngineChoice(ctx);
+        String komodoStyle = StockfishSettings.getKomodoStyle(ctx);
+
+        StockfishProcess.AnalysisResult cached = getCached(fen, depth, multiPV, limited, engineChoice, komodoStyle);
         if (cached != null) return cached;
 
         if (!ensureRunning(ctx)) return StockfishProcess.AnalysisResult.empty();
         StockfishProcess.AnalysisResult r;
         liveSearchRunning = true;
+        List<String> uciMoves = MoveClassifier.getCurrentPositionMoves();
         try {
-            r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true, progress);
+            r = engine.analyze(ctx, fen, uciMoves, depth, multiPV, 0, true, progress);
             if (!r.isValid() && !engine.isReady()) {
                 // Engine crashed on this position; restart once and retry.
-                if (ensureRunning(ctx)) r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true, progress);
+                if (ensureRunning(ctx)) r = engine.analyze(ctx, fen, uciMoves, depth, multiPV, 0, true, progress);
             }
         } finally {
             liveSearchRunning = false;
         }
-        putCache(fen, r, depth, multiPV, limited);
+        putCache(fen, r, depth, multiPV, limited, engineChoice, komodoStyle);
         return r;
     }
 

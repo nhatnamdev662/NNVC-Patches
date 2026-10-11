@@ -232,9 +232,13 @@ public class MoveClassifier {
         lastPositionObject = positionObject;
         if (positionObject != null) {
             List<String> moves = extractMovesFromPosition(positionObject);
-            if (moves != null && !moves.isEmpty()) {
+            if (moves != null) {
                 currentPositionMoves = moves;
-                TorchEngine.log("[POSITION HOOK] Đã trích xuất " + moves.size() + " nước từ positionObject: " + moves);
+                if (!moves.isEmpty()) {
+                    TorchEngine.log("[POSITION HOOK] Đã trích xuất " + moves.size() + " nước từ positionObject: " + moves);
+                } else {
+                    TorchEngine.log("[POSITION HOOK] Bàn cờ ở vị trí ban đầu (0 nước đi).");
+                }
             }
         }
         updateHistory(fen);

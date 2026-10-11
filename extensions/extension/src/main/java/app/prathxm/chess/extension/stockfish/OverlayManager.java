@@ -169,7 +169,10 @@ public class OverlayManager {
             public void run() {
                 try {
                     Activity activity = StockfishExtension.getCurrentActivity();
-                    if (activity == null) return;
+                    if (activity == null || StockfishExtension.isGameOver(activity)) {
+                        hideArrowOverlay();
+                        return;
+                    }
                     Window window = activity.getWindow();
                     if (window == null) return;
                     ViewGroup decorView = (ViewGroup) window.getDecorView();

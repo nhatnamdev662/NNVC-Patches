@@ -5,6 +5,7 @@ import android.app.Application;
 import android.content.Context;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 
@@ -272,6 +273,17 @@ public class StockfishExtension {
             }
         }
 
+        if (isGameOver(activity)) {
+            OverlayManager.hideArrowOverlay();
+            ArrowInjector.clearEngineArrows(stateImplObject);
+            StockfishBridge.stopSearch();
+            Context c = getContext();
+            if (c != null) {
+                TorchEngine.getInstance(c).cancelPendingRequests();
+            }
+            return;
+        }
+
         GestureInterceptor.ensureGestureInterceptorRegistered();
         ensureEngineReady();
         if (!engineReady) return;
@@ -298,18 +310,19 @@ public class StockfishExtension {
         }
 
         Log.d(TAG, "Position changed → FEN: " + fen);
-        if (fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
+        boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        if (isStartPos) {
             OverlayManager.clearClassificationBadge();
             OverlayManager.hideArrowOverlay();
             OverlayManager.resetAccuracyEloWidget();
             OverlayManager.hideAccuracyEloPills();
             ArrowInjector.clearEngineArrows(stateImplObject);
-            TorchEngine.getInstance(getContext()).cancelPendingRequests();
-            resetUserWhiteCache();
-            MoveClassifier.clearHistory();
             if (ctx != null) {
+                TorchEngine.getInstance(ctx).cancelPendingRequests();
                 WasmEngineManager.getInstance(ctx).resetClassifyGame();
             }
+            resetUserWhiteCache();
+            MoveClassifier.clearHistory();
             OverlayManager.resetEvalBar();
         }
         MoveClassifier.updateHistory(fen, positionObject);
@@ -352,6 +365,13 @@ public class StockfishExtension {
     public static void onArrowsChanged(Object stateImplObject, List<?> arrows) {
         if (stateImplObject == null) return;
         stateImplRef.set(new WeakReference<>(stateImplObject));
+
+        Activity activity = getCurrentActivity();
+        if (isGameOver(activity)) {
+            OverlayManager.hideArrowOverlay();
+            ArrowInjector.clearEngineArrows(stateImplObject);
+            return;
+        }
 
         GestureInterceptor.ensureGestureInterceptorRegistered();
         ensureEngineReady();
@@ -457,8 +477,16 @@ public class StockfishExtension {
         if (result == null || result.moves.isEmpty()) return;
         if (!StockfishSettings.isEngineEnabled(context)) return;
 
-        boolean isLive = false;
         Activity activity = getCurrentActivity();
+        if (activity != null && isGameOver(activity)) {
+            OverlayManager.hideArrowOverlay();
+            ArrowInjector.clearEngineArrows(getStateImpl());
+            StockfishBridge.stopSearch();
+            TorchEngine.getInstance(context).cancelPendingRequests();
+            return;
+        }
+
+        boolean isLive = false;
         if (activity != null && isLiveMatch(activity)) {
             isLive = true;
         }
@@ -577,13 +605,17 @@ public class StockfishExtension {
                 GestureInterceptor.registerGestureInterceptor(activity);
                 lastArrowSignature = null;
                 lastScheduledKey = null;
-                // Re-trigger analysis and board redraw after multitasking switch
+                // Re-trigger analysis and board redraw after multitasking switch or match open
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
                         try {
-                            triggerAnalysisForCurrentState();
-                            invalidateAllBoards();
+                            if (!isGameOver(activity)) {
+                                triggerAnalysisForCurrentState();
+                                invalidateAllBoards();
+                            } else {
+                                OverlayManager.hideArrowOverlay();
+                            }
                         } catch (Throwable t) {
                             Log.e(TAG, "Failed to refresh onActivityResumed: " + t.getMessage());
                         }
@@ -647,26 +679,138 @@ public class StockfishExtension {
         }
     }
 
+    public static boolean isGameOver() {
+        Activity act = getCurrentActivity();
+        return isGameOver(act);
+    }
+
+    public static boolean isGameOver(Activity activity) {
+        if (activity == null) return false;
+        try {
+            // 1. Inspect activity fields for gameOverOverlayView (RealGameActivity.m0 or gameOverOverlayView)
+            Class<?> actClass = activity.getClass();
+            while (actClass != null && !actClass.getName().equals("android.app.Activity")) {
+                for (Field f : actClass.getDeclaredFields()) {
+                    String fn = f.getName();
+                    if (fn.equals("gameOverOverlayView") || fn.equals("m0") || fn.toLowerCase().contains("gameover")) {
+                        f.setAccessible(true);
+                        Object val = f.get(activity);
+                        if (val instanceof View) {
+                            View gv = (View) val;
+                            if (gv.getVisibility() == View.VISIBLE && gv.getParent() != null) {
+                                return true;
+                            }
+                        } else if (val != null) {
+                            return true;
+                        }
+                    }
+                }
+                actClass = actClass.getSuperclass();
+            }
+
+            // 2. Check decorView hierarchy for GameOver views
+            if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
+                View decorView = activity.getWindow().getDecorView();
+                if (hasGameOverView(decorView)) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    private static boolean hasGameOverView(View view) {
+        if (view == null) return false;
+        if (view.getVisibility() == View.VISIBLE) {
+            String className = view.getClass().getName();
+            if (className.contains("GameOver") || className.contains("GameEnd") || className.contains("GameFinished")) {
+                return true;
+            }
+            try {
+                int id = view.getId();
+                if (id != View.NO_ID && view.getResources() != null) {
+                    String entryName = view.getResources().getResourceEntryName(id);
+                    if (entryName != null) {
+                        String lower = entryName.toLowerCase();
+                        if (lower.contains("game_over") || lower.contains("gameover") || lower.contains("game_end")) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+            Object tag = view.getTag();
+            if (tag instanceof String) {
+                String stag = ((String) tag).toLowerCase();
+                if (stag.contains("game_over") || stag.contains("gameover")) {
+                    return true;
+                }
+            }
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            int count = group.getChildCount();
+            for (int i = 0; i < count; i++) {
+                if (hasGameOverView(group.getChildAt(i))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static void triggerAnalysisForCurrentState() {
+        Activity act = getCurrentActivity();
+        if (isGameOver(act)) {
+            OverlayManager.hideArrowOverlay();
+            StockfishBridge.stopSearch();
+            return;
+        }
         // Settings or app state changed: always repaint and restart analysis
         lastArrowSignature = null;
         lastScheduledKey = null;
         OverlayManager.hideArrowOverlay();
         Object state = getStateImpl();
+        Object positionObject = null;
         if (state != null) {
             try {
                 Method getPosition = state.getClass().getMethod("getPosition");
-                Object positionObject = getPosition.invoke(state);
-                if (positionObject != null) {
-                    String fen = extractFen(positionObject);
-                    if (fen != null) {
-                        Context ctx = getContext();
-                        MoveClassifier.updateHistory(fen, positionObject);
-                        if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx)) {
-                            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, MoveClassifier.getCurrentPositionMoves());
+                positionObject = getPosition.invoke(state);
+            } catch (Throwable ignored) {}
+        }
+        if (positionObject == null) {
+            try {
+                if (act != null && act.getWindow() != null && act.getWindow().getDecorView() != null) {
+                    View boardView = OverlayManager.findChessBoardView(act.getWindow().getDecorView());
+                    if (boardView != null) {
+                        try {
+                            Method getPos = boardView.getClass().getMethod("getPositionWithPremoves");
+                            positionObject = getPos.invoke(boardView);
+                        } catch (Throwable ignored) {}
+                        if (positionObject == null) {
+                            try {
+                                Method getDispPos = boardView.getClass().getMethod("getPosition");
+                                Object dispPos = getDispPos.invoke(boardView);
+                                if (dispPos != null) {
+                                    Method getA = dispPos.getClass().getMethod("a");
+                                    positionObject = getA.invoke(dispPos);
+                                }
+                            } catch (Throwable ignored) {}
                         }
-                        scheduleAnalysis(fen, true);
                     }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        if (positionObject != null) {
+            try {
+                String fen = extractFen(positionObject);
+                if (fen != null) {
+                    Context ctx = getContext();
+                    MoveClassifier.updateHistory(fen, positionObject);
+                    if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx)) {
+                        WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, MoveClassifier.getCurrentPositionMoves());
+                    }
+                    scheduleAnalysis(fen, true);
                 }
             } catch (Throwable t) {
                 Log.e(TAG, "triggerAnalysisForCurrentState failed: " + t.getMessage());
@@ -679,19 +823,52 @@ public class StockfishExtension {
      * Used when toggling play engines or Komodo play styles so that Eval Bar remains rock-solid.
      */
     public static void triggerPlayAnalysisOnly() {
+        Activity act = getCurrentActivity();
+        if (isGameOver(act)) {
+            OverlayManager.hideArrowOverlay();
+            StockfishBridge.stopSearch();
+            return;
+        }
         lastArrowSignature = null;
         lastScheduledKey = null;
         OverlayManager.hideArrowOverlay();
         Object state = getStateImpl();
+        Object positionObject = null;
         if (state != null) {
             try {
                 Method getPosition = state.getClass().getMethod("getPosition");
-                Object positionObject = getPosition.invoke(state);
-                if (positionObject != null) {
-                    String fen = extractFen(positionObject);
-                    if (fen != null) {
-                        scheduleAnalysis(fen, true);
+                positionObject = getPosition.invoke(state);
+            } catch (Throwable ignored) {}
+        }
+        if (positionObject == null) {
+            try {
+                if (act != null && act.getWindow() != null && act.getWindow().getDecorView() != null) {
+                    View boardView = OverlayManager.findChessBoardView(act.getWindow().getDecorView());
+                    if (boardView != null) {
+                        try {
+                            Method getPos = boardView.getClass().getMethod("getPositionWithPremoves");
+                            positionObject = getPos.invoke(boardView);
+                        } catch (Throwable ignored) {}
+                        if (positionObject == null) {
+                            try {
+                                Method getDispPos = boardView.getClass().getMethod("getPosition");
+                                Object dispPos = getDispPos.invoke(boardView);
+                                if (dispPos != null) {
+                                    Method getA = dispPos.getClass().getMethod("a");
+                                    positionObject = getA.invoke(dispPos);
+                                }
+                            } catch (Throwable ignored) {}
+                        }
                     }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        if (positionObject != null) {
+            try {
+                String fen = extractFen(positionObject);
+                if (fen != null) {
+                    scheduleAnalysis(fen, true);
                 }
             } catch (Throwable t) {
                 Log.e(TAG, "triggerPlayAnalysisOnly failed: " + t.getMessage());
@@ -727,7 +904,50 @@ public class StockfishExtension {
 
     public static Object getStateImpl() {
         WeakReference<Object> ref = stateImplRef.get();
-        return ref != null ? ref.get() : null;
+        Object current = (ref != null) ? ref.get() : null;
+        if (current != null) {
+            return current;
+        }
+        try {
+            Activity act = getCurrentActivity();
+            if (act != null && act.getWindow() != null && act.getWindow().getDecorView() != null) {
+                View decorView = act.getWindow().getDecorView();
+                View boardView = OverlayManager.findChessBoardView(decorView);
+                if (boardView != null) {
+                    try {
+                        Method getVm = boardView.getClass().getMethod("getViewModel");
+                        Object vm = getVm.invoke(boardView);
+                        if (vm != null) {
+                            Method getState = vm.getClass().getMethod("getState");
+                            Object state = getState.invoke(vm);
+                            if (state != null) {
+                                stateImplRef.set(new WeakReference<>(state));
+                                return state;
+                            }
+                        }
+                    } catch (Throwable t1) {
+                        for (Field f : boardView.getClass().getDeclaredFields()) {
+                            if (f.getName().contains("viewModel") || f.getType().getName().contains("ViewModel") || f.getName().equals("x")) {
+                                f.setAccessible(true);
+                                Object vm = f.get(boardView);
+                                if (vm != null) {
+                                    for (Method m : vm.getClass().getMethods()) {
+                                        if (m.getName().equals("getState") && m.getParameterCount() == 0) {
+                                            Object state = m.invoke(vm);
+                                            if (state != null) {
+                                                stateImplRef.set(new WeakReference<>(state));
+                                                return state;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     private static volatile Boolean cachedUserIsWhite = null;

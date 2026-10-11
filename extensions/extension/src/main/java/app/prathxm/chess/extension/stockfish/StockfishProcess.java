@@ -216,6 +216,18 @@ public class StockfishProcess {
 
         final boolean whiteToMove = isWhiteToMove(fen, uciMoves);
         final int elo = StockfishSettings.getElo(context);
+        final String engineChoice = StockfishSettings.getEngineChoice(context);
+
+        // Auto-switch engine if user changed engine in settings
+        if (curEngineChoice != null && !engineChoice.equals(curEngineChoice)) {
+            NnvcLogger.i(TAG, "Engine choice changed in settings from " + curEngineChoice + " to " + engineChoice);
+            curEngineChoice = engineChoice;
+            resetOptionCache();
+            if (wasmManager != null) {
+                wasmManager.switchEngine(engineChoice);
+                wasmManager.waitForPlayWorkerReady(8000);
+            }
+        }
 
         boolean isAutoDepth = StockfishSettings.isAutoDepthEnabled(context);
         int effectiveDepth;
@@ -229,26 +241,24 @@ public class StockfishProcess {
             drainReady();
             applyPlayEngineOptions(context, elo, multiPV, honorLimit);
 
-            StringBuilder pos = new StringBuilder(fen.length() + 8 + (uciMoves != null ? uciMoves.size() * 6 : 0));
-            pos.append("position fen ").append(fen);
+            StringBuilder pos = new StringBuilder(fen.length() + 32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
+            // Send position startpos moves if moves list is present to maximize Transposition Table reuse (3x faster)
             if (uciMoves != null && !uciMoves.isEmpty()) {
-                pos.append(" moves");
+                pos.append("position startpos moves");
                 for (String m : uciMoves) pos.append(' ').append(m);
+            } else {
+                pos.append("position fen ").append(fen);
             }
             sendUciCommand(pos.toString());
 
-            String goCmd;
-            if (isAutoDepth && honorLimit) {
-                int softMs = movetimeMs > 0 ? movetimeMs : Math.max(700, Math.min(2400, effectiveDepth * 200));
-                goCmd = "go depth " + effectiveDepth + " movetime " + softMs;
-            } else {
-                goCmd = movetimeMs > 0 ? ("go depth " + effectiveDepth + " movetime " + movetimeMs) : ("go depth " + effectiveDepth);
-            }
+            // Soft Movetime standard NNVC Extension: fast responsiveness at Depth 12
+            int softMs = movetimeMs > 0 ? movetimeMs : Math.max(700, Math.min(2100, effectiveDepth * 175));
+            String goCmd = "go depth " + effectiveDepth + " movetime " + softMs;
             sendUciCommand(goCmd);
             NnvcLogger.d(TAG, "Search started [wasm]: " + goCmd + " (Elo=" + elo + ")");
 
             return readSearchOutput(Math.max(3, multiPV), whiteToMove,
-                    movetimeMs > 0 ? movetimeMs + BESTMOVE_GRACE_MS : DEFAULT_SEARCH_TIMEOUT_MS,
+                    softMs + BESTMOVE_GRACE_MS,
                     effectiveDepth, progress);
         } catch (Throwable e) {
             NnvcLogger.e(TAG, "Search error in mode wasm: " + e.getMessage(), e);

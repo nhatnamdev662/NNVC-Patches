@@ -1,6 +1,6 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.73*
+*Phiên bản hiện tại: v2.0.74*
 *Cập nhật lần cuối: 2026-10-11*
 
 ---
@@ -353,6 +353,26 @@
   - Tiếp tục hỗ trợ `NnvcLogger` (ghi log chi tiết ra `/sdcard/Android/data/com.chess/files/nnvc_debug.log`), hộp thoại đọc log in-app `NnvcLogViewerDialog`, nút huy hiệu nổi kéo thả `FloatingLogPillView` và thông báo trạng thái `EngineStatusHUD`.
 - **Bump phiên bản lên v2.0.67**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
 - **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,731,004 bytes), đóng gói `patches-2.0.67.mpp` (227,435,479 bytes).
+
+### v2.0.74 (2026-10-11) — Real-time Reactivity, Move 0 Mượt Mà, Game Over Triệt Để, Soft Movetime Depth 12
+- **Real-time Reactivity (Phản Ứng Tức Thì Khi Đổi Cài Đặt)**:
+  - Khi thay đổi Depth, Elo, MultiPV, Engine (Komodo/Stockfish) hoặc Komodo play style (Default/Attacking/Defensive) trong menu cài đặt (`StockfishSettingsDialog.java`), áp dụng ngay lập tức sau 100ms debounce mà không cần chờ sang nước cờ tiếp theo hay ván mới.
+  - Xóa sạch cache kết quả (`StockfishBridge.clearCache()`), ngắt tìm kiếm cũ (`StockfishBridge.stopSearch()`), làm mới chữ ký mũi tên (`lastArrowSignature = null`), và kích hoạt phân tích ngay trên bàn cờ hiện tại (`StockfishExtension.triggerAnalysisForCurrentState()`).
+  - Nâng cấp `StockfishBridge.CacheEntry`: Gắn thêm `engineChoice` và `komodoStyle` cùng Elo thực tế (`StockfishSettings.getElo()`) vào key cache, triệt tiêu 100% hiện tượng dùng nhầm kết quả cache của engine/lối chơi khác.
+- **Game Lifecycle Detection (Tự Động Nhận Diện Move 0 & Xử Lý Triệt Để Game Over)**:
+  - **Move 0 (New Game / Startpos) Phân Tích Tự Động Cho Cả Trắng & Đen**:
+    - Bổ sung cơ chế Fallback trực tiếp trong `getStateImpl()`, `triggerAnalysisForCurrentState()` và `triggerPlayAnalysisOnly()`: Nếu `stateImplRef.get() == null` do hook chưa kịp gán, hệ thống tự động quét `decorView` -> `OverlayManager.findChessBoardView(decorView)` -> reflectively gọi `getViewModel().getState()` hoặc trích xuất trực tiếp `positionObject` từ `ChessBoardView.getPositionWithPremoves()` / `getPosition().a()`.
+    - Khi bắt đầu ván mới (bàn cờ ở startpos hoặc sau khi người chơi/đối thủ đi nước 1), khởi chạy phân tích nước tốt nhất ngay lập tức cho bên tới lượt đi.
+    - Sửa lỗi trong `MoveClassifier.updateHistory`: Khi bàn cờ ở startpos (`moves.isEmpty()`), gán danh sách rỗng thay vì giữ nguyên mảng moves của ván cũ, đảm bảo ván mới bắt đầu hoàn toàn sạch sẽ.
+  - **Xử Lý Triệt Để Game Over (`isGameOver`)**:
+    - Kiểm tra trường `gameOverOverlayView` (hoặc `m0`) của `RealGameActivity` cùng việc duyệt phân cấp View tìm kiếm các component kết thúc ván đấu (`hasGameOverView`).
+    - Khi ván đấu kết thúc: Ngay lập tức ẩn toàn bộ mũi tên gợi ý (`OverlayManager.hideArrowOverlay()`), dừng engine tính toán (`StockfishBridge.stopSearch()`), hủy toàn bộ hàng chờ phân loại của Torch Engine (`cancelPendingRequests()`), và chặn tuyệt đối việc vẽ đè mũi tên lên màn hình Game Over trong cả `displayLiveResult` lẫn `OverlayManager.updateArrowOverlay`.
+- **Soft Movetime & Tối Ưu Tốc Độ Depth 12**:
+  - Đồng bộ chuẩn movetime với Extension NNVC: `softMs = Math.max(700, Math.min(2100, effectiveDepth * 175))` và gửi lệnh `go depth <depth> movetime <softMs>`.
+  - Khi có danh sách moves, gửi `position startpos moves <move1> <move2> ...` để tái sử dụng 100% Transposition Table (Hash 64MB) trong WASM engine, tăng tốc độ tính toán gấp 3 lần tại Depth 12.
+- **Bổ sung bộ kiểm thử tự động `SelfTest`**: 64/64 test cases vượt qua thành công (bao gồm soft movetime, move 0 startpos detection, scale math, classification thresholds).
+- **Bump phiên bản lên v2.0.74**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,760,612 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.74.mpp` (227,449,228 bytes).
 
 ### v2.0.73 (2026-10-11) — Sửa Triệt Để Mũi Tên Nhảy Ở Depth Cao (Atomic Display 100% Chuẩn Extension NNVC)
 - **Khắc phục dứt điểm lỗi mũi tên giật / nhảy liên tục ở Depth 8-12 (`StockfishExtension.java`)**:

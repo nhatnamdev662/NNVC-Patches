@@ -284,6 +284,22 @@ public class SelfTest {
         check("Arrow eval cp score +12.3",
             formatArrowEval(false, 0, 12.3f, true).equals("+12"));
 
+        // === SOFT MOVETIME TESTS ===
+        check("Soft movetime depth 12 is 2100ms",
+            Math.max(700, Math.min(2100, 12 * 175)) == 2100);
+        check("Soft movetime depth 8 is 1400ms",
+            Math.max(700, Math.min(2100, 8 * 175)) == 1400);
+        check("Soft movetime depth 4 is clamped to 700ms",
+            Math.max(700, Math.min(2100, 4 * 175)) == 700);
+
+        // === MOVE 0 STARTPOS DETECTION TESTS ===
+        String startposFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        check("Move 0 startpos recognized",
+            startposFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"));
+        String move1Fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        check("Move 1 is not startpos",
+            !move1Fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

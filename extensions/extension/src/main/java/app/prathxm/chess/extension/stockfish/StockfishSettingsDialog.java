@@ -601,6 +601,9 @@ public class StockfishSettingsDialog {
         final TextView[] depthBadgeHolder = new TextView[1];
         final SeekBar[] depthSeekBarHolder = new SeekBar[1];
 
+        final android.os.Handler realtimeDebounceHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        final Runnable[] pendingRealtimeReanalysis = new Runnable[1];
+
         final SeekBar eloSeekBar = addEloSeekBarWithBadge(engineCard,
                 I18n.get(activity, "row_elo"),
                 currentElo, eloProg, eloMax,
@@ -614,10 +617,26 @@ public class StockfishSettingsDialog {
                             int autoD = StockfishSettings.autoDepthForElo(newElo);
                             depthBadgeHolder[0].setText(autoD + " (Auto)");
                         }
+                        if (pendingRealtimeReanalysis[0] != null) {
+                            realtimeDebounceHandler.removeCallbacks(pendingRealtimeReanalysis[0]);
+                        }
+                        pendingRealtimeReanalysis[0] = () -> {
+                            if (StockfishSettings.isEngineEnabled(activity)) {
+                                StockfishBridge.clearCache();
+                                StockfishBridge.stopSearch();
+                                StockfishExtension.triggerAnalysisForCurrentState();
+                            }
+                        };
+                        realtimeDebounceHandler.postDelayed(pendingRealtimeReanalysis[0], 100);
                     }
                     @Override
                     public void onEloCommitted(int finalElo) {
+                        if (pendingRealtimeReanalysis[0] != null) {
+                            realtimeDebounceHandler.removeCallbacks(pendingRealtimeReanalysis[0]);
+                        }
                         if (StockfishSettings.isEngineEnabled(activity)) {
+                            StockfishBridge.clearCache();
+                            StockfishBridge.stopSearch();
                             StockfishExtension.triggerAnalysisForCurrentState();
                         }
                     }
@@ -641,10 +660,26 @@ public class StockfishSettingsDialog {
                     @Override
                     public void onValueChanged(int newDepth) {
                         StockfishSettings.setDepth(activity, newDepth);
+                        if (pendingRealtimeReanalysis[0] != null) {
+                            realtimeDebounceHandler.removeCallbacks(pendingRealtimeReanalysis[0]);
+                        }
+                        pendingRealtimeReanalysis[0] = () -> {
+                            if (StockfishSettings.isEngineEnabled(activity)) {
+                                StockfishBridge.clearCache();
+                                StockfishBridge.stopSearch();
+                                StockfishExtension.triggerAnalysisForCurrentState();
+                            }
+                        };
+                        realtimeDebounceHandler.postDelayed(pendingRealtimeReanalysis[0], 100);
                     }
                     @Override
                     public void onValueCommitted(int finalDepth) {
+                        if (pendingRealtimeReanalysis[0] != null) {
+                            realtimeDebounceHandler.removeCallbacks(pendingRealtimeReanalysis[0]);
+                        }
                         if (StockfishSettings.isEngineEnabled(activity)) {
+                            StockfishBridge.clearCache();
+                            StockfishBridge.stopSearch();
                             StockfishExtension.triggerAnalysisForCurrentState();
                         }
                     }
@@ -804,10 +839,26 @@ public class StockfishSettingsDialog {
                     @Override
                     public void onValueChanged(int newPV) {
                         StockfishSettings.setMultiPV(activity, newPV);
+                        if (pendingRealtimeReanalysis[0] != null) {
+                            realtimeDebounceHandler.removeCallbacks(pendingRealtimeReanalysis[0]);
+                        }
+                        pendingRealtimeReanalysis[0] = () -> {
+                            if (StockfishSettings.isEngineEnabled(activity)) {
+                                StockfishBridge.clearCache();
+                                StockfishBridge.stopSearch();
+                                StockfishExtension.triggerAnalysisForCurrentState();
+                            }
+                        };
+                        realtimeDebounceHandler.postDelayed(pendingRealtimeReanalysis[0], 100);
                     }
                     @Override
                     public void onValueCommitted(int finalPV) {
+                        if (pendingRealtimeReanalysis[0] != null) {
+                            realtimeDebounceHandler.removeCallbacks(pendingRealtimeReanalysis[0]);
+                        }
                         if (StockfishSettings.isEngineEnabled(activity)) {
+                            StockfishBridge.clearCache();
+                            StockfishBridge.stopSearch();
                             StockfishExtension.triggerAnalysisForCurrentState();
                         }
                     }
