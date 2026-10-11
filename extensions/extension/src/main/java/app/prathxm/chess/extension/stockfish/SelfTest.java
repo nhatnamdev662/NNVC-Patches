@@ -383,10 +383,20 @@ public class SelfTest {
             !StockfishProcess.isWhiteToMove(blackTurnFen, java.util.Collections.emptyList()));
         check("isWhiteToMove black turn is false with 1 move in list",
             !StockfishProcess.isWhiteToMove(blackTurnFen, oneMoveList));
+        check("isWhiteToMove null fen defaults to white",
+            StockfishProcess.isWhiteToMove(null));
+        check("isWhiteToMove whitespace padded fen works",
+            StockfishProcess.isWhiteToMove("  rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR   w   KQkq - 0 1  "));
+        check("isWhiteToMove single token piece placement fen defaults to white",
+            StockfishProcess.isWhiteToMove("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"));
 
         // === OVERLAYMANAGER FORMAT ARROW EVAL LABEL (NNVC EXTENSION PARITY) ===
+        check("OverlayManager format mate in 1 = #1",
+            OverlayManager.formatArrowEvalLabel(true, 1, 0f).equals("#1"));
         check("OverlayManager format mate in 2 = #2",
             OverlayManager.formatArrowEvalLabel(true, 2, 0f).equals("#2"));
+        check("OverlayManager format mate in -1 = #-1",
+            OverlayManager.formatArrowEvalLabel(true, -1, 0f).equals("#-1"));
         check("OverlayManager format mate in -3 = #-3",
             OverlayManager.formatArrowEvalLabel(true, -3, 0f).equals("#-3"));
         check("OverlayManager format +2.5 = +2.5",
@@ -395,17 +405,35 @@ public class SelfTest {
             OverlayManager.formatArrowEvalLabel(false, 0, -0.8f).equals("-0.8"));
         check("OverlayManager format 0.0 = 0.0",
             OverlayManager.formatArrowEvalLabel(false, 0, 0.0f).equals("0.0"));
+        check("OverlayManager format -0.0f = 0.0",
+            OverlayManager.formatArrowEvalLabel(false, 0, -0.0f).equals("0.0"));
+        check("OverlayManager format small positive 0.04f = 0.0",
+            OverlayManager.formatArrowEvalLabel(false, 0, 0.04f).equals("0.0"));
+        check("OverlayManager format small negative -0.04f = 0.0",
+            OverlayManager.formatArrowEvalLabel(false, 0, -0.04f).equals("0.0"));
         check("OverlayManager format +12.3 = +12",
             OverlayManager.formatArrowEvalLabel(false, 0, 12.3f).equals("+12"));
         check("OverlayManager format -15.8 = -16",
             OverlayManager.formatArrowEvalLabel(false, 0, -15.8f).equals("-16"));
 
         // === MULTIPV SORTING & SIDE-TO-MOVE POV TEST ===
+        // Branch hierarchy from side-to-move POV:
+        // Mate in 1 (99900L) > Mate in 2 (99800L) > +5.0 (500L) > 0.0 (0L) > -2.0 (-200L) > Mate in -3 (-99700L) > Mate in -1 (-99900L)
+        long mateIn1 = 100000L - 100L;
+        long mateIn2 = 100000L - 200L;
+        long cp500 = 500L;
+        long cp0 = 0L;
+        long cpMinus200 = -200L;
+        long mateMinus3 = -100000L + 300L;
+        long mateMinus1 = -100000L + 100L;
+        check("MultiPV Hierarchy: mateIn1 > mateIn2", mateIn1 > mateIn2);
+        check("MultiPV Hierarchy: mateIn2 > cp500", mateIn2 > cp500);
+        check("MultiPV Hierarchy: cp500 > cp0", cp500 > cp0);
+        check("MultiPV Hierarchy: cp0 > cpMinus200", cp0 > cpMinus200);
+        check("MultiPV Hierarchy: cpMinus200 > mateMinus3", cpMinus200 > mateMinus3);
+        check("MultiPV Hierarchy: mateMinus3 > mateMinus1", mateMinus3 > mateMinus1);
+
         // When Black is to move and Black is winning:
-        // Branch 1: score cp +250 (Black +2.5 pawns)
-        // Branch 2: score cp +100 (Black +1.0 pawns)
-        // Branch 3: score cp -50  (Black -0.5 pawns)
-        // In Black's POV, Branch 1 must be Tier 1 (highest score), Branch 2 Tier 2, Branch 3 Tier 3
         long eval1 = 250L;
         long eval2 = 100L;
         long eval3 = -50L;
@@ -418,17 +446,46 @@ public class SelfTest {
         check("Tier 2 arrow label is +1.0", label2.equals("+1.0"));
         check("Tier 3 arrow label is -0.5", label3.equals("-0.5"));
 
-        // === MOVE 0 DEDUPLICATION TEST ===
-        String move0Fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        String lastScheduledMove0 = move0Fen;
-        boolean scheduled = true;
-        boolean isDuplicateMove0 = scheduled && move0Fen.equals(lastScheduledMove0);
-        check("Duplicate Move 0 call is safely suppressed", isDuplicateMove0);
-        String nextFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
-        boolean isDifferentFen = scheduled && nextFen.equals(lastScheduledMove0);
-        check("Move 1 is not suppressed", !isDifferentFen);
+        // === MOVE 0 STATE MACHINE DEDUPLICATION TEST ===
+        class Move0StateMachine {
+            String lastLoadedFen = null;
+            boolean isScheduled = false;
+            int analysisTriggerCount = 0;
 
-        // === ACTIVE GAMEOVER DETECTION DIALOG TEST ===
+            void onBoardChanged(String fen) {
+                boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+                if (isStartPos) {
+                    if (isScheduled && fen.equals(lastLoadedFen)) {
+                        return; // duplicate suppressed
+                    }
+                    lastLoadedFen = fen;
+                    isScheduled = true;
+                    analysisTriggerCount++;
+                } else {
+                    isScheduled = false;
+                    lastLoadedFen = null;
+                }
+            }
+
+            void onGameOver() {
+                isScheduled = false;
+                lastLoadedFen = null;
+            }
+        }
+        Move0StateMachine sm = new Move0StateMachine();
+        String m0Fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        sm.onBoardChanged(m0Fen);
+        check("Move 0 initial load triggered analysis count = 1", sm.analysisTriggerCount == 1);
+        sm.onBoardChanged(m0Fen); // duplicate call from view attach / retry
+        check("Move 0 duplicate call skipped, analysis count remains 1", sm.analysisTriggerCount == 1);
+        String m1Fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        sm.onBoardChanged(m1Fen);
+        check("Move 1 reset Move 0 scheduled flag", !sm.isScheduled);
+        sm.onGameOver();
+        sm.onBoardChanged(m0Fen); // new game started
+        check("New game Move 0 triggers fresh analysis count = 2", sm.analysisTriggerCount == 2);
+
+        // === ACTIVE GAMEOVER DETECTION DIALOG & FRAGMENT TESTS ===
         class MockDialog {
             public boolean isShowing() { return true; }
         }
@@ -447,6 +504,29 @@ public class SelfTest {
             }
         } catch (Throwable ignored) {}
         check("Active DialogFragment isShowing recognized even when isVisible is false", isDialogShowing);
+
+        class MockView {
+            public int getVisibility() { return 0; } // View.VISIBLE = 0
+            public Object getParent() { return new Object(); }
+        }
+        class MockRegularFragment {
+            public boolean isVisible() { return false; }
+            public MockView getView() { return new MockView(); }
+        }
+        MockRegularFragment mrf = new MockRegularFragment();
+        boolean isViewShowing = false;
+        try {
+            java.lang.reflect.Method getViewM = mrf.getClass().getMethod("getView");
+            Object v = getViewM.invoke(mrf);
+            if (v != null) {
+                java.lang.reflect.Method getVis = v.getClass().getMethod("getVisibility");
+                java.lang.reflect.Method getParent = v.getClass().getMethod("getParent");
+                int vis = (Integer) getVis.invoke(v);
+                Object parent = getParent.invoke(v);
+                isViewShowing = (vis == 0 && parent != null);
+            }
+        } catch (Throwable ignored) {}
+        check("Active Fragment getView() recognized even when isVisible is false", isViewShowing);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

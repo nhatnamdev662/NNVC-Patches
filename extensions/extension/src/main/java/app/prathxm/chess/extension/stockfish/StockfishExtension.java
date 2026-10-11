@@ -345,6 +345,15 @@ public class StockfishExtension {
         Log.d(TAG, "Position changed → FEN: " + fen);
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
+            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
+                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled, skipping duplicate reset.");
+                return;
+            }
+            lastLoadedMove0Fen = fen;
+            isMove0AnalysisScheduled = true;
+            android.os.Handler h = getMove0RetryHandler();
+            if (h != null) h.removeCallbacksAndMessages(null);
+
             OverlayManager.clearClassificationBadge();
             OverlayManager.hideArrowOverlay();
             OverlayManager.resetAccuracyEloWidget();
@@ -612,8 +621,8 @@ public class StockfishExtension {
 
     private static boolean isWhiteTurnFromFen(String fen) {
         if (fen == null) return true;
-        String[] parts = fen.split("\\s+");
-        return parts.length > 1 && parts[1].equals("w");
+        String[] parts = fen.trim().split("\\s+");
+        return parts.length < 2 || !"b".equalsIgnoreCase(parts[1]);
     }
 
     private static void registerLifecycleCallbacks(Application app) {
@@ -650,6 +659,8 @@ public class StockfishExtension {
                 GestureInterceptor.registerGestureInterceptor(activity);
                 lastArrowSignature = null;
                 lastScheduledKey = null;
+                lastLoadedMove0Fen = null;
+                isMove0AnalysisScheduled = false;
 
                 setupGameOverWatchdog(activity);
 
@@ -688,6 +699,8 @@ public class StockfishExtension {
             public void onActivityPaused(Activity activity) {
                 if (resumedActivity.get() == activity) resumedActivity = new WeakReference<>(null);
                 stopGameOverWatchdog();
+                lastLoadedMove0Fen = null;
+                isMove0AnalysisScheduled = false;
                 android.os.Handler ph = getMove0RetryHandler();
                 if (ph != null) ph.removeCallbacksAndMessages(null);
             }
@@ -701,6 +714,8 @@ public class StockfishExtension {
             @Override
             public void onActivityDestroyed(Activity activity) {
                 stopGameOverWatchdog();
+                lastLoadedMove0Fen = null;
+                isMove0AnalysisScheduled = false;
                 android.os.Handler dh = getMove0RetryHandler();
                 if (dh != null) dh.removeCallbacksAndMessages(null);
             }
@@ -775,6 +790,8 @@ public class StockfishExtension {
         if (isGameOver(activity)) {
             if (!lastGameOverHandled) {
                 lastGameOverHandled = true;
+                lastLoadedMove0Fen = null;
+                isMove0AnalysisScheduled = false;
                 OverlayManager.hideArrowOverlay(true);
                 ArrowInjector.clearEngineArrows(getStateImpl());
                 StockfishBridge.stopSearch();
@@ -807,12 +824,8 @@ public class StockfishExtension {
         if (fen == null) return false;
 
         boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-        if (isMove0) {
-            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
-                return true; // Already loaded and scheduled!
-            }
-            lastLoadedMove0Fen = fen;
-            isMove0AnalysisScheduled = true;
+        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
+            return true; // Already loaded and scheduled!
         }
 
         onBoardChanged(getStateImpl(), pos);
@@ -959,6 +972,14 @@ public class StockfishExtension {
             if (dlg != null) {
                 Method isShowingM = dlg.getClass().getMethod("isShowing");
                 if ((Boolean) isShowingM.invoke(dlg)) return true;
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Method getViewM = frag.getClass().getMethod("getView");
+            Object v = getViewM.invoke(frag);
+            if (v instanceof View) {
+                View fv = (View) v;
+                if (fv.getVisibility() == View.VISIBLE && fv.getParent() != null) return true;
             }
         } catch (Throwable ignored) {}
         return false;
@@ -1112,14 +1133,9 @@ public class StockfishExtension {
                 String fen = extractFen(pos);
                 if (fen != null) {
                     boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-                    if (isMove0) {
-                        if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
-                            Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và phân tích, bỏ qua gọi lặp lại.");
-                            return;
-                        }
-                        lastLoadedMove0Fen = fen;
-                        android.os.Handler h = getMove0RetryHandler();
-                        if (h != null) h.removeCallbacksAndMessages(null);
+                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
+                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và phân tích, bỏ qua gọi lặp lại.");
+                        return;
                     }
                 }
                 onBoardChanged(getStateImpl(), pos);

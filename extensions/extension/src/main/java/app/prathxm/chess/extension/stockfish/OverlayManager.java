@@ -274,8 +274,8 @@ public class OverlayManager {
                         aov.clearArrowsOnly();
                         if (clearBadges || StockfishExtension.isGameOver(activity)) {
                             aov.clearClassificationBadge();
-                        }
-                        if (!aov.hasBadges()) {
+                            aov.setVisibility(View.GONE);
+                        } else if (!aov.hasBadges()) {
                             aov.setVisibility(View.GONE);
                         }
                     } else if (v != null) {
