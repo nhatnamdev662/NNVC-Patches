@@ -345,8 +345,8 @@ public class StockfishExtension {
         Log.d(TAG, "Position changed → FEN: " + fen);
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
-            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
-                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled and arrows visible, skipping duplicate reset.");
+            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
+                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled, skipping duplicate reset.");
                 return;
             }
             lastLoadedMove0Fen = fen;
@@ -823,7 +823,7 @@ public class StockfishExtension {
         }
     }
 
-    private static boolean tryLoadMove0(Activity activity) {
+    public static boolean tryLoadMove0(Activity activity) {
         if (activity == null || activity.getWindow() == null) return false;
         View decorView = activity.getWindow().getDecorView();
         if (decorView == null) return false;
@@ -837,8 +837,8 @@ public class StockfishExtension {
         if (fen == null) return false;
 
         boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
-            return true; // Already loaded and scheduled with arrows visible!
+        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
+            return true; // Already loaded and scheduled!
         }
 
         onBoardChanged(getStateImpl(), pos);
@@ -1017,40 +1017,7 @@ public class StockfishExtension {
                 }
             } catch (Throwable ignored) {}
 
-            // 4. Check board moves history for checkmate symbol '#' or result notation
-            try {
-                if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
-                    View boardView = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
-                    if (boardView != null) {
-                        // Nếu bàn cờ hiện tại đang ở thế mở màn (startpos), tuyệt đối không thể là Game Over!
-                        Object curPos = extractPositionFromBoardView(boardView);
-                        String curFen = (curPos != null) ? extractFen(curPos) : null;
-                        boolean isCurStartPos = (curFen != null && curFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"));
-
-                        if (!isCurStartPos) {
-                            for (Method m : boardView.getClass().getMethods()) {
-                                if (m.getName().equals("getMovesHistory") && m.getParameterCount() == 0) {
-                                    Object movesObj = m.invoke(boardView);
-                                    if (movesObj instanceof List) {
-                                        List<?> moves = (List<?>) movesObj;
-                                        if (!moves.isEmpty()) {
-                                            Object lastMove = moves.get(moves.size() - 1);
-                                            if (lastMove != null) {
-                                                String s = lastMove.toString();
-                                                if (s.endsWith("#") || s.contains("#") || s.equals("1-0") || s.equals("0-1") || s.equals("1/2-1/2")) {
-                                                    return true;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (Throwable ignored) {}
-
-            // 5. Check decorView hierarchy for explicit GameOver overlay views
+            // 4. Check decorView hierarchy for explicit GameOver overlay views
             if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
                 View decorView = activity.getWindow().getDecorView();
                 if (hasGameOverView(decorView)) {
@@ -1127,19 +1094,26 @@ public class StockfishExtension {
 
     public static Object resolveVariantPosition(Object obj) {
         if (obj == null) return null;
+        if (obj instanceof View || obj instanceof Activity || obj instanceof Context) return null;
         if (extractFen(obj) != null) return obj;
         try {
             Method m = obj.getClass().getMethod("a");
-            Object inner = m.invoke(obj);
-            if (inner != null && extractFen(inner) != null) return inner;
+            if (m.getReturnType() != void.class) {
+                Object inner = m.invoke(obj);
+                if (inner != null && extractFen(inner) != null) return inner;
+            }
         } catch (Throwable ignored) {}
         try {
             Method m = obj.getClass().getMethod("getPosition");
-            Object inner = m.invoke(obj);
-            if (inner != null && extractFen(inner) != null) return inner;
+            if (m.getReturnType() != void.class) {
+                Object inner = m.invoke(obj);
+                if (inner != null && extractFen(inner) != null) return inner;
+            }
         } catch (Throwable ignored) {}
         for (Method m : obj.getClass().getMethods()) {
-            if (m.getParameterCount() == 0 && !m.getName().equals("getClass")) {
+            String name = m.getName();
+            if (m.getParameterCount() == 0 && m.getReturnType() != void.class
+                    && !name.equals("getClass") && (name.startsWith("get") || name.length() <= 2)) {
                 try {
                     Object inner = m.invoke(obj);
                     if (inner != null && extractFen(inner) != null) return inner;
@@ -1234,8 +1208,8 @@ public class StockfishExtension {
                 String fen = extractFen(pos);
                 if (fen != null) {
                     boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
-                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và có mũi tên, bỏ qua gọi lặp lại.");
+                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
+                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp, bỏ qua gọi lặp lại.");
                         return;
                     }
                 }

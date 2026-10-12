@@ -663,35 +663,30 @@ public class OverlayManager {
             // 3. Third priority: Last resort fallback (any layout matching ChessBoard)
             board = findAnyBoardLayout(root);
         }
-        if (board != null) {
-            if (hookedBoardViews.add(System.identityHashCode(board))) {
-                if (board.getWindowToken() != null || board.getParent() != null) {
-                    StockfishExtension.onInitialPositionLoaded(board);
+        if (board != null && hookedBoardViews.add(System.identityHashCode(board))) {
+            board.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(View v) {
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            Activity act = StockfishExtension.getCurrentActivity();
+                            if (act != null) StockfishExtension.tryLoadMove0(act);
+                        }
+                    });
                 }
-                board.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-                    @Override
-                    public void onViewAttachedToWindow(View v) {
-                        StockfishExtension.onInitialPositionLoaded(v);
+                @Override
+                public void onViewDetachedFromWindow(View v) {}
+            });
+            board.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                           int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                        invalidateArrowOverlay();
                     }
-                    @Override
-                    public void onViewDetachedFromWindow(View v) {}
-                });
-                board.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
-                    @Override
-                    public void onLayoutChange(View v, int left, int top, int right, int bottom,
-                                               int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                        if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
-                            invalidateArrowOverlay();
-                        }
-                        if (v.getWidth() > 0 && v.getHeight() > 0 && !hasArrows()) {
-                            StockfishExtension.onInitialPositionLoaded(v);
-                        }
-                    }
-                });
-            } else if (!hasArrows()) {
-                // View đã từng hook nhưng hiện tại chưa có mũi tên (ví dụ vừa sang ván mới)
-                StockfishExtension.onInitialPositionLoaded(board);
-            }
+                }
+            });
         }
         return board;
     }
