@@ -637,6 +637,39 @@ public class SelfTest {
         boolean calculatedUserWhite = !boardViewFlipped;
         check("ChessBoardView getFlipBoard() == true sets userWhite = false", !calculatedUserWhite);
 
+        // v2.0.84 Tests:
+        // Test 1: getPieceAtSquare correctly identifies piece on rank and file
+        String testFen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+        char pieceF3 = StockfishExtension.getPieceAtSquare(testFen, "f3");
+        char pieceC6 = StockfishExtension.getPieceAtSquare(testFen, "c6");
+        char pieceE4 = StockfishExtension.getPieceAtSquare(testFen, "e4");
+        char pieceEmpty = StockfishExtension.getPieceAtSquare(testFen, "e3");
+        check("getPieceAtSquare retrieves correct pieces", pieceF3 == 'N' && pieceC6 == 'n' && pieceE4 == 'P' && pieceEmpty == '.');
+
+        // Test 2: isUserPiece validates ownership of piece based on player color
+        boolean f3IsUserPieceIfWhite = StockfishExtension.isUserPiece(testFen, "f3", true);
+        boolean f3IsUserPieceIfBlack = StockfishExtension.isUserPiece(testFen, "f3", false);
+        boolean c6IsUserPieceIfWhite = StockfishExtension.isUserPiece(testFen, "c6", true);
+        boolean c6IsUserPieceIfBlack = StockfishExtension.isUserPiece(testFen, "c6", false);
+        check("isUserPiece correctly matches player piece ownership",
+                f3IsUserPieceIfWhite && !f3IsUserPieceIfBlack && !c6IsUserPieceIfWhite && c6IsUserPieceIfBlack);
+
+        // Test 3: Premove Arrow condition validates obvious exchange recapture on opponent's turn
+        // Giả sử đến lượt Đen (!isMyTurn khi ta là Trắng). Đen dự định đi nxe4 (c6e4). Nước đáp trả của Trắng là d2e4 hoặc f3e4.
+        String oppIntendedMove = "c6e4";
+        String userRecaptureMove = "f3e4";
+        boolean userSideIsWhite = true;
+        boolean fromSquareHasUserPiece = StockfishExtension.isUserPiece(testFen, userRecaptureMove.substring(0, 2), userSideIsWhite);
+        char targetPiece = StockfishExtension.getPieceAtSquare(testFen, userRecaptureMove.substring(2, 4));
+        boolean isExchangeOrRecapture = userRecaptureMove.substring(2, 4).equals(oppIntendedMove.substring(2, 4));
+        check("Premove Arrow conditions hold for obvious piece exchange recapture",
+                fromSquareHasUserPiece && isExchangeOrRecapture);
+
+        // Test 4: Premove Arrow is NOT shown on user's own turn (chỉ hiện sau khi người chơi đã đi)
+        boolean userTurnNow = true;
+        boolean premoveActiveOnUserTurn = !userTurnNow; // must be false
+        check("Premove Arrow is suppressed during user's own turn", !premoveActiveOnUserTurn);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

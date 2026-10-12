@@ -376,19 +376,31 @@ public class ArrowOverlayView extends View {
         if (arrowPath == null) return;
 
         if (arrow.isThreat) {
-            // Style chuẩn Chess.com gốc cho Mũi tên đe dọa (Threat Arrow):
-            // 1. Màu đỏ phẳng đặc trưng Chess.com (#EF4444)
-            // 2. Không hiệu ứng Neon Drop Shadow / Glow
-            // 3. Không dải Gradient nổi 3D (phẳng hoàn toàn)
-            // 4. Viền tối mảnh 1px nhẹ nhàng tách nền
-            int threatColor = 0xFFEF4444; // Chess.com Threat Red
-            fillPaint.setShader(null);
-            fillPaint.setColor(Color.argb((int)(0.88f * 255), (threatColor >> 16) & 0xFF, (threatColor >> 8) & 0xFF, threatColor & 0xFF));
+            // Style riêng biệt cho Mũi Tên Premove (Premove Arrow):
+            // 1. Màu Cam Hổ Phách Neon (#F59E0B) phối Đỏ Cam (#EA580C) để phân biệt rõ ràng với mũi tên gợi ý Play
+            // 2. Viền nét việt quất/than đậm (#78350F) sắc nét
+            // 3. Glow màu hổ phách cảnh báo nhẹ nhàng
+            int premoveColor = 0xFFF59E0B; // Amber Premove
+            int premoveDark = 0xFFEA580C;
+
+            // 1. Glow viền cảnh báo
+            glowPaint.setColor(Color.argb((int)(0.35f * 255), 245, 158, 11));
+            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.025f);
+            glowPaint.setMaskFilter(new BlurMaskFilter(Math.max(1.0f, sqSize * 0.04f), BlurMaskFilter.Blur.NORMAL));
+            canvas.drawPath(arrowPath, glowPaint);
+            glowPaint.setMaskFilter(null);
+
+            // 2. Linear Gradient Fill Cam Hổ Phách
+            fillPaint.setShader(new LinearGradient(x1, y1, x2, y2,
+                    new int[]{premoveDark, premoveColor},
+                    new float[]{0.0f, 1.0f},
+                    Shader.TileMode.CLAMP));
             canvas.drawPath(arrowPath, fillPaint);
 
+            // 3. Viền mảnh tương phản cao
             edgePaint.setShader(null);
-            edgePaint.setColor(0x33000000); // 20% black subtle flat border
-            edgePaint.setStrokeWidth(Math.max(1.0f, sqSize * 0.012f));
+            edgePaint.setColor(0xCC78350F); // Deep amber contrast stroke
+            edgePaint.setStrokeWidth(Math.max(1.5f, sqSize * 0.016f));
             canvas.drawPath(arrowPath, edgePaint);
             return;
         }

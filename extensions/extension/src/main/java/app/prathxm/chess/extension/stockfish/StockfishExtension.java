@@ -599,16 +599,33 @@ public class StockfishExtension {
 
         boolean threatEnabled = !disableOverlays && StockfishSettings.isThreatArrowsEnabled(context);
         String threatToInject = null;
-        if (threatEnabled) {
-            if (isMyTurn) {
-                // On user's turn: Threat arrow is the opponent's counter-threat (ponder)
-                if (result.ponder != null && !result.ponder.isEmpty()) {
-                    threatToInject = result.ponder;
-                }
-            } else {
-                // On opponent's turn: Threat arrow is what opponent threatens to play right now
-                if (result.moves != null && !result.moves.isEmpty()) {
-                    threatToInject = result.moves.get(0);
+        if (threatEnabled && !isMyTurn) {
+            // MŨI TÊN PREMOVE: Chỉ hiển thị sau khi người chơi vừa thực hiện nước đi (đang ở lượt đối thủ, !isMyTurn).
+            // Tìm nước đáp trả của người chơi (recapture / piece exchange) để chuẩn bị sẵn sàng premove.
+            String oppMove = (result.moves != null && !result.moves.isEmpty()) ? result.moves.get(0) : null;
+            String userReply = null;
+            if (result.pv != null && result.pv.size() > 1) {
+                userReply = result.pv.get(1);
+            } else if (result.ponder != null && !result.ponder.isEmpty()) {
+                userReply = result.ponder;
+            }
+
+            if (oppMove != null && oppMove.length() >= 4 && userReply != null && userReply.length() >= 4) {
+                String replyFrom = userReply.substring(0, 2);
+                String replyTo = userReply.substring(2, 4);
+                String oppTo = oppMove.substring(2, 4);
+
+                boolean userIsWhiteSide = (userWhite != null) ? userWhite.booleanValue() : !isWhiteTurn;
+                // Điều kiện 1: Ô xuất phát replyFrom BẮT BUỘC phải là quân của người chơi
+                boolean fromHasUserPiece = isUserPiece(fen, replyFrom, userIsWhiteSide);
+
+                // Điều kiện 2: Ô đích replyTo trùng với ô đối thủ nhảy vào (oppTo) HOẶC ô đích đang chứa quân đối thủ (trao đổi quân)
+                char pieceAtTarget = getPieceAtSquare(fen, replyTo);
+                boolean targetHasOppPiece = (pieceAtTarget != '.') && (userIsWhiteSide ? Character.isLowerCase(pieceAtTarget) : Character.isUpperCase(pieceAtTarget));
+                boolean isExchangeRecapture = replyTo.equals(oppTo) || targetHasOppPiece;
+
+                if (fromHasUserPiece && isExchangeRecapture) {
+                    threatToInject = userReply;
                 }
             }
         }
@@ -663,6 +680,40 @@ public class StockfishExtension {
 
         if (!isFinal) return;
         OverlayManager.hideMateAnnouncement();
+    }
+
+    public static char getPieceAtSquare(String fen, String square) {
+        if (fen == null || square == null || square.length() < 2) return '.';
+        int file = square.charAt(0) - 'a';
+        int rank = square.charAt(1) - '1';
+        if (file < 0 || file > 7 || rank < 0 || rank > 7) return '.';
+
+        int targetRow = 7 - rank; // 0 is 8th rank, 7 is 1st rank
+        String boardPart = fen.trim().split("\\s+")[0];
+        String[] rows = boardPart.split("/");
+        if (rows.length != 8 || targetRow < 0 || targetRow >= 8) return '.';
+
+        String row = rows[targetRow];
+        int col = 0;
+        for (int i = 0; i < row.length(); i++) {
+            char c = row.charAt(i);
+            if (Character.isDigit(c)) {
+                col += (c - '0');
+            } else {
+                if (col == file) {
+                    return c;
+                }
+                col++;
+            }
+            if (col > file) break;
+        }
+        return '.';
+    }
+
+    public static boolean isUserPiece(String fen, String square, boolean userIsWhite) {
+        char piece = getPieceAtSquare(fen, square);
+        if (piece == '.') return false;
+        return userIsWhite ? Character.isUpperCase(piece) : Character.isLowerCase(piece);
     }
 
     private static boolean isWhiteTurnFromFen(String fen) {
