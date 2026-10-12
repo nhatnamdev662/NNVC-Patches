@@ -100,6 +100,19 @@ public class StockfishExtension {
     /** Resumed activity, tracked by the lifecycle callbacks (cheap, no hidden-API reflection). */
     private static volatile WeakReference<Activity> resumedActivity = new WeakReference<>(null);
 
+    public static boolean isReviewOrAnalysisActivity(Activity activity) {
+        if (activity == null) return false;
+        String name = activity.getClass().getName();
+        return name.contains("GameReview")
+                || name.contains("StandaloneAnalysis")
+                || name.contains("AnalysisSelfEngineless")
+                || name.contains("ArchivedLiveGame")
+                || name.contains("ArchiveSearch")
+                || name.contains("ReviewPuzzle")
+                || name.contains("RecentRushReview")
+                || name.contains("AnalysisActivity");
+    }
+
     public static Activity getCurrentActivity() {
         Activity tracked = resumedActivity.get();
         if (tracked != null && !tracked.isFinishing()) return tracked;
@@ -299,6 +312,22 @@ public class StockfishExtension {
         final Activity activity = getCurrentActivity();
         if (activity != null) {
             unlockScreenshots(activity);
+            if (isReviewOrAnalysisActivity(activity)) {
+                OverlayManager.hideArrowOverlay(true);
+                OverlayManager.hideEvalBar();
+                OverlayManager.hideWdlBar();
+                OverlayManager.hideEngineInfo();
+                OverlayManager.hideAccuracyEloWidget();
+                if (stateImplObject != null) {
+                    ArrowInjector.clearEngineArrows(stateImplObject);
+                }
+                StockfishBridge.stopSearch();
+                Context c = getContext();
+                if (c != null) {
+                    TorchEngine.getInstance(c).cancelPendingRequests();
+                }
+                return;
+            }
             if (isLiveMatch(activity)) {
                 isReviewMode = false;
             }
@@ -413,6 +442,11 @@ public class StockfishExtension {
         stateImplRef.set(new WeakReference<>(stateImplObject));
 
         Activity activity = getCurrentActivity();
+        if (activity != null && isReviewOrAnalysisActivity(activity)) {
+            OverlayManager.hideArrowOverlay(true);
+            ArrowInjector.clearEngineArrows(stateImplObject);
+            return;
+        }
         if (isGameOver(activity)) {
             OverlayManager.hideArrowOverlay();
             ArrowInjector.clearEngineArrows(stateImplObject);
@@ -528,6 +562,17 @@ public class StockfishExtension {
         if (!StockfishSettings.isEngineEnabled(context)) return;
 
         Activity activity = getCurrentActivity();
+        if (activity != null && isReviewOrAnalysisActivity(activity)) {
+            OverlayManager.hideArrowOverlay(true);
+            OverlayManager.hideEvalBar();
+            OverlayManager.hideWdlBar();
+            OverlayManager.hideEngineInfo();
+            OverlayManager.hideAccuracyEloWidget();
+            ArrowInjector.clearEngineArrows(getStateImpl());
+            StockfishBridge.stopSearch();
+            TorchEngine.getInstance(context).cancelPendingRequests();
+            return;
+        }
         if (activity != null && isGameOver(activity)) {
             OverlayManager.hideArrowOverlay(true);
             ArrowInjector.clearEngineArrows(getStateImpl());
@@ -548,7 +593,7 @@ public class StockfishExtension {
 
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         boolean showArrows = !disableOverlays && StockfishSettings.isArrowsVisible(context);
-        if (!isStartPos && showArrows && StockfishSettings.isMySideOnly(context) && !isMyTurn) {
+        if (showArrows && StockfishSettings.isMySideOnly(context) && !isMyTurn) {
             showArrows = false;
         }
 
@@ -657,6 +702,25 @@ public class StockfishExtension {
                 resumedActivity = new WeakReference<>(activity);
                 silenceIllegalMoveSound();
                 unlockScreenshots(activity);
+                if (isReviewOrAnalysisActivity(activity)) {
+                    stopGameOverWatchdog();
+                    lastLoadedMove0Fen = null;
+                    isMove0AnalysisScheduled = false;
+                    OverlayManager.hideArrowOverlay(true);
+                    OverlayManager.hideEvalBar();
+                    OverlayManager.hideWdlBar();
+                    OverlayManager.hideEngineInfo();
+                    OverlayManager.hideAccuracyEloWidget();
+                    ArrowInjector.clearEngineArrows(getStateImpl());
+                    StockfishBridge.stopSearch();
+                    Context c = getContext();
+                    if (c != null) {
+                        try {
+                            TorchEngine.getInstance(c).cancelPendingRequests();
+                        } catch (Throwable ignored) {}
+                    }
+                    return;
+                }
                 GestureInterceptor.registerGestureInterceptor(activity);
                 lastArrowSignature = null;
                 lastScheduledKey = null;
@@ -824,7 +888,7 @@ public class StockfishExtension {
     }
 
     public static boolean tryLoadMove0(Activity activity) {
-        if (activity == null || activity.getWindow() == null) return false;
+        if (activity == null || isReviewOrAnalysisActivity(activity) || activity.getWindow() == null) return false;
         View decorView = activity.getWindow().getDecorView();
         if (decorView == null) return false;
         View boardView = OverlayManager.findChessBoardView(decorView);
@@ -893,62 +957,23 @@ public class StockfishExtension {
     public static boolean isGameOver(Activity activity) {
         if (activity == null) return false;
         try {
-            // 1. Inspect ViewModel of activity (RealGameViewModel, BotGameViewModel, PracticePlayGameViewModel)
+            // Guard: If current board is at startpos, it is unequivocally a new game!
             try {
-                Object vm = null;
-                try {
-                    Method getVm = activity.getClass().getMethod("X6");
-                    vm = getVm.invoke(activity);
-                } catch (Throwable ignored) {
-                    try {
-                        Method getVm = activity.getClass().getMethod("getViewModel");
-                        vm = getVm.invoke(activity);
-                    } catch (Throwable ignored2) {}
-                }
-                if (vm != null) {
-                    // Check vm.oa() (showGameOverPopup StateFlow)
-                    try {
-                        Method oaM = vm.getClass().getMethod("oa");
-                        Object flow = oaM.invoke(vm);
-                        if (flow != null) {
-                            Method getVal = flow.getClass().getMethod("getValue");
-                            Object val = getVal.invoke(flow);
-                            if (val != null) {
-                                if (val instanceof Boolean) {
-                                    if (((Boolean) val).booleanValue()) return true;
-                                } else {
-                                    return true;
-                                }
-                            }
-                        }
-                    } catch (Throwable ignored) {}
-
-                    // Check vm._gameOver / gameOver StateFlow fields
-                    for (Field f : vm.getClass().getDeclaredFields()) {
-                        String fn = f.getName();
-                        if (fn.equals("_gameOver") || fn.equals("gameOver") || fn.equals("_showGameOverPopup")
-                                || fn.equals("showGameOverPopup") || fn.equals("_gameOverResult") || fn.equals("gameOverResult")) {
-                            f.setAccessible(true);
-                            Object flow = f.get(vm);
-                            if (flow != null) {
-                                try {
-                                    Method getVal = flow.getClass().getMethod("getValue");
-                                    Object val = getVal.invoke(flow);
-                                    if (val != null) {
-                                        if (val instanceof Boolean) {
-                                            if (((Boolean) val).booleanValue()) return true;
-                                        } else {
-                                            return true;
-                                        }
-                                    }
-                                } catch (Throwable ignored) {}
+                if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
+                    View bv = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
+                    if (bv != null) {
+                        Object pos = extractPositionFromBoardView(bv);
+                        if (pos != null) {
+                            String f = extractFen(pos);
+                            if (f != null && f.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
+                                return false;
                             }
                         }
                     }
                 }
             } catch (Throwable ignored) {}
 
-            // 2. Inspect activity fields for gameOverOverlayView (m0)
+            // 1. Inspect activity fields for gameOverOverlayView (m0)
             Class<?> actClass = activity.getClass();
             while (actClass != null && !actClass.getName().equals("android.app.Activity")) {
                 for (Field f : actClass.getDeclaredFields()) {
@@ -1407,7 +1432,27 @@ public class StockfishExtension {
     }
 
     public static Boolean isUserWhite(Object stateImplObject) {
-        // Priority 1: Check live board orientation via stateImplObject getFlipBoard()
+        // Priority 1: Check live board orientation directly from active ChessBoardView
+        try {
+            Activity act = getCurrentActivity();
+            if (act != null && act.getWindow() != null && act.getWindow().getDecorView() != null) {
+                View bv = OverlayManager.findChessBoardView(act.getWindow().getDecorView());
+                if (bv != null) {
+                    for (Method m : bv.getClass().getMethods()) {
+                        String n = m.getName();
+                        if ((n.equals("getFlipBoard") || n.equals("isFlipped") || n.equals("getFlipped"))
+                                && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
+                            boolean flipped = (boolean) m.invoke(bv);
+                            boolean userWhite = !flipped;
+                            cachedUserIsWhite = userWhite;
+                            return userWhite;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // Priority 2: Check live board orientation via stateImplObject getFlipBoard()
         if (stateImplObject != null) {
             try {
                 for (Method m : stateImplObject.getClass().getMethods()) {
@@ -1423,7 +1468,7 @@ public class StockfishExtension {
             } catch (Throwable ignored) {}
         }
 
-        // Priority 2: Check live board orientation via OverlayManager (which checks ChessBoardView)
+        // Priority 3: Check live board orientation via OverlayManager (which checks ChessBoardView)
         try {
             boolean flipped = OverlayManager.isBoardFlipped(stateImplObject);
             boolean userWhite = !flipped;
@@ -1431,7 +1476,7 @@ public class StockfishExtension {
             return userWhite;
         } catch (Throwable ignored) {}
 
-        // Priority 3: Fall back to previously cached game orientation
+        // Priority 4: Fall back to previously cached game orientation
         if (cachedUserIsWhite != null) {
             return cachedUserIsWhite;
         }

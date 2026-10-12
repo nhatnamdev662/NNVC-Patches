@@ -169,7 +169,7 @@ public class OverlayManager {
             public void run() {
                 try {
                     Activity activity = StockfishExtension.getCurrentActivity();
-                    if (activity == null || StockfishExtension.isGameOver(activity)) {
+                    if (activity == null || StockfishExtension.isReviewOrAnalysisActivity(activity) || StockfishExtension.isGameOver(activity)) {
                         hideArrowOverlay(true);
                         return;
                     }
@@ -327,7 +327,10 @@ public class OverlayManager {
             public void run() {
                 try {
                     Activity activity = StockfishExtension.getCurrentActivity();
-                    if (activity == null) return;
+                    if (activity == null || StockfishExtension.isReviewOrAnalysisActivity(activity)) {
+                        hideEvalBar();
+                        return;
+                    }
                     Window window = activity.getWindow();
                     if (window == null) return;
                     ViewGroup decorView = (ViewGroup) window.getDecorView();
@@ -837,7 +840,10 @@ public class OverlayManager {
             public void run() {
                 try {
                     Activity activity = StockfishExtension.getCurrentActivity();
-                    if (activity == null) return;
+                    if (activity == null || StockfishExtension.isReviewOrAnalysisActivity(activity)) {
+                        clearClassificationBadge();
+                        return;
+                    }
                     Window window = activity.getWindow();
                     if (window == null) return;
                     ViewGroup decorView = (ViewGroup) window.getDecorView();
@@ -920,7 +926,10 @@ public class OverlayManager {
             public void run() {
                 try {
                     Activity activity = StockfishExtension.getCurrentActivity();
-                    if (activity == null) return;
+                    if (activity == null || StockfishExtension.isReviewOrAnalysisActivity(activity)) {
+                        hideAccuracyEloWidget();
+                        return;
+                    }
                     Window window = activity.getWindow();
                     if (window == null) return;
                     ViewGroup decorView = (ViewGroup) window.getDecorView();

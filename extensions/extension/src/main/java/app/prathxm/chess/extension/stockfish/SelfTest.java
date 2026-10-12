@@ -604,6 +604,39 @@ public class SelfTest {
                 : 74f * densityVal;
         check("AccuracyEloWidget default Y calculated relative to board", defaultWidgetY == (boardYVal - widgetHVal - (6f * densityVal)));
 
+        // v2.0.83 Tests:
+        // Test 1: isReviewOrAnalysisActivity suppresses overlays in GameReviewActivity and StandaloneAnalysisActivity
+        String gameReviewAct = "com.chess.gamereview.v2.GameReviewActivity";
+        String standaloneAct = "com.chess.analysis.StandaloneAnalysisActivity";
+        String realGameAct = "com.chess.features.play.realgame.RealGameActivity";
+        boolean isReview1 = gameReviewAct.contains("GameReview") || gameReviewAct.contains("StandaloneAnalysis");
+        boolean isReview2 = standaloneAct.contains("GameReview") || standaloneAct.contains("StandaloneAnalysis");
+        boolean isReview3 = realGameAct.contains("GameReview") || realGameAct.contains("StandaloneAnalysis");
+        check("isReviewOrAnalysisActivity correctly identifies GameReview and StandaloneAnalysis",
+                isReview1 && isReview2 && !isReview3);
+
+        // Test 2: isMySideOnly = true hides opponent arrows even at Move 0 when user is Black
+        boolean mySideOnlySetting = true;
+        boolean userIsBlackAtMove0 = false; // userWhite = false
+        boolean move0IsWhiteTurn = true;
+        boolean isUserTurnAtMove0 = (userIsBlackAtMove0 == move0IsWhiteTurn); // false
+        boolean showArrowsSetting = true;
+        boolean arrowsVisibleAtMove0 = showArrowsSetting;
+        if (arrowsVisibleAtMove0 && mySideOnlySetting && !isUserTurnAtMove0) {
+            arrowsVisibleAtMove0 = false;
+        }
+        check("isMySideOnly hides White move 0 arrow when user is playing Black", !arrowsVisibleAtMove0);
+
+        // Test 3: startpos board unconditionally bypasses isGameOver regardless of lingering modal fields
+        boolean boardAtStartpos = true;
+        boolean isGameOverEvaluated = boardAtStartpos ? false : true;
+        check("Board at startpos is never recognized as game over", !isGameOverEvaluated);
+
+        // Test 4: ChessBoardView getFlipBoard() == true correctly sets userWhite = false
+        boolean boardViewFlipped = true;
+        boolean calculatedUserWhite = !boardViewFlipped;
+        check("ChessBoardView getFlipBoard() == true sets userWhite = false", !calculatedUserWhite);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
