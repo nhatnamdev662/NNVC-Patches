@@ -72,9 +72,6 @@ public class StockfishProcess {
                 waitForLine("uciok", 5000);
                 sendUciCommand("setoption name Threads value 1");
                 sendUciCommand("setoption name Hash value 16");
-                if (!StockfishSettings.ENGINE_KOMODO.equals(engineChoice)) {
-                    sendUciCommand("setoption name UCI_ShowWDL value true");
-                }
                 sendUciCommand("isready");
                 waitForLine("readyok", 5000);
 

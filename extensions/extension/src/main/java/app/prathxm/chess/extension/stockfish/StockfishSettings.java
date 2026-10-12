@@ -285,16 +285,6 @@ public class StockfishSettings {
         getPrefs(context).edit().putBoolean(KEY_WARNING_ACCEPTED, accepted).apply();
     }
 
-    private static final String KEY_SHOW_WDL = "show_wdl";
-
-    public static boolean isWdlEnabled(Context context) {
-        return getPrefs(context).getBoolean(KEY_SHOW_WDL, false);
-    }
-
-    public static void setWdlEnabled(Context context, boolean enabled) {
-        getPrefs(context).edit().putBoolean(KEY_SHOW_WDL, enabled).apply();
-    }
-
     private static final String KEY_SHOW_THREAT_ARROWS = "show_threat_arrows";
 
     public static boolean isThreatArrowsEnabled(Context context) {

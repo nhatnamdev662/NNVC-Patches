@@ -14,7 +14,6 @@ import android.widget.FrameLayout;
 
 /**
  * A clean, stable vertical evaluation bar.
- * WDL is now rendered separately in WdlBarView.
  */
 public class EvalBarView extends View {
     private float score = 0.0f; // from White's perspective (positive = white advantage)

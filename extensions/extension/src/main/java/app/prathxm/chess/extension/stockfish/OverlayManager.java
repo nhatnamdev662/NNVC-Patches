@@ -89,11 +89,6 @@ public class OverlayManager {
                 evalBar.setElevation(10f);
                 evalBar.bringToFront();
             }
-            View wdlBar = decorView.findViewWithTag("stockfish_wdl_bar");
-            if (wdlBar != null && wdlBar.getVisibility() == View.VISIBLE) {
-                wdlBar.setElevation(10f);
-                wdlBar.bringToFront();
-            }
             View info = decorView.findViewWithTag("stockfish_engine_info");
             if (info != null && info.getVisibility() == View.VISIBLE) {
                 info.setElevation(10f);
@@ -448,78 +443,12 @@ public class OverlayManager {
         });
     }
 
-    public static void updateWdlBar(final int wdlWin, final int wdlDraw, final int wdlLoss) {
-        new Handler(Looper.getMainLooper()).post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Activity activity = StockfishExtension.getCurrentActivity();
-                    if (activity == null) return;
-                    Window window = activity.getWindow();
-                    if (window == null) return;
-                    ViewGroup decorView = (ViewGroup) window.getDecorView();
-                    if (decorView == null) return;
-
-                    BoardMetrics bm = getBoardMetrics(decorView);
-                    if (bm == null) return;
-                    int boardX = bm.boardX;
-                    int boardY = bm.boardY;
-                    int boardW = bm.boardW;
-                    int boardH = bm.boardH;
-
-                    float density = decorView.getContext().getResources().getDisplayMetrics().density;
-                    int barHeight = (int) (14 * density);
-                    int barY = boardY - barHeight - (int)(4 * density);
-
-                    int btnW = (int) (INFO_SLOT_DP * density);
-                    int barW = boardW - btnW - (int) (8 * density);
-
-                    View wdlTag = decorView.findViewWithTag("stockfish_wdl_bar");
-                    WdlBarView wdlBarView;
-                    if (wdlTag instanceof WdlBarView) {
-                        wdlBarView = (WdlBarView) wdlTag;
-                    } else {
-                        if (wdlTag != null) decorView.removeView(wdlTag);
-                        wdlBarView = new WdlBarView(decorView.getContext());
-                        wdlBarView.setTag("stockfish_wdl_bar");
-                        decorView.addView(wdlBarView);
-                    }
-                    wdlBarView.setVisibility(View.VISIBLE);
-                    wdlBarView.update(boardX, barY, barW, barHeight, wdlWin, wdlDraw, wdlLoss);
-                    ensureZOrder(decorView);
-                } catch (Throwable t) {
-                    Log.e(TAG, "updateWdlBar failed: " + t.getMessage());
-                }
-            }
-        });
-    }
-
-    public static void hideWdlBar() {
-        new Handler(Looper.getMainLooper()).post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Activity activity = StockfishExtension.getCurrentActivity();
-                    if (activity == null) return;
-                    Window window = activity.getWindow();
-                    if (window == null) return;
-                    View decorView = window.getDecorView();
-                    if (decorView == null) return;
-                    View v = decorView.findViewWithTag("stockfish_wdl_bar");
-                    if (v != null) v.setVisibility(View.GONE);
-                } catch (Throwable t) {
-                    Log.e(TAG, "hideWdlBar failed: " + t.getMessage());
-                }
-            }
-        });
-    }
-
-    /** Width reserved to the right of the W/D/L bar (also used by the engine info line). */
+    /** Width reserved for the engine info line. */
     private static final int INFO_SLOT_DP = 110;
 
     /**
-     * Shows "depth · score" in the slot above the board's top-right corner (next to the W/D/L
-     * bar), e.g. "d22 · +0.35" or "d18 · M3".
+     * Shows "depth · score" in the slot above the board's top-right corner,
+     * e.g. "d22 · +0.35" or "d18 · M3".
      */
     public static void updateEngineInfo(final int depth, final float score, final boolean hasMate, final int mateIn) {
         new Handler(Looper.getMainLooper()).post(new Runnable() {

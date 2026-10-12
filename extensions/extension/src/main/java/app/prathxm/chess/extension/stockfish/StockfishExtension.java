@@ -315,7 +315,6 @@ public class StockfishExtension {
             if (isReviewOrAnalysisActivity(activity)) {
                 OverlayManager.hideArrowOverlay(true);
                 OverlayManager.hideEvalBar();
-                OverlayManager.hideWdlBar();
                 OverlayManager.hideEngineInfo();
                 OverlayManager.hideAccuracyEloWidget();
                 if (stateImplObject != null) {
@@ -355,7 +354,6 @@ public class StockfishExtension {
             Log.d(TAG, "Engine is disabled in settings.");
             OverlayManager.hideArrowOverlay();
             OverlayManager.hideEvalBar();
-            OverlayManager.hideWdlBar();
             OverlayManager.hideMateAnnouncement();
             OverlayManager.hideEngineInfo();
             return;
@@ -552,8 +550,8 @@ public class StockfishExtension {
     }
 
     /**
-     * Paints an analysis result (arrows, eval bar, WDL bar, mate banner). Intermediate results
-     * ({@code isFinal == false}) only update arrows and bars; the mate banner waits for the
+     * Paints an analysis result (arrows, engine info, mate banner). Intermediate results
+     * ({@code isFinal == false}) only update arrows; the mate banner waits for the
      * final search so it does not flicker.
      */
     private static void displayLiveResult(Context context, String fen,
@@ -565,7 +563,6 @@ public class StockfishExtension {
         if (activity != null && isReviewOrAnalysisActivity(activity)) {
             OverlayManager.hideArrowOverlay(true);
             OverlayManager.hideEvalBar();
-            OverlayManager.hideWdlBar();
             OverlayManager.hideEngineInfo();
             OverlayManager.hideAccuracyEloWidget();
             ArrowInjector.clearEngineArrows(getStateImpl());
@@ -656,12 +653,6 @@ public class StockfishExtension {
 
         if (disableOverlays || !StockfishSettings.isEvalBarEnabled(context)) {
             OverlayManager.hideEvalBar();
-        }
-
-        if (!disableOverlays && StockfishSettings.isWdlEnabled(context)) {
-            OverlayManager.updateWdlBar(result.wdlWin, result.wdlDraw, result.wdlLoss);
-        } else {
-            OverlayManager.hideWdlBar();
         }
 
         if (!disableOverlays && StockfishSettings.isEngineInfoEnabled(context)) {
@@ -759,7 +750,6 @@ public class StockfishExtension {
                     isMove0AnalysisScheduled = false;
                     OverlayManager.hideArrowOverlay(true);
                     OverlayManager.hideEvalBar();
-                    OverlayManager.hideWdlBar();
                     OverlayManager.hideEngineInfo();
                     OverlayManager.hideAccuracyEloWidget();
                     ArrowInjector.clearEngineArrows(getStateImpl());
@@ -991,7 +981,6 @@ public class StockfishExtension {
             OverlayManager.hideArrowOverlay();
             lastArrowSignature = null;
             OverlayManager.hideEvalBar();
-            OverlayManager.hideWdlBar();
             OverlayManager.hideMateAnnouncement();
             OverlayManager.hideEngineInfo();
             OverlayManager.hideAccuracyEloPills();
