@@ -345,8 +345,8 @@ public class StockfishExtension {
         Log.d(TAG, "Position changed → FEN: " + fen);
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
-            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
-                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled, skipping duplicate reset.");
+            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
+                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled and arrows visible, skipping duplicate reset.");
                 return;
             }
             lastLoadedMove0Fen = fen;
@@ -546,8 +546,9 @@ public class StockfishExtension {
         Boolean userWhite = isUserWhite(getStateImpl());
         boolean isMyTurn = (userWhite == null) || (isWhiteTurn == userWhite.booleanValue());
 
+        boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         boolean showArrows = !disableOverlays && StockfishSettings.isArrowsVisible(context);
-        if (showArrows && StockfishSettings.isMySideOnly(context) && !isMyTurn) {
+        if (!isStartPos && showArrows && StockfishSettings.isMySideOnly(context) && !isMyTurn) {
             showArrows = false;
         }
 
@@ -824,8 +825,8 @@ public class StockfishExtension {
         if (fen == null) return false;
 
         boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
-            return true; // Already loaded and scheduled!
+        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
+            return true; // Already loaded and scheduled with arrows visible!
         }
 
         onBoardChanged(getStateImpl(), pos);
@@ -880,28 +881,91 @@ public class StockfishExtension {
     public static boolean isGameOver(Activity activity) {
         if (activity == null) return false;
         try {
-            // 1. Inspect activity fields for gameOverOverlayView (RealGameActivity.m0 or gameOverOverlayView)
+            // 1. Inspect ViewModel of activity (RealGameViewModel, BotGameViewModel, PracticePlayGameViewModel)
+            try {
+                Object vm = null;
+                try {
+                    Method getVm = activity.getClass().getMethod("X6");
+                    vm = getVm.invoke(activity);
+                } catch (Throwable ignored) {
+                    try {
+                        Method getVm = activity.getClass().getMethod("getViewModel");
+                        vm = getVm.invoke(activity);
+                    } catch (Throwable ignored2) {}
+                }
+                if (vm != null) {
+                    // Check vm.oa() (showGameOverPopup StateFlow)
+                    try {
+                        Method oaM = vm.getClass().getMethod("oa");
+                        Object flow = oaM.invoke(vm);
+                        if (flow != null) {
+                            Method getVal = flow.getClass().getMethod("getValue");
+                            Object val = getVal.invoke(flow);
+                            if (val != null) return true;
+                        }
+                    } catch (Throwable ignored) {}
+
+                    // Check vm._gameOver / gameOver / b1 / a1 StateFlow fields
+                    for (Field f : vm.getClass().getDeclaredFields()) {
+                        String fn = f.getName();
+                        if (fn.equals("a1") || fn.equals("b1") || fn.equals("_gameOver") || fn.equals("gameOver")
+                                || fn.equals("_showGameOverPopup") || fn.equals("showGameOverPopup") || fn.equals("_gameOverResult")) {
+                            f.setAccessible(true);
+                            Object flow = f.get(vm);
+                            if (flow != null) {
+                                try {
+                                    Method getVal = flow.getClass().getMethod("getValue");
+                                    Object val = getVal.invoke(flow);
+                                    if (val != null) return true;
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            // 2. Inspect activity fields and methods for showGameOverModal (V6() or field S) and gameOverOverlayView (m0)
             Class<?> actClass = activity.getClass();
             while (actClass != null && !actClass.getName().equals("android.app.Activity")) {
+                try {
+                    Method v6M = actClass.getDeclaredMethod("V6");
+                    v6M.setAccessible(true);
+                    Object isModal = v6M.invoke(activity);
+                    if (Boolean.TRUE.equals(isModal)) return true;
+                } catch (Throwable ignored) {}
+
                 for (Field f : actClass.getDeclaredFields()) {
                     String fn = f.getName();
-                    if (fn.equals("gameOverOverlayView") || fn.equals("m0") || fn.toLowerCase().contains("gameover")) {
-                        f.setAccessible(true);
-                        Object val = f.get(activity);
-                        if (val instanceof View) {
-                            View gv = (View) val;
-                            if (gv.getVisibility() == View.VISIBLE && gv.getParent() != null) {
+                    if (fn.equals("S") || fn.contains("showGameOverModal")) {
+                        try {
+                            f.setAccessible(true);
+                            Object flow = f.get(activity);
+                            if (flow != null) {
+                                Method getVal = flow.getClass().getMethod("getValue");
+                                Object val = getVal.invoke(flow);
+                                if (Boolean.TRUE.equals(val)) return true;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                    if (fn.equals("gameOverOverlayView") || fn.equals("m0") || fn.toLowerCase(java.util.Locale.US).contains("gameover")) {
+                        try {
+                            f.setAccessible(true);
+                            Object val = f.get(activity);
+                            if (val instanceof View) {
+                                View gv = (View) val;
+                                if (gv.getVisibility() == View.VISIBLE && gv.getParent() != null) {
+                                    return true;
+                                }
+                            } else if (val instanceof Boolean && ((Boolean) val).booleanValue()) {
                                 return true;
                             }
-                        } else if (val instanceof Boolean && ((Boolean) val).booleanValue()) {
-                            return true;
-                        }
+                        } catch (Throwable ignored) {}
                     }
                 }
                 actClass = actClass.getSuperclass();
             }
 
-            // 2. Check FragmentManager for DialogFragments (e.g. BaseGameOverDialog, BotGameOverDialog, LiveGameOverDialog, etc.)
+            // 3. Check FragmentManager for DialogFragments (e.g. BaseGameOverDialog, BotGameOverDialog, LiveGameOverDialog, etc.)
             try {
                 Method getFm = null;
                 try {
@@ -928,7 +992,7 @@ public class StockfishExtension {
                             Method findByTag = fm.getClass().getMethod("findFragmentByTag", String.class);
                             for (String tag : knownTags) {
                                 Object frag = findByTag.invoke(fm, tag);
-                                if (isFragmentVisibleOrShowing(frag)) return true;
+                                if (frag != null && isFragmentAttachedOrShowing(frag)) return true;
                             }
                         } catch (Throwable ignored) {}
 
@@ -940,7 +1004,7 @@ public class StockfishExtension {
                                     if (frag == null) continue;
                                     String fName = frag.getClass().getName();
                                     if (fName.contains("GameOver") || fName.contains("GameEnd") || fName.contains("GameFinished")) {
-                                        if (isFragmentVisibleOrShowing(frag)) return true;
+                                        if (isFragmentAttachedOrShowing(frag)) return true;
                                     }
                                 }
                             }
@@ -949,7 +1013,33 @@ public class StockfishExtension {
                 }
             } catch (Throwable ignored) {}
 
-            // 3. Check decorView hierarchy for GameOver views
+            // 4. Check board moves history for checkmate symbol '#'
+            try {
+                if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
+                    View boardView = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
+                    if (boardView != null) {
+                        for (Method m : boardView.getClass().getMethods()) {
+                            if (m.getName().equals("getMovesHistory") && m.getParameterCount() == 0) {
+                                Object movesObj = m.invoke(boardView);
+                                if (movesObj instanceof List) {
+                                    List<?> moves = (List<?>) movesObj;
+                                    if (!moves.isEmpty()) {
+                                        Object lastMove = moves.get(moves.size() - 1);
+                                        if (lastMove != null) {
+                                            String s = lastMove.toString();
+                                            if (s.endsWith("#") || s.contains("#") || s.equals("1-0") || s.equals("0-1") || s.equals("1/2-1/2")) {
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            // 5. Check decorView hierarchy for GameOver views or top full-screen compose overlay
             if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
                 View decorView = activity.getWindow().getDecorView();
                 if (hasGameOverView(decorView)) {
@@ -960,8 +1050,16 @@ public class StockfishExtension {
         return false;
     }
 
-    private static boolean isFragmentVisibleOrShowing(Object frag) {
+    private static boolean isFragmentAttachedOrShowing(Object frag) {
         if (frag == null) return false;
+        try {
+            Method isRemM = frag.getClass().getMethod("isRemoving");
+            if ((Boolean) isRemM.invoke(frag)) return false;
+        } catch (Throwable ignored) {}
+        try {
+            Method isAddedM = frag.getClass().getMethod("isAdded");
+            if ((Boolean) isAddedM.invoke(frag)) return true;
+        } catch (Throwable ignored) {}
         try {
             Method isVisM = frag.getClass().getMethod("isVisible");
             if ((Boolean) isVisM.invoke(frag)) return true;
@@ -997,7 +1095,7 @@ public class StockfishExtension {
                 if (id != View.NO_ID && view.getResources() != null) {
                     String entryName = view.getResources().getResourceEntryName(id);
                     if (entryName != null) {
-                        String lower = entryName.toLowerCase();
+                        String lower = entryName.toLowerCase(java.util.Locale.US);
                         if (lower.contains("game_over") || lower.contains("gameover") || lower.contains("game_end")) {
                             return true;
                         }
@@ -1006,7 +1104,7 @@ public class StockfishExtension {
             } catch (Throwable ignored) {}
             Object tag = view.getTag();
             if (tag instanceof String) {
-                String stag = ((String) tag).toLowerCase();
+                String stag = ((String) tag).toLowerCase(java.util.Locale.US);
                 if (stag.contains("game_over") || stag.contains("gameover")) {
                     return true;
                 }
@@ -1015,6 +1113,17 @@ public class StockfishExtension {
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
             int count = group.getChildCount();
+            if (count > 0) {
+                View topChild = group.getChildAt(count - 1);
+                if (topChild != null && topChild.getVisibility() == View.VISIBLE) {
+                    String topName = topChild.getClass().getName();
+                    if ((topName.contains("ComposeView") || topName.contains("gameOverOverlayView"))
+                            && topChild.getWidth() > 0 && topChild.getWidth() >= group.getWidth()
+                            && topChild.getHeight() > 0 && topChild.getHeight() >= group.getHeight()) {
+                        return true;
+                    }
+                }
+            }
             for (int i = 0; i < count; i++) {
                 if (hasGameOverView(group.getChildAt(i))) {
                     return true;
@@ -1133,8 +1242,8 @@ public class StockfishExtension {
                 String fen = extractFen(pos);
                 if (fen != null) {
                     boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
-                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và phân tích, bỏ qua gọi lặp lại.");
+                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
+                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và có mũi tên, bỏ qua gọi lặp lại.");
                         return;
                     }
                 }

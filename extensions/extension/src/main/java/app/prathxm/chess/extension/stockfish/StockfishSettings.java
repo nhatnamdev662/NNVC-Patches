@@ -111,7 +111,7 @@ public class StockfishSettings {
     }
 
     public static boolean isMySideOnly(Context context) {
-        return getPrefs(context).getBoolean(KEY_MY_SIDE_ONLY, true);
+        return getPrefs(context).getBoolean(KEY_MY_SIDE_ONLY, false);
     }
 
     public static void setMySideOnly(Context context, boolean mySideOnly) {

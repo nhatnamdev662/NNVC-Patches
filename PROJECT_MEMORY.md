@@ -1,7 +1,7 @@
 # NHẬT KÝ DỰ ÁN & BỘ GHI NHỚ DẶN DÒ (PROJECT MEMORY)
 *Dự án: Chess Mobile - ReVanced Extension Patches cho Chess.com Android*
-*Phiên bản hiện tại: v2.0.76*
-*Cập nhật lần cuối: 2026-10-11*
+*Phiên bản hiện tại: v2.0.77*
+*Cập nhật lần cuối: 2026-10-12*
 
 ---
 
@@ -488,17 +488,36 @@
 
 ---
 
+### v2.0.77 (2026-10-12) — Khắc Phục Triệt Để Mũi Tên Move 0 (Cả Trắng & Đen) & Hệ Thống Nhận Diện Game Over 5 Tầng
+- **Khắc Phục Triệt Để Mũi Tên Move 0 Cho Cả Người Chơi Cầm Trắng Và Đen (`StockfishSettings.java`, `StockfishExtension.java`, `OverlayManager.java`):**
+  - Đổi giá trị mặc định của `KEY_MY_SIDE_ONLY` sang `false` (`StockfishSettings.java`), khớp 100% với cấu hình gốc Extension NNVC (`showOppArrow = true`), giải phóng hiển thị mũi tên Move 0 khi người chơi cầm quân Đen.
+  - Bổ sung điều kiện `!isStartPos` vào bộ lọc `isMySideOnly` tại `displayLiveResult`: Thế cờ khởi đầu ván luôn được vẽ mũi tên cho bên chuẩn bị đi.
+  - Tinh chỉnh điều kiện bỏ qua deduplication trong `onBoardChanged`, `tryLoadMove0`, và `onInitialPositionLoaded` thành `if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows())`. Chỉ bỏ qua khi trên màn hình ĐÃ CÓ mũi tên hiển thị thực tế; nếu chưa có mũi tên, kích hoạt phân tích ngay.
+  - Bổ sung kích hoạt Move 0 trong `OnLayoutChangeListener` của `ChessBoardView` khi hoàn tất layout lần đầu mà chưa có mũi tên.
+- **Hệ Thống Nhận Diện Game Over 5 Tầng Siêu Bảo Đảm (`StockfishExtension.java`):**
+  - Tầng 1 (ViewModel StateFlow): Truy cập reflection `X6()` / `getViewModel()`, đọc trực tiếp `vm.oa().getValue() != null` và các StateFlow `_gameOver`.
+  - Tầng 2 (Activity State): Kiểm tra `activity.V6() == true`, `showGameOverModal.getValue() == Boolean.TRUE`, và trường `gameOverOverlayView` / `m0`.
+  - Tầng 3 (DialogFragment Attached & Showing): Mở rộng 8 tag dialog kết thúc ván chuẩn, kiểm tra `isAdded() && !isRemoving()` và `dialog.isShowing()` trong AndroidX FragmentManager.
+  - Tầng 4 (Checkmate / Result Notation): Quét nước cờ cuối cùng kết thúc bằng `#` hoặc kết quả `1-0`, `0-1`, `1/2-1/2`.
+  - Tầng 5 (DecorView Top-level View Hierarchy): Quét cây View tìm ComposeView hoặc modal full-screen kết thúc ván.
+  - Dọn sạch mũi tên (`OverlayManager.hideArrowOverlay(true)`), đặt `View.GONE`, dừng engine (`StockfishBridge.stopSearch()`), hủy hàng chờ Torch Engine (`cancelPendingRequests()`) và dừng watchdog ngay khi Game Over.
+- **Kiểm thử tự động SelfTest**: 117/117 test cases vượt qua thành công (100% passed).
+- **Bump phiên bản lên v2.0.77**: Đồng bộ `patches-bundle.json` và `patches-list.json`.
+- **Biên dịch & Đóng gói**: Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,779,880 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.77.mpp` (227,456,536 bytes).
+
+---
+
 ## 3. TRẠNG THÁI HIỆN TẠI & KẾ HOẠCH TIẾP THEO
 
 ### 3.1. Trạng thái hiện tại
-- **Phiên bản mới nhất**: **v2.0.76** (`patches-2.0.76.mpp`).
+- **Phiên bản mới nhất**: **v2.0.77** (`patches-2.0.77.mpp`).
 - **Trạng thái Repo**: 100% sạch, không commit file `.py`, root ngăn nắp.
 - **Tiến trình kỹ thuật**:
-  1. Triệt tiêu 100% hiện tượng nháy / load lại giao diện Move 0 (arrows, eval bar, widget) khi sang ván mới bằng cách bỏ trigger phân tích trong `OnLayoutChangeListener`, bỏ gọi `hideAccuracyEloPills()` ở startpos (persistent mounting), sửa lỗi thiếu gán `isMove0AnalysisScheduled = true` và bổ sung kiểm tra deduplication trực tiếp trong điểm nút `onBoardChanged`.
-  2. Sửa dứt điểm bug đảo lượt đi trong `StockfishProcess.isWhiteToMove` (xóa bỏ đoạn code đảo turn theo moves lẻ); bổ sung `sideToMoveScores` và định dạng nhãn điểm số chuẩn Extension NNVC (`OverlayManager.formatArrowEvalLabel`). Chuẩn hóa `isWhiteTurnFromFen` an toàn với mọi biến thể FEN.
-  3. Triển khai `GameOverWatchdog` (chu kỳ 300ms + `OnGlobalLayoutListener`) và kiểm tra `dialog.isShowing()` cùng `frag.getView().getVisibility() == View.VISIBLE` trong `isFragmentVisibleOrShowing` để phát hiện kết thúc ván đấu chủ động và tức thì; tự động ẩn arrow overlay vô điều kiện (`View.GONE`) khi clearBadges.
-  4. 113/113 test cases trong `SelfTest` vượt qua thành công (100% passed).
-  5. Đóng gói hoàn tất `patches-2.0.76.mpp` (227,455,389 bytes) với đầy đủ WebAssembly engines và cập nhật metadata.
+  1. Khắc phục triệt để hiển thị mũi tên Move 0 cho cả bên Trắng và Đen: Mặc định `showOppArrow = true`, miễn trừ startpos khỏi `isMySideOnly`, cơ chế chống skip khi chưa có mũi tên (`hasArrows`), và tự nạp khi board layout xong.
+  2. Xây dựng hệ thống nhận diện Game Over 5 tầng siêu bảo đảm (ViewModel StateFlow, Activity Modal, DialogFragment isAdded/isShowing, Checkmate `#`, DecorView top modal).
+  3. Dọn dẹp tức thời 100% overlay, mũi tên, huy hiệu, dừng engine và Torch khi ván kết thúc.
+  4. 117/117 test cases trong `SelfTest` vượt qua thành công (100% passed).
+  5. Đóng gói hoàn tất `patches-2.0.77.mpp` (227,456,536 bytes) với đầy đủ WebAssembly engines và cập nhật metadata.
 
 
 

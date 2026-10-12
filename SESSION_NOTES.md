@@ -494,19 +494,37 @@
         - Bump phiên bản lên `v2.0.76` (versionCode `20076`) trong `patches-bundle.json` và `patches-list.json`.
         - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,776,612 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.76.mpp` (227,455,389 bytes).
 
+     - **Phiên bản v2.0.77 (Khắc Phục Triệt Để Mũi Tên Move 0 Cả Trắng & Đen, Hệ Thống Nhận Diện Game Over 5 Tầng)**:
+       - **Khắc Phục Triệt Để Hiển Thị Mũi Tên Move 0 (`StockfishSettings.java`, `StockfishExtension.java`, `OverlayManager.java`)**:
+         - Đổi giá trị mặc định `KEY_MY_SIDE_ONLY` thành `false` (`StockfishSettings.java`), khớp 100% với Extension NNVC `showOppArrow = true`. Khắc phục triệt để lỗi người chơi cầm Đen bị ẩn sạch mũi tên khai cuộc Move 0 của Trắng.
+         - Miễn trừ startpos khỏi `isMySideOnly` trong `displayLiveResult`: Thế cờ khởi đầu ván luôn luôn vẽ mũi tên cho bên chuẩn bị đi.
+         - Tinh chỉnh điều kiện chống trùng lặp `if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows())`. Chỉ bỏ qua khi trên màn hình ĐÃ CÓ mũi tên hiển thị thực tế; nếu chưa có mũi tên, kích hoạt phân tích ngay lập tức.
+         - Tự động kích hoạt Move 0 trong `OnLayoutChangeListener` của `ChessBoardView` ngay khi bàn cờ layout xong lần đầu nếu chưa có mũi tên (`!hasArrows()`).
+       - **Hệ Thống Nhận Diện Game Over 5 Tầng Siêu Bảo Đảm (`StockfishExtension.java`)**:
+         - Tầng 1: Đọc StateFlow của ViewModel (`vm.oa().getValue() != null`, `_gameOver`, `gameOver`).
+         - Tầng 2: Kiểm tra Activity state (`activity.V6() == true`, `showGameOverModal.getValue() == Boolean.TRUE`, `gameOverOverlayView`).
+         - Tầng 3: Nhận diện DialogFragment qua `isAdded() && !isRemoving()` và `dialog.isShowing()` trên 8 tag dialog kết thúc ván chuẩn của Chess.com.
+         - Tầng 4: Nhận diện nước cờ chiếu hết kết thúc bằng `#` hoặc kết quả ván đấu `1-0`, `0-1`, `1/2-1/2`.
+         - Tầng 5: Quét DecorView tìm kiếm full-screen ComposeView kết thúc ván.
+         - Dọn sạch mũi tên (`OverlayManager.hideArrowOverlay(true)`), đặt `ArrowOverlayView.setVisibility(View.GONE)`, dừng engine và hủy hàng chờ Torch Engine tức khắc khi Game Over.
+       - **Biên dịch & Đóng gói**:
+         - Bump phiên bản lên `v2.0.77` (versionCode `20077`) trong `patches-bundle.json` và `patches-list.json`.
+         - Biên dịch sạch 46 file Java Extension thành `extension.mpe` (2,779,880 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (95,736 bytes), đóng gói thành công `patches-2.0.77.mpp` (227,456,536 bytes).
+
 ---
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
-- **Phiên bản mới nhất**: `v2.0.76` (versionCode `20076`).
-- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.76/patches-2.0.76.mpp`
-- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.76.mpp` (227,455,389 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.76.mpp`.
+- **Phiên bản mới nhất**: `v2.0.77` (versionCode `20077`).
+- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.77/patches-2.0.77.mpp`
+- **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.77.mpp` (227,456,536 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.77.mpp`.
 - **Checklist Kiểm Thử**:
-  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.76.mpp` (227,455,389 bytes).
-  - [x] Triệt tiêu 100% hiện tượng nháy / load lại giao diện Move 0 (loại bỏ layout trigger, giữ nguyên pills ở startpos, deduplication retries và onBoardChanged).
-  - [x] Sửa dứt điểm thứ tự ưu tiên và nhãn điểm số mũi tên đối thủ theo chuẩn Extension NNVC Side-to-move POV (loại bỏ nghịch đảo moves lẻ, formatArrowEvalLabel chuẩn).
-  - [x] Nhận diện Game Over chủ động tức thì (Active GameOverWatchdog 300ms + onGlobalLayout + dialog.isShowing() + getView().isShown()).
-  - [x] Chạy kiểm thử tự động `SelfTest` đạt 113/113 tests passed (0 failed).
-  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.76.
+  - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.77.mpp` (227,456,536 bytes).
+  - [x] Khắc phục triệt để hiển thị mũi tên Move 0 cho cả Trắng và Đen (`showOppArrow` mặc định true, miễn trừ startpos khỏi `isMySideOnly`, `hasArrows` retry).
+  - [x] Nhận diện Game Over 5 tầng toàn diện (ViewModel StateFlow, Activity Modal, DialogFragment isAdded/isShowing, Checkmate `#`, DecorView top modal).
+  - [x] Dọn dẹp tức thời 100% overlay, mũi tên, huy hiệu, dừng engine và Torch khi kết thúc ván.
+  - [x] Chạy kiểm thử tự động `SelfTest` đạt 117/117 tests passed (0 failed).
+  - [x] Cập nhật đồng bộ `patches-bundle.json` và `patches-list.json` sang version 2.0.77.
   - [x] Cập nhật đầy đủ tài liệu: `GEMINI.md`, `PROJECT_MEMORY.md`, `SESSION_NOTES.md`.
+
 
 

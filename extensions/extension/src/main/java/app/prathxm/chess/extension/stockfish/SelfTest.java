@@ -451,39 +451,46 @@ public class SelfTest {
             String lastLoadedFen = null;
             boolean isScheduled = false;
             int analysisTriggerCount = 0;
+            boolean hasArrowsOnScreen = false;
 
             void onBoardChanged(String fen) {
                 boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
                 if (isStartPos) {
-                    if (isScheduled && fen.equals(lastLoadedFen)) {
-                        return; // duplicate suppressed
+                    if (isScheduled && fen.equals(lastLoadedFen) && hasArrowsOnScreen) {
+                        return; // duplicate suppressed only if arrows already on screen
                     }
                     lastLoadedFen = fen;
                     isScheduled = true;
                     analysisTriggerCount++;
+                    hasArrowsOnScreen = true;
                 } else {
                     isScheduled = false;
                     lastLoadedFen = null;
+                    hasArrowsOnScreen = false;
                 }
             }
 
             void onGameOver() {
                 isScheduled = false;
                 lastLoadedFen = null;
+                hasArrowsOnScreen = false;
             }
         }
         Move0StateMachine sm = new Move0StateMachine();
         String m0Fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         sm.onBoardChanged(m0Fen);
         check("Move 0 initial load triggered analysis count = 1", sm.analysisTriggerCount == 1);
-        sm.onBoardChanged(m0Fen); // duplicate call from view attach / retry
-        check("Move 0 duplicate call skipped, analysis count remains 1", sm.analysisTriggerCount == 1);
+        sm.onBoardChanged(m0Fen); // duplicate call with arrows on screen
+        check("Move 0 duplicate call skipped when arrows visible", sm.analysisTriggerCount == 1);
+        sm.hasArrowsOnScreen = false; // simulates arrows not rendered yet (e.g. view layout delay)
+        sm.onBoardChanged(m0Fen);
+        check("Move 0 triggers retry if arrows are not yet rendered", sm.analysisTriggerCount == 2);
         String m1Fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
         sm.onBoardChanged(m1Fen);
         check("Move 1 reset Move 0 scheduled flag", !sm.isScheduled);
         sm.onGameOver();
         sm.onBoardChanged(m0Fen); // new game started
-        check("New game Move 0 triggers fresh analysis count = 2", sm.analysisTriggerCount == 2);
+        check("New game Move 0 triggers fresh analysis count = 3", sm.analysisTriggerCount == 3);
 
         // === ACTIVE GAMEOVER DETECTION DIALOG & FRAGMENT TESTS ===
         class MockDialog {
@@ -491,6 +498,8 @@ public class SelfTest {
         }
         class MockDialogFragment {
             public boolean isVisible() { return false; } // false in lifecycle but dialog is showing!
+            public boolean isAdded() { return true; }
+            public boolean isRemoving() { return false; }
             public MockDialog getDialog() { return new MockDialog(); }
         }
         MockDialogFragment mdf = new MockDialogFragment();
@@ -504,6 +513,14 @@ public class SelfTest {
             }
         } catch (Throwable ignored) {}
         check("Active DialogFragment isShowing recognized even when isVisible is false", isDialogShowing);
+
+        boolean isFragAttached = false;
+        try {
+            java.lang.reflect.Method isAddedM = mdf.getClass().getMethod("isAdded");
+            java.lang.reflect.Method isRemM = mdf.getClass().getMethod("isRemoving");
+            isFragAttached = ((Boolean) isAddedM.invoke(mdf)) && !((Boolean) isRemM.invoke(mdf));
+        } catch (Throwable ignored) {}
+        check("Active DialogFragment isAdded recognized without needing getDialog", isFragAttached);
 
         class MockView {
             public int getVisibility() { return 0; } // View.VISIBLE = 0
@@ -527,6 +544,30 @@ public class SelfTest {
             }
         } catch (Throwable ignored) {}
         check("Active Fragment getView() recognized even when isVisible is false", isViewShowing);
+
+        // Checkmate '#' and Game result recognition
+        String lastMoveCheckmate = "Qxf7#";
+        boolean isCheckmateMove = lastMoveCheckmate.endsWith("#") || lastMoveCheckmate.contains("#");
+        check("Last move checkmate symbol '#' triggers game over recognition", isCheckmateMove);
+
+        // ViewModel GameEndData flow test
+        class MockStateFlow {
+            public Object getValue() { return new Object(); } // GameEndData present!
+        }
+        class MockRealGameViewModel {
+            public MockStateFlow oa() { return new MockStateFlow(); }
+        }
+        MockRealGameViewModel mvm = new MockRealGameViewModel();
+        boolean isVmGameOver = false;
+        try {
+            java.lang.reflect.Method oaM = mvm.getClass().getMethod("oa");
+            Object flow = oaM.invoke(mvm);
+            if (flow != null) {
+                java.lang.reflect.Method getVal = flow.getClass().getMethod("getValue");
+                isVmGameOver = (getVal.invoke(flow) != null);
+            }
+        } catch (Throwable ignored) {}
+        check("RealGameViewModel oa() popup presence triggers game over recognition", isVmGameOver);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

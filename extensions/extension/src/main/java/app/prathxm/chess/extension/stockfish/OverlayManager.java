@@ -253,6 +253,19 @@ public class OverlayManager {
         });
     }
 
+    public static boolean hasArrows() {
+        Activity activity = StockfishExtension.getCurrentActivity();
+        if (activity == null || activity.getWindow() == null) return false;
+        View decor = activity.getWindow().getDecorView();
+        if (decor == null) return false;
+        View overlay = decor.findViewWithTag("nnvc_arrow_overlay");
+        if (overlay instanceof ArrowOverlayView) {
+            ArrowOverlayView aov = (ArrowOverlayView) overlay;
+            return aov.getVisibility() == View.VISIBLE && aov.hasArrows();
+        }
+        return false;
+    }
+
     public static void hideArrowOverlay() {
         hideArrowOverlay(false);
     }
@@ -664,6 +677,9 @@ public class OverlayManager {
                                            int oldLeft, int oldTop, int oldRight, int oldBottom) {
                     if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
                         invalidateArrowOverlay();
+                    }
+                    if (v.getWidth() > 0 && v.getHeight() > 0 && !hasArrows()) {
+                        StockfishExtension.onInitialPositionLoaded(v);
                     }
                 }
             });
