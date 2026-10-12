@@ -595,11 +595,14 @@ public class SelfTest {
         boolean canClassifyMove0 = !isStartposMove0; // Guard ensures no classification at move 0
         check("Startpos Move 0 correctly bypasses move classification", !canClassifyMove0);
 
-        // AccuracyEloWidget default position verification (safe top-right below action bar, away from bot chat)
+        // AccuracyEloWidget default position verification (original above board when available)
         float densityVal = 2.0f;
-        float defaultWidgetY = 64f * densityVal;
-        float botBubbleTopAreaY = 240f; // Typical board top area where bot bubble resides
-        check("AccuracyEloWidget default Y sits safely above bot speech bubble", defaultWidgetY < botBubbleTopAreaY);
+        int widgetHVal = 40;
+        float boardYVal = 250f;
+        float defaultWidgetY = (boardYVal > widgetHVal + (20f * densityVal))
+                ? boardYVal - widgetHVal - (6f * densityVal)
+                : 74f * densityVal;
+        check("AccuracyEloWidget default Y calculated relative to board", defaultWidgetY == (boardYVal - widgetHVal - (6f * densityVal)));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-12T19:25:00",
-  "description": "## [2.0.81] (2026-10-12)\n\n### ⚡ NNVC v2.0.81 — Sửa Lỗi Hiển Thị Badge Phân Loại Nước Cờ & An Toàn Vị Trí Accuracy Elo Widget\n\n* **Định Vị Chuẩn Xác 100% Badge Phân Loại Của Torch Engine:**\n  - Sửa lỗi nghiêm trọng badge phân loại và highlight bị gán nhầm vào ô gợi ý tương lai (engine hint) thay vì nước cờ thực tế vừa đánh: Trong `TorchEngine.java`, thay vì lấy mù quáng phần tử cuối cùng của mảng `positions` (vốn chứa các nước đi phân tích tương lai - continuation moves), hệ thống quét ngược tìm đúng nước đi vừa được đánh kèm classification.\n  - Trong `MoveClassifier.java`, hàm `displayTorchClassification` luôn luôn sử dụng `finalUci` (nước cờ thực tế được hook từ bàn cờ), loại bỏ hoàn toàn việc sử dụng `playedMoveLan` từ continuation.\n  - Bổ sung điều kiện chặn ở `StockfishExtension.java` và `MoveClassifier.java`: Tuyệt đối không phân loại ở Move 0 khi bàn cờ ở trạng thái xuất phát (`startpos`).\n* **Cân Chỉnh Vị Trí Widget Accuracy / Elo Tránh Khung Chat Bot:**\n  - Đặt lại tọa độ mặc định `defY = 64f * density`, neo widget an toàn ở góc trên bên phải màn hình (dưới thanh tiêu đề), tránh 100% việc đè lên avatar và bóng thoại hội thoại của Bot trong Bot Game.\n* **Author:** NNVC (@nncutett)",
-  "download_url": "https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.81/patches-2.0.81.mpp",
+  "created_at": "2026-10-12T19:32:00",
+  "description": "## [2.0.82] (2026-10-12)\n\n### ⚡ NNVC v2.0.82 — Khôi Phục Vị Trí Mặc Định Gốc Cho Accuracy & Elo Widget\n\n* **Khôi Phục Vị Trí Gốc Của Accuracy / Elo Widget:**\n  - Đưa vị trí mặc định ban đầu của Accuracy & Elo widget về nguyên bản (`defY = bm.boardY - widgetH - 6dp`), giữ nguyên tính năng kéo thả tự do theo ý muốn của người dùng.\n* **Định Vị Chuẩn Xác 100% Badge Phân Loại Của Torch Engine:**\n  - Giữ vững khắc phục phân loại nước cờ của Torch Engine: Chỉ gán badge và highlight cho nước cờ thực tế đã đi trên bàn cờ (`finalUci`), không bị gán nhầm sang ô gợi ý engine (`g8f6`).\n  - Chặn phân loại Move 0 khi ở `startpos`.\n* **Author:** NNVC (@nncutett)",
+  "download_url": "https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.82/patches-2.0.82.mpp",
   "signature_download_url": "",
-  "version": "2.0.81"
+  "version": "2.0.82"
 }
