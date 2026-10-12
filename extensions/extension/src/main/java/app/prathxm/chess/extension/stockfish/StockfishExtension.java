@@ -596,9 +596,30 @@ public class StockfishExtension {
 
         boolean threatEnabled = !disableOverlays && StockfishSettings.isThreatArrowsEnabled(context);
         String threatToInject = null;
-        if (threatEnabled && !isMyTurn) {
-            // MŨI TÊN PREMOVE: Chỉ hiển thị sau khi người chơi vừa thực hiện nước đi (đang ở lượt đối thủ, !isMyTurn).
-            // Tìm nước đáp trả của người chơi (recapture / piece exchange) để chuẩn bị sẵn sàng premove.
+        if (threatEnabled) {
+            // MŨI TÊN ĐE DỌA (Threat Arrow - Màu đỏ cảnh báo):
+            // 1. Khi đến lượt người chơi (isMyTurn): dự đoán nước đi đe dọa tiếp theo của đối thủ (result.ponder).
+            // 2. Khi đến lượt đối thủ (!isMyTurn): hiển thị nước đi mạnh nhất mà đối thủ có thể thực hiện (result.moves.get(0)).
+            if (isMyTurn) {
+                if (result.ponder != null && result.ponder.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
+                    threatToInject = result.ponder;
+                }
+            } else {
+                if (result.moves != null && !result.moves.isEmpty()) {
+                    String m0 = result.moves.get(0);
+                    if (m0 != null && m0.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
+                        threatToInject = m0;
+                    }
+                }
+            }
+        }
+
+        boolean premoveEnabled = !disableOverlays && StockfishSettings.isPremoveArrowsEnabled(context);
+        String premoveMoveToInject = null;
+        if (premoveEnabled && !isMyTurn) {
+            // MŨI TÊN PREMOVE (Premove Arrow - Màu cam hổ phách neon):
+            // CHỈ hiển thị sau khi người chơi vừa thực hiện nước đi (đang ở lượt đối thủ, !isMyTurn).
+            // Tìm nước đáp trả của người chơi (recapture / piece exchange) để chuẩn bị sẵn sàng premove:
             String oppMove = (result.moves != null && !result.moves.isEmpty()) ? result.moves.get(0) : null;
             String userReply = null;
             if (result.pv != null && result.pv.size() > 1) {
@@ -616,19 +637,22 @@ public class StockfishExtension {
                 // Điều kiện 1: Ô xuất phát replyFrom BẮT BUỘC phải là quân của người chơi
                 boolean fromHasUserPiece = isUserPiece(fen, replyFrom, userIsWhiteSide);
 
-                // Điều kiện 2: Ô đích replyTo trùng với ô đối thủ nhảy vào (oppTo) HOẶC ô đích đang chứa quân đối thủ (trao đổi quân)
-                char pieceAtTarget = getPieceAtSquare(fen, replyTo);
-                boolean targetHasOppPiece = (pieceAtTarget != '.') && (userIsWhiteSide ? Character.isLowerCase(pieceAtTarget) : Character.isUpperCase(pieceAtTarget));
-                boolean isExchangeRecapture = replyTo.equals(oppTo) || targetHasOppPiece;
+                // Điều kiện 2: Ô đích replyTo BẮT BUỘC phải là ô đang có quân cờ của chính người chơi đang đứng trên bàn cờ
+                boolean targetHasUserPiece = isUserPiece(fen, replyTo, userIsWhiteSide);
+
+                // Điều kiện 3: Nước đi trao đổi quân (đối thủ nhảy vào ăn quân người chơi, và người chơi premove ăn lại)
+                boolean isExchangeRecapture = replyTo.equals(oppTo) && targetHasUserPiece;
 
                 if (fromHasUserPiece && isExchangeRecapture) {
-                    threatToInject = userReply;
+                    premoveMoveToInject = userReply;
                 }
             }
         }
-        boolean showThreat = (threatToInject != null);
 
-        if (showArrows || showThreat) {
+        boolean showThreat = (threatToInject != null);
+        boolean showPremove = (premoveMoveToInject != null);
+
+        if (showArrows || showThreat || showPremove) {
             java.util.List<String> movesToInject = (showArrows && result.moves != null) ? result.moves : java.util.Collections.emptyList();
 
             if (showThreat && threatToInject != null) {
@@ -637,13 +661,14 @@ public class StockfishExtension {
 
             String sig = fen + '|' + (showArrows ? (result.moves != null ? result.moves.toString() : "") : "") + '|'
                     + (showThreat && threatToInject != null ? threatToInject : "") + '|'
+                    + (showPremove && premoveMoveToInject != null ? premoveMoveToInject : "") + '|'
                     + StockfishSettings.getArrowTierColor(context, 1) + '|'
                     + StockfishSettings.getArrowTierColor(context, 2) + '|'
                     + StockfishSettings.getArrowTierColor(context, 3);
             if (!sig.equals(lastArrowSignature)) {
                 lastArrowSignature = sig;
                 boolean whiteTurn = isWhiteTurnFromFen(fen);
-                OverlayManager.updateArrowOverlay(movesToInject, threatToInject, result.sideToMoveScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
+                OverlayManager.updateArrowOverlay(movesToInject, threatToInject, premoveMoveToInject, result.sideToMoveScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
             }
         } else if (isFinal) {
             lastArrowSignature = null;

@@ -895,6 +895,21 @@ public class StockfishSettingsDialog {
             }
         });
 
+        addCardSeparator(arrowCard, density);
+
+        final CyberSwitchView premoveSwitch = addCyberSwitchRow(arrowCard,
+                I18n.get(activity, "premove_arrow"),
+                I18n.get(activity, "premove_arrow_hint"),
+                StockfishSettings.isPremoveArrowsEnabled(activity),
+                density, activity);
+
+        premoveSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setPremoveArrowsEnabled(activity, isChecked);
+            if (StockfishSettings.isEngineEnabled(activity)) {
+                StockfishExtension.triggerPlayAnalysisOnly();
+            }
+        });
+
         LinearLayout paletteCard = createGlassCard(activity, density);
         panelArrows.addView(paletteCard);
         addArrowPaletteSection(paletteCard, density, activity);

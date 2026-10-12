@@ -54,9 +54,13 @@ public class I18n {
             case "opponent_arrows_hint":
                 return isVi ? "Hiện mũi tên gợi ý khi đến lượt đối thủ." : "Show suggestion arrows when it is opponent's turn.";
             case "threat_arrow":
-                return isVi ? "Mũi Tên Premove" : "Premove Arrow";
+                return isVi ? "Mũi Tên Đe Dọa" : "Threat Arrow";
             case "threat_arrow_hint":
-                return isVi ? "Hiện mũi tên đe dọa đáp trả để sẵn sàng premove trao đổi quân (cam/đỏ)." : "Show threat / premove arrows for obvious piece exchanges (amber/red).";
+                return isVi ? "Hiện mũi tên đe dọa (đỏ) của đối thủ." : "Show opponent's threat arrow (red).";
+            case "premove_arrow":
+                return isVi ? "Mũi Tên Premove" : "Premove Arrow";
+            case "premove_arrow_hint":
+                return isVi ? "Hiện gợi ý nước premove trao đổi quân khi đối thủ đang suy nghĩ." : "Show premove recapture arrow for obvious piece exchanges.";
             case "card_cfg":
                 return isVi ? "Giao Diện" : "Visual Interface";
             case "eval_bar":

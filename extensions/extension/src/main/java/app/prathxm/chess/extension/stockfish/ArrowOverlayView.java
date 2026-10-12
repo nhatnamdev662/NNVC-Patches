@@ -57,18 +57,24 @@ public class ArrowOverlayView extends View {
         public final String to;
         public final int tier;
         public final boolean isThreat;
+        public final boolean isPremove;
         public final String evalText;
 
         public ArrowData(String move, int tier, boolean isThreat) {
-            this(move, tier, isThreat, null);
+            this(move, tier, isThreat, false, null);
         }
 
         public ArrowData(String move, int tier, boolean isThreat, String evalText) {
+            this(move, tier, isThreat, false, evalText);
+        }
+
+        public ArrowData(String move, int tier, boolean isThreat, boolean isPremove, String evalText) {
             this.move = move;
             this.from = move.substring(0, 2);
             this.to = move.substring(2, 4);
             this.tier = tier;
             this.isThreat = isThreat;
+            this.isPremove = isPremove;
             this.evalText = evalText;
         }
     }
@@ -375,9 +381,9 @@ public class ArrowOverlayView extends View {
         }
         if (arrowPath == null) return;
 
-        if (arrow.isThreat) {
+        if (arrow.isPremove) {
             // Style riêng biệt cho Mũi Tên Premove (Premove Arrow):
-            // 1. Màu Cam Hổ Phách Neon (#F59E0B) phối Đỏ Cam (#EA580C) để phân biệt rõ ràng với mũi tên gợi ý Play
+            // 1. Màu Cam Hổ Phách Neon (#F59E0B) phối Đỏ Cam (#EA580C) để phân biệt rõ ràng với mũi tên gợi ý Play và mũi tên Đe Dọa
             // 2. Viền nét việt quất/than đậm (#78350F) sắc nét
             // 3. Glow màu hổ phách cảnh báo nhẹ nhàng
             int premoveColor = 0xFFF59E0B; // Amber Premove
@@ -405,8 +411,38 @@ public class ArrowOverlayView extends View {
             return;
         }
 
+        if (arrow.isThreat) {
+            // Style riêng biệt cho Mũi Tên Đe Dọa của Đối Thủ (Threat Arrow):
+            // 1. Màu Đỏ Cảnh Báo Nguy Hiểm (#EF4444 phối #B91C1C)
+            // 2. Viền đỏ thẫm sắc nét (#7F1D1D)
+            // 3. Glow đỏ rực cảnh báo
+            int threatLight = 0xFFEF4444; // Danger Red Light
+            int threatDark = 0xFFB91C1C;  // Danger Red Dark
+
+            // 1. Glow viền cảnh báo nguy hiểm
+            glowPaint.setColor(Color.argb((int)(0.45f * 255), 239, 68, 68));
+            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.035f);
+            glowPaint.setMaskFilter(new BlurMaskFilter(Math.max(1.0f, sqSize * 0.05f), BlurMaskFilter.Blur.NORMAL));
+            canvas.drawPath(arrowPath, glowPaint);
+            glowPaint.setMaskFilter(null);
+
+            // 2. Linear Gradient Fill Đỏ Nguy Hiểm
+            fillPaint.setShader(new LinearGradient(x1, y1, x2, y2,
+                    new int[]{threatDark, threatLight},
+                    new float[]{0.0f, 1.0f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawPath(arrowPath, fillPaint);
+
+            // 3. Viền mảnh tương phản cao đỏ thẫm
+            edgePaint.setShader(null);
+            edgePaint.setColor(0xCC7F1D1D); // Deep red contrast stroke
+            edgePaint.setStrokeWidth(Math.max(1.5f, sqSize * 0.018f));
+            canvas.drawPath(arrowPath, edgePaint);
+            return;
+        }
+
         // Color computation matching NNVC extension with custom tier palette
-        int[] rawRgb = getBaseRgb(getContext(), arrow.tier, arrow.isThreat);
+        int[] rawRgb = getBaseRgb(getContext(), arrow.tier, arrow.isThreat, arrow.isPremove);
         int[] rgb = (arrow.tier == 2) ? tint(rawRgb, 0.12f)
                 : (arrow.tier >= 3) ? tint(rawRgb, 0.30f)
                 : rawRgb;
@@ -416,8 +452,7 @@ public class ArrowOverlayView extends View {
         int[] colHeadLight = tint(rgb, 0.22f);
         int[] colEdge = shade(rgb, 0.42f);
 
-        float opacity = arrow.isThreat ? 0.92f
-                : (arrow.tier == 1) ? 0.94f
+        float opacity = (arrow.tier == 1) ? 0.94f
                 : (arrow.tier == 2) ? 0.82f
                 : 0.65f;
 
@@ -577,7 +612,10 @@ public class ArrowOverlayView extends View {
         return new float[]{cx, cy};
     }
 
-    private static int[] getBaseRgb(Context context, int tier, boolean isThreat) {
+    private static int[] getBaseRgb(Context context, int tier, boolean isThreat, boolean isPremove) {
+        if (isPremove) {
+            return new int[]{245, 158, 11}; // #F59E0B (Amber Premove)
+        }
         if (isThreat) {
             return new int[]{239, 68, 68}; // #EF4444 (Danger Red)
         }
@@ -836,7 +874,7 @@ public class ArrowOverlayView extends View {
 
             // Styling & Colors matching NNVC Extension:
             boolean isBookLabel = "BOOK".equals(lblText);
-            int[] rawRgb = getBaseRgb(getContext(), arrow.tier, arrow.isThreat);
+            int[] rawRgb = getBaseRgb(getContext(), arrow.tier, arrow.isThreat, arrow.isPremove);
             int[] rgb = (arrow.tier == 2) ? tint(rawRgb, 0.12f)
                     : (arrow.tier >= 3) ? tint(rawRgb, 0.30f)
                     : rawRgb;

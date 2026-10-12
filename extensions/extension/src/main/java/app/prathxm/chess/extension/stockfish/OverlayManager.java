@@ -143,17 +143,39 @@ public class OverlayManager {
                                           final int mateIn,
                                           final boolean whiteToMove,
                                           final Object stateImpl) {
+        updateArrowOverlay(moves, threatMove, null, lineScores, hasMate, mateIn, whiteToMove, stateImpl);
+    }
+
+    public static void updateArrowOverlay(final List<String> moves,
+                                          final String threatMove,
+                                          final String premoveMove,
+                                          final float[] lineScores,
+                                          final boolean hasMate,
+                                          final int mateIn,
+                                          final boolean whiteToMove,
+                                          final Object stateImpl) {
         boolean[] lineMates = new boolean[lineScores != null ? lineScores.length : 0];
         int[] lineMateIn = new int[lineScores != null ? lineScores.length : 0];
         if (hasMate && lineMates.length > 0) {
             lineMates[0] = true;
             lineMateIn[0] = mateIn;
         }
-        updateArrowOverlay(moves, threatMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
+        updateArrowOverlay(moves, threatMove, premoveMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
     }
 
     public static void updateArrowOverlay(final List<String> moves,
                                           final String threatMove,
+                                          final float[] lineScores,
+                                          final boolean[] lineMates,
+                                          final int[] lineMateIn,
+                                          final boolean whiteToMove,
+                                          final Object stateImpl) {
+        updateArrowOverlay(moves, threatMove, null, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
+    }
+
+    public static void updateArrowOverlay(final List<String> moves,
+                                          final String threatMove,
+                                          final String premoveMove,
                                           final float[] lineScores,
                                           final boolean[] lineMates,
                                           final int[] lineMateIn,
@@ -182,7 +204,7 @@ public class OverlayManager {
                             bv.post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    updateArrowOverlay(moves, threatMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
+                                    updateArrowOverlay(moves, threatMove, premoveMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
                                 }
                             });
                         }
@@ -207,8 +229,13 @@ public class OverlayManager {
                     }
 
                     List<ArrowOverlayView.ArrowData> list = new ArrayList<>();
+                    // 1. Mũi tên Đe dọa của đối thủ (màu đỏ nguy hiểm)
                     if (threatMove != null && threatMove.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
-                        list.add(new ArrowOverlayView.ArrowData(threatMove, 1, true, null));
+                        list.add(new ArrowOverlayView.ArrowData(threatMove, 1, true, false, null));
+                    }
+                    // 2. Mũi tên Premove của người chơi (màu cam hổ phách neon)
+                    if (premoveMove != null && premoveMove.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
+                        list.add(new ArrowOverlayView.ArrowData(premoveMove, 1, false, true, null));
                     }
                     if (moves != null) {
                         for (int i = 0; i < moves.size(); i++) {
@@ -223,7 +250,7 @@ public class OverlayManager {
                                 } else if (lineScores != null && i < lineScores.length) {
                                     evalText = formatArrowEvalLabel(false, 0, lineScores[i]);
                                 }
-                                list.add(new ArrowOverlayView.ArrowData(m, i + 1, false, evalText));
+                                list.add(new ArrowOverlayView.ArrowData(m, i + 1, false, false, evalText));
                             }
                         }
                     }

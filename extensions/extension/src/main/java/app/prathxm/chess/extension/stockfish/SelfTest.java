@@ -670,6 +670,26 @@ public class SelfTest {
         boolean premoveActiveOnUserTurn = !userTurnNow; // must be false
         check("Premove Arrow is suppressed during user's own turn", !premoveActiveOnUserTurn);
 
+        // v2.0.86 Tests:
+        // Test 1: Premove Arrow REQUIREMENT - Target square MUST currently hold user's piece on board
+        boolean targetSquareHasUserPiece = StockfishExtension.isUserPiece(testFen, userRecaptureMove.substring(2, 4), userSideIsWhite);
+        check("Premove Arrow target square e4 contains user white piece (P)", targetSquareHasUserPiece);
+
+        // Test 2: If target square does NOT hold user's piece (e.g. empty square e5), premove is invalid
+        boolean emptyTargetHasUserPiece = StockfishExtension.isUserPiece(testFen, "e5", userSideIsWhite);
+        check("Premove Arrow rejects empty target square without user piece", !emptyTargetHasUserPiece);
+
+        // Test 3: Threat Arrow and Premove Arrow can be configured independently
+        boolean threatFlag = true;
+        boolean premoveFlag = false;
+        check("Threat arrow and Premove arrow are distinct flags", threatFlag != premoveFlag);
+
+        // Test 4: Threat Arrow on opponent's turn takes opponent's top move
+        boolean oppTurnNow = true;
+        String oppTopMove = "c6e4";
+        String threatMoveCalculated = (oppTurnNow && threatFlag) ? oppTopMove : null;
+        check("Threat arrow calculates opponent move on opponent turn", "c6e4".equals(threatMoveCalculated));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

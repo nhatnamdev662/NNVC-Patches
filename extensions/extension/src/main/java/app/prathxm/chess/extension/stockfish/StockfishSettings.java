@@ -295,6 +295,16 @@ public class StockfishSettings {
         getPrefs(context).edit().putBoolean(KEY_SHOW_THREAT_ARROWS, enabled).apply();
     }
 
+    private static final String KEY_SHOW_PREMOVE_ARROWS = "show_premove_arrows";
+
+    public static boolean isPremoveArrowsEnabled(Context context) {
+        return getPrefs(context).getBoolean(KEY_SHOW_PREMOVE_ARROWS, false);
+    }
+
+    public static void setPremoveArrowsEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_SHOW_PREMOVE_ARROWS, enabled).apply();
+    }
+
     private static final String KEY_SHOW_MOVE_CLASSIFICATION = "show_move_classification";
 
     public static boolean isMoveClassificationEnabled(Context context) {
