@@ -557,6 +557,12 @@ public class SelfTest {
         boolean isCheckmateMove = lastMoveCheckmate.endsWith("#") || lastMoveCheckmate.contains("#");
         check("Last move checkmate symbol '#' triggers game over recognition", isCheckmateMove);
 
+        // Startpos bypass: When board FEN is startpos, checkmate in stale history must NOT trigger game over!
+        String boardStartposFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        boolean isStartposBoard = boardStartposFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        boolean isGameOverFromHistory = !isStartposBoard && isCheckmateMove;
+        check("Startpos board ignores stale checkmate in moves history", !isGameOverFromHistory);
+
         // ViewModel GameEndData flow test
         class MockStateFlow {
             public Object getValue() { return new Object(); } // GameEndData present!

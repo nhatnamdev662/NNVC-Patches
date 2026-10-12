@@ -758,9 +758,10 @@ public class StockfishExtension {
                     if (activity.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
                         return;
                     }
+                    unlockScreenshots(activity);
                     boolean over = checkAndHandleGameOver(activity);
                     android.os.Handler wh = getWatchdogHandler();
-                    if (wh != null) wh.postDelayed(this, over ? 1000 : 300);
+                    if (wh != null) wh.postDelayed(this, over ? 500 : 300);
                 } catch (Throwable ignored) {}
             }
         };
@@ -806,7 +807,18 @@ public class StockfishExtension {
             }
             return true;
         } else {
-            lastGameOverHandled = false;
+            if (lastGameOverHandled) {
+                // Chuyển từ Game Over sang Ván mới (Rematch / New Game)
+                Log.i(TAG, "[NEW GAME DETECTED] Phát hiện chuyển sang ván mới sau Game Over! Đang khởi tạo lại Move 0...");
+                lastGameOverHandled = false;
+                lastLoadedMove0Fen = null;
+                isMove0AnalysisScheduled = false;
+                lastArrowSignature = null;
+                lastScheduledKey = null;
+                unlockScreenshots(activity);
+                OverlayManager.clearHookedBoardViews();
+                tryLoadMove0(activity);
+            }
             return false;
         }
     }
@@ -1010,17 +1022,24 @@ public class StockfishExtension {
                 if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
                     View boardView = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
                     if (boardView != null) {
-                        for (Method m : boardView.getClass().getMethods()) {
-                            if (m.getName().equals("getMovesHistory") && m.getParameterCount() == 0) {
-                                Object movesObj = m.invoke(boardView);
-                                if (movesObj instanceof List) {
-                                    List<?> moves = (List<?>) movesObj;
-                                    if (!moves.isEmpty()) {
-                                        Object lastMove = moves.get(moves.size() - 1);
-                                        if (lastMove != null) {
-                                            String s = lastMove.toString();
-                                            if (s.endsWith("#") || s.contains("#") || s.equals("1-0") || s.equals("0-1") || s.equals("1/2-1/2")) {
-                                                return true;
+                        // Nếu bàn cờ hiện tại đang ở thế mở màn (startpos), tuyệt đối không thể là Game Over!
+                        Object curPos = extractPositionFromBoardView(boardView);
+                        String curFen = (curPos != null) ? extractFen(curPos) : null;
+                        boolean isCurStartPos = (curFen != null && curFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"));
+
+                        if (!isCurStartPos) {
+                            for (Method m : boardView.getClass().getMethods()) {
+                                if (m.getName().equals("getMovesHistory") && m.getParameterCount() == 0) {
+                                    Object movesObj = m.invoke(boardView);
+                                    if (movesObj instanceof List) {
+                                        List<?> moves = (List<?>) movesObj;
+                                        if (!moves.isEmpty()) {
+                                            Object lastMove = moves.get(moves.size() - 1);
+                                            if (lastMove != null) {
+                                                String s = lastMove.toString();
+                                                if (s.endsWith("#") || s.contains("#") || s.equals("1-0") || s.equals("0-1") || s.equals("1/2-1/2")) {
+                                                    return true;
+                                                }
                                             }
                                         }
                                     }
