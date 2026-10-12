@@ -972,9 +972,7 @@ public class OverlayManager {
                             int decorW = decorView.getWidth();
                             if (decorW <= 0) decorW = (int) (360f * density);
                             float defX = decorW - widgetW - (10f * density);
-                            float defY = (bm != null && bm.boardY > widgetH + (20f * density))
-                                    ? bm.boardY - widgetH - (6f * density)
-                                    : 74f * density;
+                            float defY = 64f * density; // Safe top-right below action bar, never covering player/bot card or bubble!
                             widget.clampAndSetPosition(defX, defY);
                         }
                     }

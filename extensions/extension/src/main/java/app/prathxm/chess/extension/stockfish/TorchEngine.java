@@ -493,12 +493,23 @@ public class TorchEngine {
                     return;
                 }
 
-                JSONObject lastPos = positions.getJSONObject(positions.length() - 1);
-                String classificationName = lastPos.optString("classificationName", "");
-                JSONObject playedMove = lastPos.optJSONObject("playedMove");
+                JSONObject targetPos = null;
+                for (int i = positions.length() - 1; i >= 0; i--) {
+                    JSONObject pos = positions.optJSONObject(i);
+                    if (pos != null && pos.has("classificationName") && !pos.optString("classificationName", "").isEmpty()) {
+                        targetPos = pos;
+                        break;
+                    }
+                }
+                if (targetPos == null) {
+                    targetPos = positions.getJSONObject(positions.length() - 1);
+                }
+
+                String classificationName = targetPos.optString("classificationName", "");
+                JSONObject playedMove = targetPos.optJSONObject("playedMove");
                 String playedMoveLan = playedMove != null ? playedMove.optString("moveLan", "") : "";
 
-                JSONObject bestMove = lastPos.optJSONObject("bestMove");
+                JSONObject bestMove = targetPos.optJSONObject("bestMove");
                 String bestMoveLan = bestMove != null ? bestMove.optString("moveLan", "") : "";
 
                 String speechText = "";

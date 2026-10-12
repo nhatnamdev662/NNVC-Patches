@@ -382,7 +382,7 @@ public class StockfishExtension {
         }
 
         // 2. Independent Move Classification: Torch CEE with 100ms debounce
-        if (ctx != null) {
+        if (ctx != null && !isStartPos) {
             MoveClassifier.classifyMoveDebounced(ctx, fen);
         }
 

@@ -443,6 +443,11 @@ public class MoveClassifier {
         }
 
         if (!StockfishSettings.isMoveClassificationEnabled(context)) return;
+        if (currentFen != null && currentFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") &&
+                (explicitMoves == null || explicitMoves.isEmpty()) &&
+                (currentPositionMoves == null || currentPositionMoves.isEmpty())) {
+            return;
+        }
 
         try {
             List<String> hookMoves = (explicitMoves != null && !explicitMoves.isEmpty()) ? explicitMoves : currentPositionMoves;
@@ -577,7 +582,7 @@ public class MoveClassifier {
                         if (currentAct != null) {
                             currentAct.runOnUiThread(() -> {
                                 displayTorchClassification(currentAct, classificationName,
-                                        (playedMoveLan != null && !playedMoveLan.isEmpty()) ? playedMoveLan : finalUci,
+                                        finalUci,
                                         speechText,
                                         finalWhiteMoved,
                                         finalIsMyMove);

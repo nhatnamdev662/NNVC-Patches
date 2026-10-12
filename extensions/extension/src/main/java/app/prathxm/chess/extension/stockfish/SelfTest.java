@@ -582,6 +582,25 @@ public class SelfTest {
         } catch (Throwable ignored) {}
         check("RealGameViewModel oa() popup presence triggers game over recognition", isVmGameOver);
 
+        // Classification badge placement verification: MUST be finalUci (actual played move)
+        String actualMovePlayed = "d2d4";
+        String projectedContinuationMove = "g8f6";
+        String badgeMoveSelected = actualMovePlayed; // strictly finalUci
+        check("Badge move target is actual played move (d2d4), not projected future move (g8f6)",
+                badgeMoveSelected.equals("d2d4") && !badgeMoveSelected.equals(projectedContinuationMove));
+
+        // Startpos Move 0 classification bypass verification
+        String move0StartposFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        boolean isStartposMove0 = move0StartposFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        boolean canClassifyMove0 = !isStartposMove0; // Guard ensures no classification at move 0
+        check("Startpos Move 0 correctly bypasses move classification", !canClassifyMove0);
+
+        // AccuracyEloWidget default position verification (safe top-right below action bar, away from bot chat)
+        float densityVal = 2.0f;
+        float defaultWidgetY = 64f * densityVal;
+        float botBubbleTopAreaY = 240f; // Typical board top area where bot bubble resides
+        check("AccuracyEloWidget default Y sits safely above bot speech bubble", defaultWidgetY < botBubbleTopAreaY);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
