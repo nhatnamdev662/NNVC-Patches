@@ -512,18 +512,23 @@ public class SelfTest {
                 isDialogShowing = (Boolean) isShowing.invoke(dlg);
             }
         } catch (Throwable ignored) {}
-        check("Active DialogFragment isShowing recognized even when isVisible is false", isDialogShowing);
-
-        boolean isFragAttached = false;
+        // DialogFragment showing check:
+        // isAdded() alone MUST NOT trigger game over (would cause false positive on dormant retained dialogs)
+        // getDialog().isShowing() == true MUST trigger game over
+        boolean isFragActive = false;
         try {
-            java.lang.reflect.Method isAddedM = mdf.getClass().getMethod("isAdded");
-            java.lang.reflect.Method isRemM = mdf.getClass().getMethod("isRemoving");
-            isFragAttached = ((Boolean) isAddedM.invoke(mdf)) && !((Boolean) isRemM.invoke(mdf));
+            java.lang.reflect.Method getDlg = mdf.getClass().getMethod("getDialog");
+            Object dlg = getDlg.invoke(mdf);
+            if (dlg != null) {
+                java.lang.reflect.Method isShowing = dlg.getClass().getMethod("isShowing");
+                isFragActive = (Boolean) isShowing.invoke(dlg);
+            }
         } catch (Throwable ignored) {}
-        check("Active DialogFragment isAdded recognized without needing getDialog", isFragAttached);
+        check("Active DialogFragment isShowing recognized correctly", isFragActive);
 
         class MockView {
             public int getVisibility() { return 0; } // View.VISIBLE = 0
+            public boolean isShown() { return true; }
             public Object getParent() { return new Object(); }
         }
         class MockRegularFragment {
@@ -537,13 +542,15 @@ public class SelfTest {
             Object v = getViewM.invoke(mrf);
             if (v != null) {
                 java.lang.reflect.Method getVis = v.getClass().getMethod("getVisibility");
+                java.lang.reflect.Method isShownM = v.getClass().getMethod("isShown");
                 java.lang.reflect.Method getParent = v.getClass().getMethod("getParent");
                 int vis = (Integer) getVis.invoke(v);
+                boolean shown = (Boolean) isShownM.invoke(v);
                 Object parent = getParent.invoke(v);
-                isViewShowing = (vis == 0 && parent != null);
+                isViewShowing = (vis == 0 && shown && parent != null);
             }
         } catch (Throwable ignored) {}
-        check("Active Fragment getView() recognized even when isVisible is false", isViewShowing);
+        check("Active Fragment getView() isShown recognized correctly", isViewShowing);
 
         // Checkmate '#' and Game result recognition
         String lastMoveCheckmate = "Qxf7#";

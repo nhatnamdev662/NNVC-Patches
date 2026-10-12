@@ -901,22 +901,34 @@ public class StockfishExtension {
                         if (flow != null) {
                             Method getVal = flow.getClass().getMethod("getValue");
                             Object val = getVal.invoke(flow);
-                            if (val != null) return true;
+                            if (val != null) {
+                                if (val instanceof Boolean) {
+                                    if (((Boolean) val).booleanValue()) return true;
+                                } else {
+                                    return true;
+                                }
+                            }
                         }
                     } catch (Throwable ignored) {}
 
-                    // Check vm._gameOver / gameOver / b1 / a1 StateFlow fields
+                    // Check vm._gameOver / gameOver StateFlow fields
                     for (Field f : vm.getClass().getDeclaredFields()) {
                         String fn = f.getName();
-                        if (fn.equals("a1") || fn.equals("b1") || fn.equals("_gameOver") || fn.equals("gameOver")
-                                || fn.equals("_showGameOverPopup") || fn.equals("showGameOverPopup") || fn.equals("_gameOverResult")) {
+                        if (fn.equals("_gameOver") || fn.equals("gameOver") || fn.equals("_showGameOverPopup")
+                                || fn.equals("showGameOverPopup") || fn.equals("_gameOverResult") || fn.equals("gameOverResult")) {
                             f.setAccessible(true);
                             Object flow = f.get(vm);
                             if (flow != null) {
                                 try {
                                     Method getVal = flow.getClass().getMethod("getValue");
                                     Object val = getVal.invoke(flow);
-                                    if (val != null) return true;
+                                    if (val != null) {
+                                        if (val instanceof Boolean) {
+                                            if (((Boolean) val).booleanValue()) return true;
+                                        } else {
+                                            return true;
+                                        }
+                                    }
                                 } catch (Throwable ignored) {}
                             }
                         }
@@ -924,30 +936,12 @@ public class StockfishExtension {
                 }
             } catch (Throwable ignored) {}
 
-            // 2. Inspect activity fields and methods for showGameOverModal (V6() or field S) and gameOverOverlayView (m0)
+            // 2. Inspect activity fields for gameOverOverlayView (m0)
             Class<?> actClass = activity.getClass();
             while (actClass != null && !actClass.getName().equals("android.app.Activity")) {
-                try {
-                    Method v6M = actClass.getDeclaredMethod("V6");
-                    v6M.setAccessible(true);
-                    Object isModal = v6M.invoke(activity);
-                    if (Boolean.TRUE.equals(isModal)) return true;
-                } catch (Throwable ignored) {}
-
                 for (Field f : actClass.getDeclaredFields()) {
                     String fn = f.getName();
-                    if (fn.equals("S") || fn.contains("showGameOverModal")) {
-                        try {
-                            f.setAccessible(true);
-                            Object flow = f.get(activity);
-                            if (flow != null) {
-                                Method getVal = flow.getClass().getMethod("getValue");
-                                Object val = getVal.invoke(flow);
-                                if (Boolean.TRUE.equals(val)) return true;
-                            }
-                        } catch (Throwable ignored) {}
-                    }
-                    if (fn.equals("gameOverOverlayView") || fn.equals("m0") || fn.toLowerCase(java.util.Locale.US).contains("gameover")) {
+                    if (fn.equals("gameOverOverlayView") || fn.equals("m0")) {
                         try {
                             f.setAccessible(true);
                             Object val = f.get(activity);
@@ -956,8 +950,6 @@ public class StockfishExtension {
                                 if (gv.getVisibility() == View.VISIBLE && gv.getParent() != null) {
                                     return true;
                                 }
-                            } else if (val instanceof Boolean && ((Boolean) val).booleanValue()) {
-                                return true;
                             }
                         } catch (Throwable ignored) {}
                     }
@@ -965,7 +957,7 @@ public class StockfishExtension {
                 actClass = actClass.getSuperclass();
             }
 
-            // 3. Check FragmentManager for DialogFragments (e.g. BaseGameOverDialog, BotGameOverDialog, LiveGameOverDialog, etc.)
+            // 3. Check FragmentManager for active DialogFragments (BaseGameOverDialog, etc.)
             try {
                 Method getFm = null;
                 try {
@@ -1013,7 +1005,7 @@ public class StockfishExtension {
                 }
             } catch (Throwable ignored) {}
 
-            // 4. Check board moves history for checkmate symbol '#'
+            // 4. Check board moves history for checkmate symbol '#' or result notation
             try {
                 if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
                     View boardView = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
@@ -1039,7 +1031,7 @@ public class StockfishExtension {
                 }
             } catch (Throwable ignored) {}
 
-            // 5. Check decorView hierarchy for GameOver views or top full-screen compose overlay
+            // 5. Check decorView hierarchy for explicit GameOver overlay views
             if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
                 View decorView = activity.getWindow().getDecorView();
                 if (hasGameOverView(decorView)) {
@@ -1057,14 +1049,6 @@ public class StockfishExtension {
             if ((Boolean) isRemM.invoke(frag)) return false;
         } catch (Throwable ignored) {}
         try {
-            Method isAddedM = frag.getClass().getMethod("isAdded");
-            if ((Boolean) isAddedM.invoke(frag)) return true;
-        } catch (Throwable ignored) {}
-        try {
-            Method isVisM = frag.getClass().getMethod("isVisible");
-            if ((Boolean) isVisM.invoke(frag)) return true;
-        } catch (Throwable ignored) {}
-        try {
             Method getDialogM = frag.getClass().getMethod("getDialog");
             Object dlg = getDialogM.invoke(frag);
             if (dlg != null) {
@@ -1077,7 +1061,7 @@ public class StockfishExtension {
             Object v = getViewM.invoke(frag);
             if (v instanceof View) {
                 View fv = (View) v;
-                if (fv.getVisibility() == View.VISIBLE && fv.getParent() != null) return true;
+                if (fv.getVisibility() == View.VISIBLE && fv.isShown() && fv.getParent() != null) return true;
             }
         } catch (Throwable ignored) {}
         return false;
@@ -1087,7 +1071,7 @@ public class StockfishExtension {
         if (view == null) return false;
         if (view.getVisibility() == View.VISIBLE) {
             String className = view.getClass().getName();
-            if (className.contains("GameOver") || className.contains("GameEnd") || className.contains("GameFinished")) {
+            if (className.contains("GameOverOverlay") || className.contains("GameOverDialog") || className.contains("GameEndOverlay")) {
                 return true;
             }
             try {
@@ -1096,7 +1080,7 @@ public class StockfishExtension {
                     String entryName = view.getResources().getResourceEntryName(id);
                     if (entryName != null) {
                         String lower = entryName.toLowerCase(java.util.Locale.US);
-                        if (lower.contains("game_over") || lower.contains("gameover") || lower.contains("game_end")) {
+                        if (lower.contains("game_over_overlay") || lower.contains("game_over_dialog") || lower.contains("gameover_overlay")) {
                             return true;
                         }
                     }
@@ -1105,7 +1089,7 @@ public class StockfishExtension {
             Object tag = view.getTag();
             if (tag instanceof String) {
                 String stag = ((String) tag).toLowerCase(java.util.Locale.US);
-                if (stag.contains("game_over") || stag.contains("gameover")) {
+                if (stag.contains("game_over_dialog") || stag.contains("game_over_overlay")) {
                     return true;
                 }
             }
@@ -1113,17 +1097,6 @@ public class StockfishExtension {
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
             int count = group.getChildCount();
-            if (count > 0) {
-                View topChild = group.getChildAt(count - 1);
-                if (topChild != null && topChild.getVisibility() == View.VISIBLE) {
-                    String topName = topChild.getClass().getName();
-                    if ((topName.contains("ComposeView") || topName.contains("gameOverOverlayView"))
-                            && topChild.getWidth() > 0 && topChild.getWidth() >= group.getWidth()
-                            && topChild.getHeight() > 0 && topChild.getHeight() >= group.getHeight()) {
-                        return true;
-                    }
-                }
-            }
             for (int i = 0; i < count; i++) {
                 if (hasGameOverView(group.getChildAt(i))) {
                     return true;
