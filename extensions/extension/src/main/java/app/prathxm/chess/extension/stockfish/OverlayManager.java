@@ -200,15 +200,12 @@ public class OverlayManager {
                     final BoardMetrics bm = getBoardMetrics(decorView);
                     if (bm == null) {
                         StockfishExtension.resetArrowSignature();
-                        final View bv = findChessBoardView(decorView);
-                        if (bv != null) {
-                            bv.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    updateArrowOverlay(moves, threatMove, premoveMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
-                                }
-                            });
-                        }
+                        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                updateArrowOverlay(moves, threatMove, premoveMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
+                            }
+                        }, 150);
                         return;
                     }
 
@@ -268,6 +265,7 @@ public class OverlayManager {
                     arrowView.update(boardX, boardY, boardW, boardH, list, flipped);
                     arrowView.setVisibility(View.VISIBLE);
                     ensureZOrder(decorView);
+                    StockfishExtension.setMove0AnalysisCompleted(true);
 
                 } catch (Throwable t) {
                     Log.e(TAG, "updateArrowOverlay failed: " + t.getMessage(), t);

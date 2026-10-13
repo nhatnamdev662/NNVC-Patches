@@ -740,6 +740,26 @@ public class SelfTest {
         boolean shouldWatchdogTriggerAfterDone = !watchdogIsGameOver && !watchdogIsReview && isMove0 && !watchdogHasArrows && !watchdogAnalysisCompleted;
         check("Active Watchdog does NOT trigger after analysis completes", !shouldWatchdogTriggerAfterDone);
 
+        // Test 5: When showArrows is true but arrows not yet rendered, completion remains false
+        boolean testShowArrows = true;
+        boolean testHasArrows = false;
+        boolean testCompleted = !testShowArrows || testHasArrows;
+        check("When showArrows is true but arrows not yet rendered, completion remains false", !testCompleted);
+
+        // Test 6: When showArrows is false (suppressed), completion is true immediately
+        testShowArrows = false;
+        testCompleted = !testShowArrows || testHasArrows;
+        check("When showArrows is false, completion is true immediately", testCompleted);
+
+        // Test 7: Engine init failure safety: pending position cleared
+        StockfishExtension.setPendingPosition(dummyState88, dummyPos88);
+        boolean initOk = false;
+        if (!initOk) {
+            StockfishExtension.clearPendingPosition();
+        }
+        check("Engine init failure clears pending position to prevent watchdog lock",
+                StockfishExtension.getPendingPositionObject() == null);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

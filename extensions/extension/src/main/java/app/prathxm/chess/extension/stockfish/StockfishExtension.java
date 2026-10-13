@@ -286,7 +286,14 @@ public class StockfishExtension {
         try {
             Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
             Method currentApplicationMethod = activityThreadClass.getMethod("currentApplication");
-            final Context ctx = (Context) currentApplicationMethod.invoke(null);
+            Context resolved = (Context) currentApplicationMethod.invoke(null);
+            if (resolved == null) {
+                Activity act = getCurrentActivity();
+                if (act != null) {
+                    resolved = act.getApplicationContext();
+                }
+            }
+            final Context ctx = resolved;
             if (ctx == null) {
                 return;
             }
@@ -331,9 +338,14 @@ public class StockfishExtension {
                                     }
                                 }
                             });
+                        } else {
+                            pendingStateImpl = null;
+                            pendingPositionObject = null;
                         }
                     } catch (Throwable t) {
                         Log.e(TAG, "Exception in async Stockfish init: " + t.getMessage());
+                        pendingStateImpl = null;
+                        pendingPositionObject = null;
                     } finally {
                         isInitializing = false;
                     }
@@ -751,7 +763,9 @@ public class StockfishExtension {
 
         if (!isFinal) return;
         if (isStartPos) {
-            isMove0AnalysisCompleted = true;
+            if (!showArrows || OverlayManager.hasArrows()) {
+                isMove0AnalysisCompleted = true;
+            }
         }
         OverlayManager.hideMateAnnouncement();
     }
@@ -977,8 +991,11 @@ public class StockfishExtension {
             if (currentJob != null && !currentJob.isDone()) {
                 return; // Analysis currently running, do not interrupt
             }
-            if (pendingPositionObject != null) {
-                return; // Waiting for engine initialization
+            if (!engineReady) {
+                ensureEngineReady();
+                if (isInitializing || pendingPositionObject != null) {
+                    return; // Waiting for engine initialization
+                }
             }
             tryLoadMove0(activity);
         }
@@ -1520,7 +1537,13 @@ public class StockfishExtension {
                 if (ctx != null) appContext = ctx;
             } catch (Throwable t) {
                 Log.e(TAG, "getContext failed: " + t.getMessage());
-                return null;
+            }
+        }
+        if (ctx == null) {
+            Activity act = getCurrentActivity();
+            if (act != null) {
+                ctx = act.getApplicationContext();
+                if (ctx != null) appContext = ctx;
             }
         }
         if (ctx != null && !engineReady) {
