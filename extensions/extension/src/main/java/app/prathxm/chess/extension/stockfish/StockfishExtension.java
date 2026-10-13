@@ -44,7 +44,44 @@ public class StockfishExtension {
 
     private static volatile String lastLoadedMove0Fen = null;
     private static volatile boolean isMove0AnalysisScheduled = false;
+    private static volatile boolean isMove0AnalysisCompleted = false;
+    private static volatile Object pendingStateImpl = null;
+    private static volatile Object pendingPositionObject = null;
     private static volatile android.os.Handler move0RetryHandler = null;
+
+    static Object getPendingStateImpl() {
+        return pendingStateImpl;
+    }
+
+    static Object getPendingPositionObject() {
+        return pendingPositionObject;
+    }
+
+    static void setPendingPosition(Object state, Object pos) {
+        pendingStateImpl = state;
+        pendingPositionObject = pos;
+    }
+
+    static void clearPendingPosition() {
+        pendingStateImpl = null;
+        pendingPositionObject = null;
+    }
+
+    static boolean isMove0AnalysisCompleted() {
+        return isMove0AnalysisCompleted;
+    }
+
+    static void setMove0AnalysisCompleted(boolean val) {
+        isMove0AnalysisCompleted = val;
+    }
+
+    static boolean isEngineReady() {
+        return engineReady;
+    }
+
+    static void setEngineReady(boolean ready) {
+        engineReady = ready;
+    }
 
     private static android.os.Handler getMove0RetryHandler() {
         if (move0RetryHandler == null) {
@@ -282,7 +319,16 @@ public class StockfishExtension {
                             new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    triggerAnalysisForCurrentState();
+                                    if (pendingPositionObject != null) {
+                                        Object s = pendingStateImpl;
+                                        Object p = pendingPositionObject;
+                                        pendingStateImpl = null;
+                                        pendingPositionObject = null;
+                                        Log.i(TAG, "Engine ready: dispatching cached pending position for Move 0.");
+                                        onBoardChanged(s, p);
+                                    } else {
+                                        triggerAnalysisForCurrentState();
+                                    }
                                 }
                             });
                         }
@@ -347,7 +393,14 @@ public class StockfishExtension {
 
         GestureInterceptor.ensureGestureInterceptorRegistered();
         ensureEngineReady();
-        if (!engineReady) return;
+        if (!engineReady) {
+            pendingStateImpl = stateImplObject;
+            pendingPositionObject = positionObject;
+            Log.d(TAG, "Stockfish engine not ready yet, cached pending position for Move 0 dispatch.");
+            return;
+        }
+        pendingStateImpl = null;
+        pendingPositionObject = null;
 
         Context ctx = getContext();
         if (ctx != null && !StockfishSettings.isEngineEnabled(ctx)) {
@@ -372,12 +425,13 @@ public class StockfishExtension {
         Log.d(TAG, "Position changed → FEN: " + fen);
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
-            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
+            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && (OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
                 Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled and rendered, skipping duplicate reset.");
                 return;
             }
             lastLoadedMove0Fen = fen;
             isMove0AnalysisScheduled = true;
+            isMove0AnalysisCompleted = false;
             android.os.Handler h = getMove0RetryHandler();
             if (h != null) h.removeCallbacksAndMessages(null);
 
@@ -397,6 +451,7 @@ public class StockfishExtension {
         } else {
             isMove0AnalysisScheduled = false;
             lastLoadedMove0Fen = null;
+            isMove0AnalysisCompleted = false;
         }
         MoveClassifier.updateHistory(fen, positionObject);
         if (activity != null && stateImplObject != null) {
@@ -695,6 +750,9 @@ public class StockfishExtension {
         }
 
         if (!isFinal) return;
+        if (isStartPos) {
+            isMove0AnalysisCompleted = true;
+        }
         OverlayManager.hideMateAnnouncement();
     }
 
@@ -792,6 +850,7 @@ public class StockfishExtension {
                 lastScheduledKey = null;
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
+                isMove0AnalysisCompleted = false;
 
                 setupGameOverWatchdog(activity);
 
@@ -809,7 +868,7 @@ public class StockfishExtension {
                                     if (activity.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
                                     if (!isGameOver(activity)) {
                                         boolean loaded = tryLoadMove0(activity);
-                                        if (loaded && OverlayManager.hasArrows()) {
+                                        if (loaded && (OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
                                             android.os.Handler curH = getMove0RetryHandler();
                                             if (curH != null) curH.removeCallbacksAndMessages(null);
                                         }
@@ -832,6 +891,7 @@ public class StockfishExtension {
                 stopGameOverWatchdog();
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
+                isMove0AnalysisCompleted = false;
                 android.os.Handler ph = getMove0RetryHandler();
                 if (ph != null) ph.removeCallbacksAndMessages(null);
             }
@@ -847,6 +907,7 @@ public class StockfishExtension {
                 stopGameOverWatchdog();
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
+                isMove0AnalysisCompleted = false;
                 android.os.Handler dh = getMove0RetryHandler();
                 if (dh != null) dh.removeCallbacksAndMessages(null);
             }
@@ -890,6 +951,9 @@ public class StockfishExtension {
                     }
                     unlockScreenshots(activity);
                     boolean over = checkAndHandleGameOver(activity);
+                    if (!over && !isReviewOrAnalysisActivity(activity)) {
+                        checkAndTriggerMove0Watchdog(activity);
+                    }
                     android.os.Handler wh = getWatchdogHandler();
                     if (wh != null) wh.postDelayed(this, over ? 500 : 300);
                 } catch (Throwable ignored) {}
@@ -897,6 +961,27 @@ public class StockfishExtension {
         };
         android.os.Handler wh = getWatchdogHandler();
         if (wh != null) wh.postDelayed(gameOverWatchdogRunnable, 300);
+    }
+
+    public static void checkAndTriggerMove0Watchdog(Activity activity) {
+        if (activity == null || isReviewOrAnalysisActivity(activity) || isGameOver(activity)) return;
+        if (activity.getWindow() == null || activity.getWindow().getDecorView() == null) return;
+        View boardView = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
+        if (boardView == null) return;
+        Object pos = extractPositionFromBoardView(boardView);
+        if (pos == null) return;
+        String fen = extractFen(pos);
+        if (fen == null) return;
+        boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        if (isMove0 && !OverlayManager.hasArrows() && !isMove0AnalysisCompleted) {
+            if (currentJob != null && !currentJob.isDone()) {
+                return; // Analysis currently running, do not interrupt
+            }
+            if (pendingPositionObject != null) {
+                return; // Waiting for engine initialization
+            }
+            tryLoadMove0(activity);
+        }
     }
 
     private static void stopGameOverWatchdog() {
@@ -924,6 +1009,7 @@ public class StockfishExtension {
                 lastGameOverHandled = true;
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
+                isMove0AnalysisCompleted = false;
                 OverlayManager.hideArrowOverlay(true);
                 ArrowInjector.clearEngineArrows(getStateImpl());
                 StockfishBridge.stopSearch();
@@ -943,6 +1029,7 @@ public class StockfishExtension {
                 lastGameOverHandled = false;
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
+                isMove0AnalysisCompleted = false;
                 lastArrowSignature = null;
                 lastScheduledKey = null;
                 unlockScreenshots(activity);
@@ -967,8 +1054,8 @@ public class StockfishExtension {
         if (fen == null) return false;
 
         boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
-            return true; // Already loaded, scheduled and visibly rendered!
+        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && (OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
+            return true; // Already loaded, scheduled and visibly rendered or analysis completed!
         }
 
         onBoardChanged(getStateImpl(), pos);
@@ -1298,8 +1385,8 @@ public class StockfishExtension {
                 String fen = extractFen(pos);
                 if (fen != null) {
                     boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
-                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và đã có mũi tên, bỏ qua gọi lặp lại.");
+                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && (OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
+                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và đã có mũi tên hoặc phân tích hoàn tất, bỏ qua gọi lặp lại.");
                         return;
                     }
                 }

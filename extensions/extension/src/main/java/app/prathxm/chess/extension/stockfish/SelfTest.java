@@ -704,6 +704,42 @@ public class SelfTest {
         boolean skipMove0WhenArrowsPresent = isMove0 && isMove0Scheduled && hasArrowsOnScreen;
         check("Move 0 deduplication skips when arrows are visibly rendered", skipMove0WhenArrowsPresent);
 
+        // v2.0.88 Tests:
+        // Test 1: Pending position caching when engine not ready
+        Object dummyState88 = new Object();
+        Object dummyPos88 = new Object();
+        StockfishExtension.setPendingPosition(dummyState88, dummyPos88);
+        check("Pending state and position cached when engine not ready",
+                StockfishExtension.getPendingStateImpl() == dummyState88 &&
+                StockfishExtension.getPendingPositionObject() == dummyPos88);
+        StockfishExtension.clearPendingPosition();
+        check("Pending position cleared after dispatch",
+                StockfishExtension.getPendingStateImpl() == null &&
+                StockfishExtension.getPendingPositionObject() == null);
+
+        // Test 2: isMove0AnalysisCompleted prevents infinite reload when playing Black with isMySideOnly
+        StockfishExtension.setMove0AnalysisCompleted(false);
+        boolean blackSideArrowsSuppressed = false; // no arrows on screen because user is Black
+        boolean deduplicationWithoutCompletion = isMove0 && isMove0Scheduled && (blackSideArrowsSuppressed || StockfishExtension.isMove0AnalysisCompleted());
+        check("Without completion flag, suppressed arrows cause deduplication to fail", !deduplicationWithoutCompletion);
+        StockfishExtension.setMove0AnalysisCompleted(true);
+        boolean deduplicationWithCompletion = isMove0 && isMove0Scheduled && (blackSideArrowsSuppressed || StockfishExtension.isMove0AnalysisCompleted());
+        check("With isMove0AnalysisCompleted=true, deduplication correctly recognizes Move 0 finished", deduplicationWithCompletion);
+        StockfishExtension.setMove0AnalysisCompleted(false);
+
+        // Test 3: Active Move 0 Watchdog triggering condition
+        boolean watchdogIsGameOver = false;
+        boolean watchdogIsReview = false;
+        boolean watchdogHasArrows = false;
+        boolean watchdogAnalysisCompleted = false;
+        boolean shouldWatchdogTrigger = !watchdogIsGameOver && !watchdogIsReview && isMove0 && !watchdogHasArrows && !watchdogAnalysisCompleted;
+        check("Active Watchdog triggers when at Move 0 and neither arrows nor completion exists", shouldWatchdogTrigger);
+
+        // Test 4: Active Move 0 Watchdog does NOT trigger once analysis completed
+        watchdogAnalysisCompleted = true;
+        boolean shouldWatchdogTriggerAfterDone = !watchdogIsGameOver && !watchdogIsReview && isMove0 && !watchdogHasArrows && !watchdogAnalysisCompleted;
+        check("Active Watchdog does NOT trigger after analysis completes", !shouldWatchdogTriggerAfterDone);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

@@ -644,7 +644,7 @@ public class OverlayManager {
                                            int oldLeft, int oldTop, int oldRight, int oldBottom) {
                     if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
                         invalidateArrowOverlay();
-                        if (!hasArrows()) {
+                        if (!hasArrows() && !StockfishExtension.isMove0AnalysisCompleted()) {
                             new Handler(Looper.getMainLooper()).post(new Runnable() {
                                 @Override
                                 public void run() {
