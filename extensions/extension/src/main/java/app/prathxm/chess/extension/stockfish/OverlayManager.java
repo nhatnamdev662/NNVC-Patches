@@ -746,6 +746,15 @@ public class OverlayManager {
     }
 
     public static boolean isBoardFlipped(View boardView, Object stateImpl) {
+        // Priority 0: Consult StockfishExtension.isUserWhite() if user is definitively known to be Black
+        try {
+            Boolean userWhite = StockfishExtension.isUserWhite(stateImpl);
+            if (Boolean.FALSE.equals(userWhite)) {
+                lastKnownFlipped = true;
+                return true;
+            }
+        } catch (Throwable ignored) {}
+
         if (boardView != null) {
             try {
                 for (Method m : boardView.getClass().getMethods()) {

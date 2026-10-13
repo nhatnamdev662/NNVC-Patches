@@ -788,6 +788,31 @@ public class SelfTest {
         boolean liveMove0Completed = !liveShowArrows; // marked complete so watchdog doesn't loop
         check("Suppressed Move 0 for Black marks analysis completed cleanly", liveMove0Completed);
 
+        // Test 4: String input directly supported by extractFen
+        String rawFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        check("extractFen accepts raw valid FEN string directly", rawFen.equals(StockfishExtension.extractFen(rawFen)));
+
+        // Test 5: extractPositionFromViewModel unpacking state with getPosition
+        final Object mockTargetPos = new Object() {
+            public String o() {
+                return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+            }
+        };
+        final Object mockState = new Object() {
+            public Object getPosition() {
+                return mockTargetPos;
+            }
+        };
+        Object mockCbVm = new Object() {
+            public Object getState() {
+                return mockState;
+            }
+        };
+        Object extractedPos = StockfishExtension.extractPositionFromViewModel(mockCbVm);
+        check("extractPositionFromViewModel unpacks CBViewModel -> State -> Position", extractedPos == mockTargetPos);
+        check("Extracted position from VM yields valid FEN",
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".equals(StockfishExtension.extractFen(extractedPos)));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

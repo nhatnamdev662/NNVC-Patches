@@ -1408,6 +1408,38 @@ public class StockfishExtension {
         return null;
     }
 
+    public static Object extractPositionFromViewModel(Object vm) {
+        if (vm == null) return null;
+        try {
+            // 1. Try vm.getState() -> state.getPosition() / state.a()
+            Method getState = null;
+            try {
+                getState = vm.getClass().getMethod("getState");
+            } catch (NoSuchMethodException ignored) {}
+            if (getState != null) {
+                Object state = getState.invoke(vm);
+                if (state != null) {
+                    stateImplRef.set(new WeakReference<>(state));
+                    Object pos = resolveVariantPosition(state);
+                    if (pos != null) return pos;
+                }
+            }
+            // 2. Try vm.getPosition() directly
+            try {
+                Method getPos = vm.getClass().getMethod("getPosition");
+                Object pos = getPos.invoke(vm);
+                if (pos != null) {
+                    Object resolved = resolveVariantPosition(pos);
+                    if (resolved != null) return resolved;
+                }
+            } catch (Throwable ignored) {}
+            // 3. Fallback to resolveVariantPosition on vm itself
+            Object res = resolveVariantPosition(vm);
+            if (res != null) return res;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
     public static Object extractPositionFromActivity(Activity activity) {
         if (activity == null) return null;
         try {
@@ -1445,7 +1477,7 @@ public class StockfishExtension {
                         Method getMethod = prov.getClass().getMethod("get");
                         Object cbVm = getMethod.invoke(prov);
                         if (cbVm != null) {
-                            Object pos = resolveVariantPosition(cbVm);
+                            Object pos = extractPositionFromViewModel(cbVm);
                             if (pos != null) return pos;
                         }
                     }
@@ -1458,7 +1490,32 @@ public class StockfishExtension {
                             vf.setAccessible(true);
                             Object delegate = vf.get(vm);
                             if (delegate != null) {
-                                Object pos = resolveVariantPosition(delegate);
+                                // delegate can have boardViewModel field (j) or q()
+                                try {
+                                    Method dm = delegate.getClass().getMethod("q");
+                                    Object prov = dm.invoke(delegate);
+                                    if (prov != null) {
+                                        Method getMethod = prov.getClass().getMethod("get");
+                                        Object cbVm = getMethod.invoke(prov);
+                                        if (cbVm != null) {
+                                            Object pos = extractPositionFromViewModel(cbVm);
+                                            if (pos != null) return pos;
+                                        }
+                                    }
+                                } catch (Throwable ignored) {}
+                                for (Field df : delegate.getClass().getDeclaredFields()) {
+                                    if (df.getName().equals("boardViewModel") || df.getName().equals("j")) {
+                                        try {
+                                            df.setAccessible(true);
+                                            Object cbVm = df.get(delegate);
+                                            if (cbVm != null) {
+                                                Object pos = extractPositionFromViewModel(cbVm);
+                                                if (pos != null) return pos;
+                                            }
+                                        } catch (Throwable ignored) {}
+                                    }
+                                }
+                                Object pos = extractPositionFromViewModel(delegate);
                                 if (pos != null) return pos;
                             }
                         } catch (Throwable ignored) {}
@@ -1480,6 +1537,27 @@ public class StockfishExtension {
                     } catch (Throwable ignored) {}
                 }
             }
+
+            // Priority D: Fallback to RealGameUiSetup startingFen via activity.N6() or Intent
+            try {
+                Method n6 = activity.getClass().getMethod("N6");
+                Object uiSetup = n6.invoke(activity);
+                if (uiSetup != null) {
+                    try {
+                        Method getFen = uiSetup.getClass().getMethod("getStartingFen");
+                        Object fenObj = getFen.invoke(uiSetup);
+                        if (fenObj instanceof String) {
+                            String sFen = (String) fenObj;
+                            if (sFen.length() > 0) {
+                                String sanitized = sanitizeFen(sFen);
+                                if (sanitized != null) return sanitized;
+                            } else {
+                                return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
         } catch (Throwable ignored) {}
         return null;
     }
@@ -1703,6 +1781,32 @@ public class StockfishExtension {
                     }
                 }
             }
+            if (act != null) {
+                // Fallback: RealGameActivity X6() -> q().get() -> getState()
+                Object vm = null;
+                try {
+                    Method x6 = act.getClass().getMethod("X6");
+                    vm = x6.invoke(act);
+                } catch (Throwable ignored) {}
+                if (vm != null) {
+                    try {
+                        Method qMethod = vm.getClass().getMethod("q");
+                        Object prov = qMethod.invoke(vm);
+                        if (prov != null) {
+                            Method getMethod = prov.getClass().getMethod("get");
+                            Object cbVm = getMethod.invoke(prov);
+                            if (cbVm != null) {
+                                Method getState = cbVm.getClass().getMethod("getState");
+                                Object state = getState.invoke(cbVm);
+                                if (state != null) {
+                                    stateImplRef.set(new WeakReference<>(state));
+                                    return state;
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
         } catch (Throwable ignored) {}
         return null;
     }
@@ -1714,51 +1818,8 @@ public class StockfishExtension {
     }
 
     public static Boolean isUserWhite(Object stateImplObject) {
-        // Priority 1: Check live board orientation directly from active ChessBoardView
-        try {
-            Activity act = getCurrentActivity();
-            if (act != null && act.getWindow() != null && act.getWindow().getDecorView() != null) {
-                View bv = OverlayManager.findChessBoardView(act.getWindow().getDecorView());
-                if (bv != null) {
-                    for (Method m : bv.getClass().getMethods()) {
-                        String n = m.getName();
-                        if ((n.equals("getFlipBoard") || n.equals("isFlipped") || n.equals("getFlipped"))
-                                && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
-                            boolean flipped = (boolean) m.invoke(bv);
-                            boolean userWhite = !flipped;
-                            cachedUserIsWhite = userWhite;
-                            return userWhite;
-                        }
-                    }
-                }
-            }
-        } catch (Throwable ignored) {}
-
-        // Priority 2: Check live board orientation via stateImplObject getFlipBoard()
-        if (stateImplObject != null) {
-            try {
-                for (Method m : stateImplObject.getClass().getMethods()) {
-                    String n = m.getName();
-                    if ((n.equals("getFlipBoard") || n.equals("isFlipped") || n.equals("getFlipped"))
-                            && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
-                        boolean flipped = (boolean) m.invoke(stateImplObject);
-                        boolean userWhite = !flipped;
-                        cachedUserIsWhite = userWhite;
-                        return userWhite;
-                    }
-                }
-            } catch (Throwable ignored) {}
-        }
-
-        // Priority 3: Check live board orientation via OverlayManager (which checks ChessBoardView)
-        try {
-            boolean flipped = OverlayManager.isBoardFlipped(stateImplObject);
-            boolean userWhite = !flipped;
-            cachedUserIsWhite = userWhite;
-            return userWhite;
-        } catch (Throwable ignored) {}
-
-        // Priority 4: Inspect userSide directly from RealGameActivity / RealGameViewModel / RealGameUiSetup
+        // Priority 1: Inspect userSide directly from RealGameActivity / RealGameViewModel / RealGameUiSetup
+        // (CRITICAL: In live match Move 0, flipBoard defaults to false before layout! userSide from Intent/ViewModel is the source of truth)
         try {
             Activity act = getCurrentActivity();
             if (act != null) {
@@ -1817,6 +1878,50 @@ public class StockfishExtension {
             }
         } catch (Throwable ignored) {}
 
+        // Priority 2: Check live board orientation directly from active ChessBoardView
+        try {
+            Activity act = getCurrentActivity();
+            if (act != null && act.getWindow() != null && act.getWindow().getDecorView() != null) {
+                View bv = OverlayManager.findChessBoardView(act.getWindow().getDecorView());
+                if (bv != null) {
+                    for (Method m : bv.getClass().getMethods()) {
+                        String n = m.getName();
+                        if ((n.equals("getFlipBoard") || n.equals("isFlipped") || n.equals("getFlipped"))
+                                && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
+                            boolean flipped = (boolean) m.invoke(bv);
+                            boolean userWhite = !flipped;
+                            cachedUserIsWhite = userWhite;
+                            return userWhite;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // Priority 3: Check live board orientation via stateImplObject getFlipBoard()
+        if (stateImplObject != null) {
+            try {
+                for (Method m : stateImplObject.getClass().getMethods()) {
+                    String n = m.getName();
+                    if ((n.equals("getFlipBoard") || n.equals("isFlipped") || n.equals("getFlipped"))
+                            && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
+                        boolean flipped = (boolean) m.invoke(stateImplObject);
+                        boolean userWhite = !flipped;
+                        cachedUserIsWhite = userWhite;
+                        return userWhite;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        // Priority 4: Check live board orientation via OverlayManager (which checks ChessBoardView)
+        try {
+            boolean flipped = OverlayManager.isBoardFlipped(stateImplObject);
+            boolean userWhite = !flipped;
+            cachedUserIsWhite = userWhite;
+            return userWhite;
+        } catch (Throwable ignored) {}
+
         // Priority 5: Fall back to previously cached game orientation
         if (cachedUserIsWhite != null) {
             return cachedUserIsWhite;
@@ -1871,6 +1976,10 @@ public class StockfishExtension {
      */
     public static String extractFen(Object position) {
         if (position == null) return null;
+        if (position instanceof String) {
+            String s = sanitizeFen((String) position);
+            if (s != null) return s;
+        }
         String full = fullFen(position);
         if (full != null) return full;
         return assembleFen(position);
