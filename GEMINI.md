@@ -9,6 +9,20 @@ khi không có đầy đủ dữ liệu để làm hoặc cải thiện tính n�
 ---
 
 ## Nhật ký cập nhật phiên bản
+### v2.0.93 (2026-10-13)
+- **Cập Nhật Phiên Bản Mới Tránh Cache (Xóa Triệt Để Cache Cũ, Danh Hiệu Real-Time & Extension Style Selector)**:
+  - **Bump Phiên Bản Chính Thức v2.0.93 (versionCode 20093)**: Đẩy phiên bản lên `2.0.93` nhằm kích hoạt Morphe Patcher và Chess.com tải bản mới nhất, tránh lỗi nuốt cache cũ của v2.0.92.
+  - **Giao Diện Chọn Danh Hiệu Phong Cách Extension Cực Gọn & Đẹp (`StockfishSettingsDialog.java`)**:
+    - Thay thế cụm 6 nút chip to chiếm 2 dòng bằng 1 hàng duy nhất: `Chọn Danh Hiệu` + selector `[ GM ▾ ]` viền đỏ cờ vua.
+    - Popup Modal 10 danh hiệu chuẩn FIDE/Chess.com với preview badge đỏ rực rỡ và dấu tick xanh `✓`.
+  - **Real-Time 100% & Offline Tuyệt Đối Không Tải File Mạng (`CustomTitlesExtension.java`)**:
+    - Loại bỏ hoàn toàn link tải JSON từ GitHub, xử lý 100% local trong RAM/SharedPreferences.
+    - Tự động invalidate DecorView và khi đóng settings tự động `activity.recreate()` để áp dụng ngay lập tức danh hiệu mới trên toàn bộ giao diện app.
+  - **Dọn Dẹp Dead Code**: Xóa bỏ hoàn toàn hàm dư thừa `getAnalysisPermission` trong `StockfishExtension.java`.
+  - **Xóa Bỏ Triệt Để Icon Kim Cương**: Loại bỏ 100% icon kim cương trên toàn bộ ứng dụng.
+  - Bộ kiểm thử tự động `SelfTest`: 167/167 test cases vượt qua thành công (100% passed).
+  - Biên dịch sạch 45 file Java Extension thành `extension.mpe` (2,803,132 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (94,860 bytes), đóng gói thành công `patches-2.0.93.mpp` (227,467,505 bytes).
+
 ### v2.0.92 (2026-10-13)
 - **Ra Mắt Danh Hiệu Người Dùng Native (Fake Title Real-Time & Extension Style Selector) & Xóa Bỏ Triệt Để Icon Kim Cương**:
   - **Giao Diện Chọn Danh Hiệu Phong Cách Extension Cực Gọn & Đẹp (`StockfishSettingsDialog.java`)**:
