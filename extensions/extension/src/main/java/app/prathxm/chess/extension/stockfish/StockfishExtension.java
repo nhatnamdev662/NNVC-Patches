@@ -444,8 +444,10 @@ public class StockfishExtension {
             lastLoadedMove0Fen = fen;
             isMove0AnalysisScheduled = true;
             isMove0AnalysisCompleted = false;
-            android.os.Handler h = getMove0RetryHandler();
-            if (h != null) h.removeCallbacksAndMessages(null);
+            if (OverlayManager.hasArrows() || isMove0AnalysisCompleted) {
+                android.os.Handler h = getMove0RetryHandler();
+                if (h != null) h.removeCallbacksAndMessages(null);
+            }
 
             OverlayManager.clearClassificationBadge();
             OverlayManager.hideArrowOverlay();
@@ -977,33 +979,104 @@ public class StockfishExtension {
         if (wh != null) wh.postDelayed(gameOverWatchdogRunnable, 300);
     }
 
+    private static volatile long lastMove0SmoothScanTime = 0L;
+    private static volatile boolean isEvalBarEvaluatedForMove0 = false;
+
     public static void checkAndTriggerMove0Watchdog(Activity activity) {
         if (activity == null || isReviewOrAnalysisActivity(activity) || isGameOver(activity)) return;
+        if (!StockfishSettings.isEngineEnabled(activity)) return;
         if (activity.getWindow() == null || activity.getWindow().getDecorView() == null) return;
-        View boardView = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
+
+        View decor = activity.getWindow().getDecorView();
+        if (!(decor instanceof ViewGroup)) return;
+        ViewGroup decorView = (ViewGroup) decor;
+
+        // 1. Geometry & Layout Check: Board MUST be physically measured and visible on screen
+        // (Guards against early triggering during matchmaking spinner / 0x0 layout, preventing any flicker)
+        OverlayManager.BoardMetrics bm = OverlayManager.getBoardMetrics(decorView);
+        if (bm == null || bm.boardW <= 0 || bm.boardH <= 0) return;
+
+        // 2. Extract position
         Object pos = null;
-        if (boardView != null) {
-            pos = extractPositionFromBoardView(boardView);
+        if (bm.boardView != null) {
+            pos = extractPositionFromBoardView(bm.boardView);
         }
         if (pos == null) {
             pos = extractPositionFromActivity(activity);
         }
+        if (pos == null) {
+            Object state = getStateImpl();
+            if (state != null) {
+                try {
+                    Method getPos = state.getClass().getMethod("getPosition");
+                    pos = getPos.invoke(state);
+                } catch (Throwable ignored) {}
+            }
+        }
         if (pos == null) return;
         String fen = extractFen(pos);
         if (fen == null) return;
+
         boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-        if (isMove0 && !OverlayManager.hasArrows() && !isMove0AnalysisCompleted) {
-            if (currentJob != null && !currentJob.isDone()) {
-                return; // Analysis currently running, do not interrupt
-            }
-            if (!engineReady) {
-                ensureEngineReady();
-                if (isInitializing || pendingPositionObject != null) {
-                    return; // Waiting for engine initialization
-                }
-            }
-            tryLoadMove0(activity);
+        if (!isMove0) {
+            // Already progressed to Move 1+
+            isMove0AnalysisScheduled = false;
+            isMove0AnalysisCompleted = false;
+            isEvalBarEvaluatedForMove0 = false;
+            return;
         }
+
+        // 3. Eval Bar initialization for Move 0 (Smooth - zero flicker)
+        Context ctx = getContext();
+        if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx) && !isEvalBarEvaluatedForMove0) {
+            isEvalBarEvaluatedForMove0 = true;
+            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, java.util.Collections.<String>emptyList());
+        }
+
+        // 4. Check if arrows are desired on Move 0
+        Boolean userWhite = isUserWhite(getStateImpl());
+        boolean isWhiteTurn = isWhiteTurnFromFen(fen); // true for startpos
+        boolean isMyTurn = (userWhite == null) || (isWhiteTurn == userWhite.booleanValue());
+        boolean showArrows = StockfishSettings.isArrowsVisible(activity);
+        if (showArrows && StockfishSettings.isMySideOnly(activity) && !isMyTurn) {
+            showArrows = false; // User plays Black with isMySideOnly enabled
+        }
+
+        if (!showArrows) {
+            return;
+        }
+
+        // 5. ROCK-SOLID ANTI-FLICKER: If arrows are ALREADY on screen, NEVER re-trigger or reload!
+        if (OverlayManager.hasArrows()) {
+            isMove0AnalysisCompleted = true;
+            return;
+        }
+
+        // 6. If engine is currently computing, let it complete
+        if (currentJob != null && !currentJob.isDone()) {
+            return;
+        }
+
+        // 7. Ensure engine is ready
+        if (!engineReady) {
+            ensureEngineReady();
+            if (isInitializing || pendingPositionObject != null) {
+                return;
+            }
+        }
+
+        // 8. Cooldown debounce (600ms)
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - lastMove0SmoothScanTime < 600) {
+            return;
+        }
+        lastMove0SmoothScanTime = now;
+
+        // 9. Smooth Trigger: Exactly like changing Elo/Depth, re-runs play search without wiping Eval Bar or Widget!
+        Log.i(TAG, "[MOVE 0 SMOOTH SCAN] Bàn cờ Move 0 đã sẵn sàng nhưng chưa có mũi tên. Đang kích hoạt phân tích êm dịu...");
+        lastArrowSignature = null;
+        lastScheduledKey = null;
+        scheduleAnalysis(fen, true);
     }
 
     private static void stopGameOverWatchdog() {
@@ -1691,6 +1764,9 @@ public class StockfishExtension {
                     }
                 }
             } catch (Throwable ignored) {}
+        }
+        if (positionObject == null && act != null) {
+            positionObject = extractPositionFromActivity(act);
         }
 
         if (positionObject != null) {

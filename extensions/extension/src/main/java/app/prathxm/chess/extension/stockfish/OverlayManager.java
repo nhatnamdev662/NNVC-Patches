@@ -648,7 +648,7 @@ public class OverlayManager {
                                 public void run() {
                                     Activity act = StockfishExtension.getCurrentActivity();
                                     if (act != null && !StockfishExtension.isGameOver(act) && !StockfishExtension.isReviewOrAnalysisActivity(act)) {
-                                        StockfishExtension.tryLoadMove0(act);
+                                        StockfishExtension.checkAndTriggerMove0Watchdog(act);
                                     }
                                 }
                             });

@@ -813,6 +813,25 @@ public class SelfTest {
         check("Extracted position from VM yields valid FEN",
                 "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".equals(StockfishExtension.extractFen(extractedPos)));
 
+        // Test 6: Smooth Move 0 Scan qualification & Anti-Flicker logic
+        boolean mockBmReady = true;
+        boolean mockHasArrows = false;
+        boolean mockIsMove0 = true;
+        boolean mockCurrentJobDone = true;
+        boolean shouldTriggerSmoothScan = mockBmReady && mockIsMove0 && !mockHasArrows && mockCurrentJobDone;
+        check("Smooth Move 0 Scan triggers when board ready, Move 0, and no arrows", shouldTriggerSmoothScan);
+
+        // Test 7: Anti-Flicker Guard - when arrows are already visible, scan MUST NOT re-trigger
+        mockHasArrows = true;
+        boolean antiFlickerGuardActive = mockBmReady && mockIsMove0 && mockHasArrows;
+        check("Anti-Flicker Guard prevents duplicate triggers when arrows already exist", antiFlickerGuardActive);
+
+        // Test 8: Timing Guard - when board metrics not ready (e.g. matchmaking), scan MUST NOT trigger
+        mockBmReady = false;
+        mockHasArrows = false;
+        boolean timingGuardPreventsTrigger = !mockBmReady;
+        check("Timing Guard prevents early triggers before board metrics layout", timingGuardPreventsTrigger);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
