@@ -234,4 +234,231 @@ public final class BoardUtil {
         }
         return endDown;
     }
+
+    /**
+     * Checks if a square is attacked by pieces of the specified color.
+     */
+    public static boolean isSquareAttacked(char[] b, int sq, boolean byWhite) {
+        if (b == null || sq < 0 || sq >= 64) return false;
+        int r = sq / 8;
+        int f = sq % 8;
+
+        // 1. Pawns
+        if (byWhite) {
+            int pr = r + 1;
+            if (pr < 8) {
+                if (f > 0 && b[pr * 8 + (f - 1)] == 'P') return true;
+                if (f < 7 && b[pr * 8 + (f + 1)] == 'P') return true;
+            }
+        } else {
+            int pr = r - 1;
+            if (pr >= 0) {
+                if (f > 0 && b[pr * 8 + (f - 1)] == 'p') return true;
+                if (f < 7 && b[pr * 8 + (f + 1)] == 'p') return true;
+            }
+        }
+
+        // 2. Knights
+        int[] knightOffsets = {-17, -15, -10, -6, 6, 10, 15, 17};
+        char targetKnight = byWhite ? 'N' : 'n';
+        for (int off : knightOffsets) {
+            int nsq = sq + off;
+            if (nsq >= 0 && nsq < 64) {
+                int nr = nsq / 8;
+                int nf = nsq % 8;
+                if (Math.abs(nr - r) <= 2 && Math.abs(nf - f) <= 2 && b[nsq] == targetKnight) {
+                    return true;
+                }
+            }
+        }
+
+        // 3. Diagonal rays (Bishop, Queen)
+        int[][] diagDirs = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+        char targetBishop = byWhite ? 'B' : 'b';
+        char targetQueen = byWhite ? 'Q' : 'q';
+        for (int[] dir : diagDirs) {
+            int dr = dir[0], df = dir[1];
+            for (int step = 1; step < 8; step++) {
+                int nr = r + dr * step;
+                int nf = f + df * step;
+                if (nr < 0 || nr >= 8 || nf < 0 || nf >= 8) break;
+                char p = b[nr * 8 + nf];
+                if (p != '.') {
+                    if (p == targetBishop || p == targetQueen) return true;
+                    break;
+                }
+            }
+        }
+
+        // 4. Straight rays (Rook, Queen)
+        int[][] straightDirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        char targetRook = byWhite ? 'R' : 'r';
+        for (int[] dir : straightDirs) {
+            int dr = dir[0], df = dir[1];
+            for (int step = 1; step < 8; step++) {
+                int nr = r + dr * step;
+                int nf = f + df * step;
+                if (nr < 0 || nr >= 8 || nf < 0 || nf >= 8) break;
+                char p = b[nr * 8 + nf];
+                if (p != '.') {
+                    if (p == targetRook || p == targetQueen) return true;
+                    break;
+                }
+            }
+        }
+
+        // 5. King
+        char targetKing = byWhite ? 'K' : 'k';
+        for (int dr = -1; dr <= 1; dr++) {
+            for (int df = -1; df <= 1; df++) {
+                if (dr == 0 && df == 0) continue;
+                int nr = r + dr;
+                int nf = f + df;
+                if (nr >= 0 && nr < 8 && nf >= 0 && nf < 8 && b[nr * 8 + nf] == targetKing) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if the King of the specified color is currently in check.
+     */
+    public static boolean isKingInCheck(char[] b, boolean white) {
+        if (b == null) return false;
+        char target = white ? 'K' : 'k';
+        int kingSq = -1;
+        for (int i = 0; i < 64; i++) {
+            if (b[i] == target) {
+                kingSq = i;
+                break;
+            }
+        }
+        if (kingSq < 0) return false;
+        return isSquareAttacked(b, kingSq, !white);
+    }
+
+    /**
+     * Counts legal moves for the specified side, short-circuiting once maxCount is reached.
+     */
+    public static int countLegalMoves(char[] b, boolean white, int maxCount) {
+        if (b == null) return 0;
+        int count = 0;
+        int[] targets = new int[64];
+
+        for (int sq = 0; sq < 64; sq++) {
+            char p = b[sq];
+            if (p == '.' || Character.isUpperCase(p) != white) continue;
+            int r = sq / 8;
+            int f = sq % 8;
+            char lp = Character.toLowerCase(p);
+            int targetCount = 0;
+
+            if (lp == 'p') {
+                int dir = white ? -1 : 1;
+                int startRow = white ? 6 : 1;
+                int nr = r + dir;
+                if (nr >= 0 && nr < 8 && b[nr * 8 + f] == '.') {
+                    targets[targetCount++] = nr * 8 + f;
+                    int nnr = r + 2 * dir;
+                    if (r == startRow && b[nnr * 8 + f] == '.') {
+                        targets[targetCount++] = nnr * 8 + f;
+                    }
+                }
+                for (int df = -1; df <= 1; df += 2) {
+                    int nf = f + df;
+                    if (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+                        char cap = b[nr * 8 + nf];
+                        if (cap != '.' && Character.isUpperCase(cap) != white) {
+                            targets[targetCount++] = nr * 8 + nf;
+                        }
+                    }
+                }
+            } else if (lp == 'n') {
+                int[] knightOffsets = {-17, -15, -10, -6, 6, 10, 15, 17};
+                for (int off : knightOffsets) {
+                    int nsq = sq + off;
+                    if (nsq >= 0 && nsq < 64) {
+                        int nr = nsq / 8, nf = nsq % 8;
+                        if (Math.abs(nr - r) <= 2 && Math.abs(nf - f) <= 2) {
+                            char dest = b[nsq];
+                            if (dest == '.' || Character.isUpperCase(dest) != white) {
+                                targets[targetCount++] = nsq;
+                            }
+                        }
+                    }
+                }
+            } else if (lp == 'b' || lp == 'q') {
+                int[][] diagDirs = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+                for (int[] dir : diagDirs) {
+                    int dr = dir[0], df = dir[1];
+                    for (int step = 1; step < 8; step++) {
+                        int nr = r + dr * step, nf = f + df * step;
+                        if (nr < 0 || nr >= 8 || nf < 0 || nf >= 8) break;
+                        int nsq = nr * 8 + nf;
+                        char dest = b[nsq];
+                        if (dest == '.') {
+                            targets[targetCount++] = nsq;
+                        } else {
+                            if (Character.isUpperCase(dest) != white) targets[targetCount++] = nsq;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (lp == 'r' || lp == 'q') {
+                int[][] straightDirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+                for (int[] dir : straightDirs) {
+                    int dr = dir[0], df = dir[1];
+                    for (int step = 1; step < 8; step++) {
+                        int nr = r + dr * step, nf = f + df * step;
+                        if (nr < 0 || nr >= 8 || nf < 0 || nf >= 8) break;
+                        int nsq = nr * 8 + nf;
+                        char dest = b[nsq];
+                        if (dest == '.') {
+                            targets[targetCount++] = nsq;
+                        } else {
+                            if (Character.isUpperCase(dest) != white) targets[targetCount++] = nsq;
+                            break;
+                        }
+                    }
+                }
+            } else if (lp == 'k') {
+                for (int dr = -1; dr <= 1; dr++) {
+                    for (int df = -1; df <= 1; df++) {
+                        if (dr == 0 && df == 0) continue;
+                        int nr = r + dr, nf = f + df;
+                        if (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+                            int nsq = nr * 8 + nf;
+                            char dest = b[nsq];
+                            if (dest == '.' || Character.isUpperCase(dest) != white) {
+                                targets[targetCount++] = nsq;
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < targetCount; i++) {
+                int tsq = targets[i];
+                char[] cloned = b.clone();
+                cloned[tsq] = cloned[sq];
+                cloned[sq] = '.';
+                if (!isKingInCheck(cloned, white)) {
+                    count++;
+                    if (count >= maxCount) return count;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Returns true if and only if the specified side has EXACTLY 1 legal move in total.
+     */
+    public static boolean isOnlyLegalMove(char[] b, boolean white) {
+        return countLegalMoves(b, white, 2) == 1;
+    }
 }

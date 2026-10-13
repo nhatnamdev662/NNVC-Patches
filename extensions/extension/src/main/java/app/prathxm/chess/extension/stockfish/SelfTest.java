@@ -832,6 +832,31 @@ public class SelfTest {
         boolean timingGuardPreventsTrigger = !mockBmReady;
         check("Timing Guard prevents early triggers before board metrics layout", timingGuardPreventsTrigger);
 
+        // Test 9: BoardUtil.isKingInCheck detection
+        char[] startposBoard = BoardUtil.parseBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        check("Startpos King is not in check", !BoardUtil.isKingInCheck(startposBoard, true) && !BoardUtil.isKingInCheck(startposBoard, false));
+        char[] scholarsCheckBoard = BoardUtil.parseBoard("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4");
+        check("Black King is in check by Qh7", BoardUtil.isKingInCheck(scholarsCheckBoard, false));
+
+        // Test 10: BoardUtil.isOnlyLegalMove detection (single escape move vs multiple moves)
+        char[] singleMoveBoard = BoardUtil.parseBoard("4Q2k/6Pp/8/8/8/8/8/6K1 b - - 0 1");
+        check("Only legal move detected correctly when King in check has 1 move",
+                BoardUtil.isKingInCheck(singleMoveBoard, false) && BoardUtil.isOnlyLegalMove(singleMoveBoard, false));
+        char[] multiMoveBoard = BoardUtil.parseBoard("4k3/3p1p2/8/4Q3/8/8/8/6K1 b - - 0 1");
+        check("Multiple legal moves correctly rejected as not only-move",
+                BoardUtil.isKingInCheck(multiMoveBoard, false) && !BoardUtil.isOnlyLegalMove(multiMoveBoard, false));
+
+        // Test 11: Premove Case 2 - Opponent in check with only move -> Premove userReply
+        boolean testOppInCheckOnlyMove = BoardUtil.isKingInCheck(singleMoveBoard, false) && BoardUtil.isOnlyLegalMove(singleMoveBoard, false);
+        check("Premove triggers when checking opponent and opponent has only 1 legal move", testOppInCheckOnlyMove);
+
+        // Test 12: Premove Case 3 - Opponent move puts user in check with only 1 escape move -> Premove userReply
+        char[] beforeCheckBoard = BoardUtil.parseBoard("7k/6Pp/8/8/8/8/4Q3/6K1 w - - 0 1");
+        char[] afterCheckBoard = beforeCheckBoard.clone();
+        BoardUtil.apply(afterCheckBoard, "e2e8");
+        boolean testUserInCheckOnlyMove = BoardUtil.isKingInCheck(afterCheckBoard, false) && BoardUtil.isOnlyLegalMove(afterCheckBoard, false);
+        check("Premove triggers when opponent prepares check and user has only 1 escape move", testUserInCheckOnlyMove);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

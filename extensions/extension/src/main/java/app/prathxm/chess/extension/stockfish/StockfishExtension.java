@@ -703,16 +703,35 @@ public class StockfishExtension {
                 String oppTo = oppMove.substring(2, 4);
 
                 boolean userIsWhiteSide = (userWhite != null) ? userWhite.booleanValue() : !isWhiteTurn;
-                // Điều kiện 1: Ô xuất phát replyFrom BẮT BUỘC phải là quân của người chơi
+                boolean oppWhite = !userIsWhiteSide;
+                char[] currentBoard = BoardUtil.parseBoard(fen);
+
+                // Điều kiện 1: Nước đi trao đổi quân hiển nhiên (Recapture piece exchange)
                 boolean fromHasUserPiece = isUserPiece(fen, replyFrom, userIsWhiteSide);
-
-                // Điều kiện 2: Ô đích replyTo BẮT BUỘC phải là ô đang có quân cờ của chính người chơi đang đứng trên bàn cờ
                 boolean targetHasUserPiece = isUserPiece(fen, replyTo, userIsWhiteSide);
+                boolean isExchangeRecapture = replyTo.equals(oppTo) && targetHasUserPiece && fromHasUserPiece;
 
-                // Điều kiện 3: Nước đi trao đổi quân (đối thủ nhảy vào ăn quân người chơi, và người chơi premove ăn lại)
-                boolean isExchangeRecapture = replyTo.equals(oppTo) && targetHasUserPiece;
+                // Điều kiện 2: Tôi chiếu đối thủ mà đối thủ chỉ có đúng 1 nước để đi (Only Move khi đối thủ bị chiếu)
+                // (Đối thủ 100% bắt buộc phải đi oppMove, người chơi premove trước nước đáp trả userReply)
+                boolean isOppInCheckOnlyMove = false;
+                if (BoardUtil.isKingInCheck(currentBoard, oppWhite)) {
+                    if (BoardUtil.isOnlyLegalMove(currentBoard, oppWhite)) {
+                        isOppInCheckOnlyMove = true;
+                    }
+                }
 
-                if (fromHasUserPiece && isExchangeRecapture) {
+                // Điều kiện 3: Đối thủ chuẩn bị chiếu tôi mà tôi chỉ có đúng 1 nước để đi (Only Move khi người chơi bị chiếu)
+                // (Sau khi đối thủ đi oppMove, người chơi bị chiếu và chỉ có đúng 1 nước thoát chiếu duy nhất userReply)
+                boolean isUserInCheckOnlyMove = false;
+                char[] boardAfterOpp = currentBoard.clone();
+                BoardUtil.apply(boardAfterOpp, oppMove);
+                if (BoardUtil.isKingInCheck(boardAfterOpp, userIsWhiteSide)) {
+                    if (BoardUtil.isOnlyLegalMove(boardAfterOpp, userIsWhiteSide)) {
+                        isUserInCheckOnlyMove = true;
+                    }
+                }
+
+                if (isExchangeRecapture || isOppInCheckOnlyMove || isUserInCheckOnlyMove) {
                     premoveMoveToInject = userReply;
                 }
             }
