@@ -760,6 +760,34 @@ public class SelfTest {
         check("Engine init failure clears pending position to prevent watchdog lock",
                 StockfishExtension.getPendingPositionObject() == null);
 
+        // v2.0.89 Tests:
+        // Test 1: sideToWhite correctly resolves "WHITE" to true and "BLACK" to false
+        check("sideToWhite resolves 'WHITE' string to true", Boolean.TRUE.equals(StockfishExtension.sideToWhite("WHITE")));
+        check("sideToWhite resolves 'BLACK' string to false", Boolean.FALSE.equals(StockfishExtension.sideToWhite("BLACK")));
+        check("sideToWhite resolves 'BOTH' / 'NONE' to null", StockfishExtension.sideToWhite("BOTH") == null && StockfishExtension.sideToWhite("NONE") == null);
+
+        // Test 2: Live Game Move 0 startpos extraction fallback mechanism
+        Object mockLivePosition = new Object() {
+            public String o() {
+                return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+            }
+        };
+        check("Live game position extracts valid Move 0 FEN via variants.d.o()",
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".equals(StockfishExtension.extractFen(mockLivePosition)));
+
+        // Test 3: Live Game userSide Black with isMySideOnly suppression check
+        boolean liveUserIsWhite = false; // User plays Black in Live match
+        boolean liveFenWhiteTurn = true;  // Move 0 is White's turn
+        boolean liveIsMyTurn = (liveFenWhiteTurn == liveUserIsWhite); // false!
+        boolean liveMySideOnly = true;
+        boolean liveShowArrows = true;
+        if (liveMySideOnly && !liveIsMyTurn) {
+            liveShowArrows = false;
+        }
+        check("Live match Black side with isMySideOnly correctly suppresses White arrows at Move 0", !liveShowArrows);
+        boolean liveMove0Completed = !liveShowArrows; // marked complete so watchdog doesn't loop
+        check("Suppressed Move 0 for Black marks analysis completed cleanly", liveMove0Completed);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

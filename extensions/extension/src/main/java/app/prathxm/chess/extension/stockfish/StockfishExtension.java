@@ -981,8 +981,13 @@ public class StockfishExtension {
         if (activity == null || isReviewOrAnalysisActivity(activity) || isGameOver(activity)) return;
         if (activity.getWindow() == null || activity.getWindow().getDecorView() == null) return;
         View boardView = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
-        if (boardView == null) return;
-        Object pos = extractPositionFromBoardView(boardView);
+        Object pos = null;
+        if (boardView != null) {
+            pos = extractPositionFromBoardView(boardView);
+        }
+        if (pos == null) {
+            pos = extractPositionFromActivity(activity);
+        }
         if (pos == null) return;
         String fen = extractFen(pos);
         if (fen == null) return;
@@ -1062,9 +1067,13 @@ public class StockfishExtension {
         View decorView = activity.getWindow().getDecorView();
         if (decorView == null) return false;
         View boardView = OverlayManager.findChessBoardView(decorView);
-        if (boardView == null) return false;
-
-        Object pos = extractPositionFromBoardView(boardView);
+        Object pos = null;
+        if (boardView != null) {
+            pos = extractPositionFromBoardView(boardView);
+        }
+        if (pos == null) {
+            pos = extractPositionFromActivity(activity);
+        }
         if (pos == null) return false;
 
         String fen = extractFen(pos);
@@ -1326,7 +1335,20 @@ public class StockfishExtension {
 
     public static Object extractPositionFromBoardView(View boardView) {
         if (boardView == null) return null;
-        // 1. Try getPositionWithPremoves (public or private declared)
+        // 1. Try declared fields on boardView (Fastest & most direct: field position / r / p)
+        for (Field f : boardView.getClass().getDeclaredFields()) {
+            String fn = f.getName().toLowerCase(java.util.Locale.US);
+            if (fn.contains("position") || fn.equals("r") || fn.equals("p") || fn.equals("f0")) {
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(boardView);
+                    Object pos = resolveVariantPosition(val);
+                    if (pos != null) return pos;
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        // 2. Try getPositionWithPremoves (public or private declared)
         try {
             Method getPos = null;
             try {
@@ -1341,7 +1363,7 @@ public class StockfishExtension {
             }
         } catch (Throwable ignored) {}
 
-        // 2. Try getPosition (public or private declared)
+        // 3. Try getPosition (public or private declared)
         try {
             Method getDispPos = null;
             try {
@@ -1356,7 +1378,7 @@ public class StockfishExtension {
             }
         } catch (Throwable ignored) {}
 
-        // 3. Try getViewModel() -> getState() -> getPosition()
+        // 4. Try getViewModel() -> getState() -> getPosition() (guarded against UninitializedPropertyAccessException)
         try {
             Method getVm = boardView.getClass().getMethod("getViewModel");
             Object vm = getVm.invoke(boardView);
@@ -1371,10 +1393,10 @@ public class StockfishExtension {
             }
         } catch (Throwable ignored) {}
 
-        // 4. Try declared fields on boardView
+        // 5. Try any other declared fields on boardView
         for (Field f : boardView.getClass().getDeclaredFields()) {
             String fn = f.getName().toLowerCase(java.util.Locale.US);
-            if (fn.contains("position") || fn.equals("r") || fn.equals("p") || fn.contains("viewmodel") || fn.equals("x")) {
+            if (fn.contains("viewmodel") || fn.equals("x")) {
                 try {
                     f.setAccessible(true);
                     Object val = f.get(boardView);
@@ -1383,6 +1405,82 @@ public class StockfishExtension {
                 } catch (Throwable ignored) {}
             }
         }
+        return null;
+    }
+
+    public static Object extractPositionFromActivity(Activity activity) {
+        if (activity == null) return null;
+        try {
+            // Priority A: Try activity.X6() (RealGameActivity ViewModel getter)
+            Object vm = null;
+            try {
+                Method x6 = activity.getClass().getMethod("X6");
+                vm = x6.invoke(activity);
+            } catch (Throwable ignored) {}
+
+            // Priority B: Try field B (Lazy<RealGameViewModel>) or viewModel
+            if (vm == null) {
+                for (Field f : activity.getClass().getDeclaredFields()) {
+                    String fn = f.getName();
+                    if (fn.equals("viewModel") || fn.equals("B")) {
+                        try {
+                            f.setAccessible(true);
+                            Object lazyVal = f.get(activity);
+                            if (lazyVal != null) {
+                                Method getVal = lazyVal.getClass().getMethod("getValue");
+                                vm = getVal.invoke(lazyVal);
+                                if (vm != null) break;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+
+            if (vm != null) {
+                // In RealGameViewModel: query cbDelegate / q() / S()
+                try {
+                    Method qMethod = vm.getClass().getMethod("q");
+                    Object prov = qMethod.invoke(vm);
+                    if (prov != null) {
+                        Method getMethod = prov.getClass().getMethod("get");
+                        Object cbVm = getMethod.invoke(prov);
+                        if (cbVm != null) {
+                            Object pos = resolveVariantPosition(cbVm);
+                            if (pos != null) return pos;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                for (Field vf : vm.getClass().getDeclaredFields()) {
+                    String vfn = vf.getName();
+                    if (vfn.equals("cbDelegate") || vfn.equals("K") || vfn.equals("b4Var")) {
+                        try {
+                            vf.setAccessible(true);
+                            Object delegate = vf.get(vm);
+                            if (delegate != null) {
+                                Object pos = resolveVariantPosition(delegate);
+                                if (pos != null) return pos;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+
+            // Priority C: Try Activity fields: chessBoardView (c0), game (T)
+            for (Field f : activity.getClass().getDeclaredFields()) {
+                String fn = f.getName();
+                if (fn.equals("chessBoardView") || fn.equals("c0")) {
+                    try {
+                        f.setAccessible(true);
+                        Object bv = f.get(activity);
+                        if (bv instanceof View) {
+                            Object pos = extractPositionFromBoardView((View) bv);
+                            if (pos != null) return pos;
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable ignored) {}
         return null;
     }
 
@@ -1397,6 +1495,12 @@ public class StockfishExtension {
             } else {
                 stateImplRef.set(new WeakReference<>(obj));
                 pos = resolveVariantPosition(obj);
+            }
+            if (pos == null) {
+                Activity act = getCurrentActivity();
+                if (act != null) {
+                    pos = extractPositionFromActivity(act);
+                }
             }
             if (pos != null) {
                 String fen = extractFen(pos);
@@ -1442,6 +1546,9 @@ public class StockfishExtension {
                     }
                 }
             } catch (Throwable ignored) {}
+        }
+        if (positionObject == null && act != null) {
+            positionObject = extractPositionFromActivity(act);
         }
 
         if (positionObject != null) {
@@ -1651,7 +1758,66 @@ public class StockfishExtension {
             return userWhite;
         } catch (Throwable ignored) {}
 
-        // Priority 4: Fall back to previously cached game orientation
+        // Priority 4: Inspect userSide directly from RealGameActivity / RealGameViewModel / RealGameUiSetup
+        try {
+            Activity act = getCurrentActivity();
+            if (act != null) {
+                // Check RealGameActivity.N6() -> RealGameUiSetup.getUserSide()
+                try {
+                    Method n6 = act.getClass().getMethod("N6");
+                    Object uiSetup = n6.invoke(act);
+                    if (uiSetup != null) {
+                        Method getSide = uiSetup.getClass().getMethod("getUserSide");
+                        Object side = getSide.invoke(uiSetup);
+                        Boolean sw = sideToWhite(side);
+                        if (sw != null) {
+                            cachedUserIsWhite = sw;
+                            return sw;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                // Check RealGameActivity.X6() -> RealGameViewModel.userSide / gameSetup.getUserSide()
+                Object vm = null;
+                try {
+                    Method x6 = act.getClass().getMethod("X6");
+                    vm = x6.invoke(act);
+                } catch (Throwable ignored) {}
+                if (vm != null) {
+                    for (Field vf : vm.getClass().getDeclaredFields()) {
+                        String vfn = vf.getName().toLowerCase(java.util.Locale.US);
+                        if (vfn.contains("userside") || vfn.contains("side")) {
+                            try {
+                                vf.setAccessible(true);
+                                Object sideVal = vf.get(vm);
+                                Boolean sw = sideToWhite(sideVal);
+                                if (sw != null) {
+                                    cachedUserIsWhite = sw;
+                                    return sw;
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                        if (vfn.contains("gamesetup")) {
+                            try {
+                                vf.setAccessible(true);
+                                Object setupVal = vf.get(vm);
+                                if (setupVal != null) {
+                                    Method gs = setupVal.getClass().getMethod("getUserSide");
+                                    Object side = gs.invoke(setupVal);
+                                    Boolean sw = sideToWhite(side);
+                                    if (sw != null) {
+                                        cachedUserIsWhite = sw;
+                                        return sw;
+                                    }
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // Priority 5: Fall back to previously cached game orientation
         if (cachedUserIsWhite != null) {
             return cachedUserIsWhite;
         }
@@ -1712,6 +1878,28 @@ public class StockfishExtension {
 
     static String fullFen(Object position) {
         try {
+            // Priority 1: Direct duck typing for method "o" or "getFen" on position's class
+            try {
+                Method m = position.getClass().getMethod("o");
+                if (m.getReturnType() == String.class) {
+                    Object r = m.invoke(position);
+                    if (r instanceof String) {
+                        String sanitized = sanitizeFen((String) r);
+                        if (sanitized != null) return sanitized;
+                    }
+                }
+            } catch (Throwable ignored) {}
+            try {
+                Method m = position.getClass().getMethod("getFen");
+                if (m.getReturnType() == String.class) {
+                    Object r = m.invoke(position);
+                    if (r instanceof String) {
+                        String sanitized = sanitizeFen((String) r);
+                        if (sanitized != null) return sanitized;
+                    }
+                }
+            } catch (Throwable ignored) {}
+
             if (!fullFenResolved) {
                 Method found = null;
                 try {
@@ -1780,7 +1968,9 @@ public class StockfishExtension {
             
             return board + " " + turn + " " + castling + " " + enPassant + " 0 1";
         } catch (Throwable t) {
-            Log.e(TAG, "extractFen failed: " + t.getMessage(), t);
+            try {
+                Log.e(TAG, "extractFen failed: " + t.getMessage(), t);
+            } catch (Throwable ignored) {}
         }
         return null;
     }
