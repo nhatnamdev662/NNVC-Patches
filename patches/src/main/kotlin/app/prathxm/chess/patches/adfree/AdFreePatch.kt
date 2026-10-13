@@ -57,24 +57,6 @@ val adFreePatch = bytecodePatch(
             """
         )
 
-        // LoginData.getPremium_status() → int (DIAMOND = 3 if logged in, else 0)
-        LoginDataGetPremiumStatusFingerprint.method.addInstructions(
-            0,
-            """
-                invoke-virtual {p0}, Lcom/chess/net/model/LoginData;->getUsername()Ljava/lang/String;
-                move-result-object v0
-                if-eqz v0, :guest
-                invoke-virtual {v0}, Ljava/lang/String;->length()I
-                move-result v0
-                if-eqz v0, :guest
-                const/4 v0, 3
-                return v0
-                :guest
-                const/4 v0, 0
-                return v0
-            """
-        )
-
         // SharedPreferencesSessionStore.i() → boolean (isGuest = false when user has a session)
         // Fixes: Sign Up button showing in settings and missing chat button in games
         SessionStoreIsGuestFingerprint.method.addInstructions(
@@ -97,18 +79,9 @@ val adFreePatch = bytecodePatch(
             """
         )
 
-        // UserData.getPremium_status() → PremiumStatus
-        UserDataGetPremiumStatusFingerprint.method.addInstructions(
-            0,
-            """
-                invoke-static {}, $EXTENSION_CLASS->getDiamondStatus()Ljava/lang/Object;
-                move-result-object v0
-                check-cast v0, Lcom/chess/entities/PremiumStatus;
-                if-nez v0, :original
-                return-object v0
-                :original
-            """
-        )
+        // LoginData.getPremium_status() → int (preserve original or return 0 for basic, never force Diamond badge)
+        // UserData.getPremium_status() → PremiumStatus (preserve original, never force Diamond badge)
+
 
         // UserMembershipLevel.Companion.ofCode() -> fallback to BASIC if code unknown (e.g., "silver")
         UserMembershipLevelOfCodeFingerprint.method.addInstructions(

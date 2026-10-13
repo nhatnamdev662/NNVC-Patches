@@ -2202,21 +2202,12 @@ public class StockfishExtension {
     }
 
     public static Object getPremiumStatusObject(Object defaultValue) {
-        Context context = getContext();
-        boolean enabled = (context == null) || StockfishSettings.isPremiumEnabled(context);
-        if (enabled) {
-            try {
-                Class<?> premiumStatusClass = Class.forName("com.chess.entities.PremiumStatus");
-                return premiumStatusClass.getField("DIAMOND").get(null);
-            } catch (Throwable t) {
-                Log.e(TAG, "Failed to get PremiumStatus.DIAMOND: " + t.getMessage());
-            }
-        }
+        // Do not force DIAMOND status so diamond badge is never displayed next to user's name
         return defaultValue;
     }
 
     public static Object getDiamondStatus() {
-        return getPremiumStatusObject(null);
+        return null;
     }
 
     public static boolean getAnalysisPermission(boolean defaultValue, String permissionName) {

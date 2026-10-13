@@ -857,6 +857,43 @@ public class SelfTest {
         boolean testUserInCheckOnlyMove = BoardUtil.isKingInCheck(afterCheckBoard, false) && BoardUtil.isOnlyLegalMove(afterCheckBoard, false);
         check("Premove triggers when opponent prepares check and user has only 1 escape move", testUserInCheckOnlyMove);
 
+        // Test 13: CustomTitlesExtension username extraction from toString
+        String mockUiStateToString = "UsernameUiState(username=magnus99, rating=2800)";
+        String extractedUser = app.prathxm.chess.extension.titles.CustomTitlesExtension.extractUsername(new Object() {
+            @Override
+            public String toString() {
+                return "UsernameUiState(username=magnus99, rating=2800)";
+            }
+        });
+        check("CustomTitlesExtension extracts username correctly from toString", "magnus99".equals(extractedUser));
+
+        // Test 14: CustomTitlesExtension username extraction ignores null or empty
+        String nullUserExtracted = app.prathxm.chess.extension.titles.CustomTitlesExtension.extractUsername(new Object() {
+            @Override
+            public String toString() {
+                return "UsernameUiState(username=null, rating=1200)";
+            }
+        });
+        check("CustomTitlesExtension ignores 'null' username", nullUserExtracted == null);
+
+        // Test 15: Diamond status removal verification - getDiamondStatus() MUST be null
+        Object diamondStatus = StockfishExtension.getDiamondStatus();
+        check("StockfishExtension.getDiamondStatus() returns null (diamond badge removed)", diamondStatus == null);
+
+        // Test 16: LoginData is always recognized as target user
+        Object mockLoginData = new Object() {
+            @Override
+            public String toString() {
+                return "com.chess.net.model.LoginData@1234";
+            }
+        };
+        boolean isLoginDataUser = app.prathxm.chess.extension.titles.CustomTitlesExtension.isTargetCurrentUser(null, "magnus99", mockLoginData);
+        check("isTargetCurrentUser recognizes LoginData as current user", isLoginDataUser);
+
+        // Test 17: Opponent username isolation - resolved title keeps opponent title when not user
+        String oppResolvedTitle = app.prathxm.chess.extension.titles.CustomTitlesExtension.getResolvedTitle(null, "opponent_grandmaster", new Object(), "IM");
+        check("Opponent title is preserved and NOT overwritten by fake user title", "IM".equals(oppResolvedTitle));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

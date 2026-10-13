@@ -412,5 +412,35 @@ public class StockfishSettings {
     public static void setTourShown(Context context, boolean shown) {
         getPrefs(context).edit().putBoolean(KEY_TOUR_SHOWN, shown).apply();
     }
+
+    // ── Fake / Custom Title Settings ─────────────────────────────────────────
+    private static final String KEY_CUSTOM_TITLE_ENABLED = "custom_title_enabled";
+    private static final String KEY_CUSTOM_TITLE_CODE = "custom_title_code";
+    private static final String KEY_CUSTOM_TITLE_USER = "custom_title_user";
+
+    public static boolean isCustomTitleEnabled(Context context) {
+        return getPrefs(context).getBoolean(KEY_CUSTOM_TITLE_ENABLED, true);
+    }
+
+    public static void setCustomTitleEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_CUSTOM_TITLE_ENABLED, enabled).apply();
+    }
+
+    public static String getCustomTitleCode(Context context) {
+        return getPrefs(context).getString(KEY_CUSTOM_TITLE_CODE, "GM");
+    }
+
+    public static void setCustomTitleCode(Context context, String code) {
+        getPrefs(context).edit().putString(KEY_CUSTOM_TITLE_CODE, code != null ? code.toUpperCase() : "GM").apply();
+    }
+
+    public static String getCustomTitleUser(Context context) {
+        return getPrefs(context).getString(KEY_CUSTOM_TITLE_USER, "");
+    }
+
+    public static void setCustomTitleUser(Context context, String username) {
+        getPrefs(context).edit().putString(KEY_CUSTOM_TITLE_USER, username != null ? username.trim() : "").apply();
+    }
 }
+
 

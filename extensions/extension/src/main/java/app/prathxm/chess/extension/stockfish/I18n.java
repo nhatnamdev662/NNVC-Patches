@@ -4,8 +4,12 @@ import android.content.Context;
 
 public class I18n {
 
+    public static boolean isVi(Context context) {
+        return "vi".equalsIgnoreCase(StockfishSettings.getLanguage(context));
+    }
+
     public static String get(Context context, String key) {
-        boolean isVi = "vi".equalsIgnoreCase(StockfishSettings.getLanguage(context));
+        boolean isVi = isVi(context);
         switch (key) {
             case "title":
                 return isVi ? "CÀI ĐẶT NNVC" : "NNVC SETTINGS";
@@ -187,6 +191,16 @@ public class I18n {
                 return isVi ? "CHÍNH XÁC" : "ACCURACY";
             case "label_elo":
                 return isVi ? "ELO ĐÁNH GIÁ" : "EST. ELO";
+            case "custom_title":
+                return isVi ? "Danh Hiệu Người Dùng (Fake Title)" : "User Title (Fake Title)";
+            case "custom_title_hint":
+                return isVi ? "Hiển thị huy hiệu danh hiệu native (GM, IM, FM, NM...) trên tên tài khoản của bạn." : "Display native title badge (GM, IM, FM, NM...) on your account username.";
+            case "choose_title":
+                return isVi ? "Chọn Danh Hiệu" : "Choose Title";
+            case "user_only_title":
+                return isVi ? "Chỉ Áp Dụng Cho Tài Khoản Của Bạn" : "Applied To Your Account Only";
+            case "custom_title_user_hint":
+                return isVi ? "Nhập username của bạn (để trống sẽ tự nhận diện nick đang đăng nhập)." : "Enter your username (leave blank to auto-detect logged-in account).";
             default:
                 return key;
         }

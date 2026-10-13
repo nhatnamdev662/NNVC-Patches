@@ -802,6 +802,99 @@ public class StockfishSettingsDialog {
             }
         });
 
+        // ─── Custom Title Card (Chỉ Áp Dụng Cho Tài Khoản Của Bạn) ───
+        LinearLayout titleCard = createGlassCard(activity, density);
+        panelVisual.addView(titleCard);
+
+        final CyberSwitchView titleSwitch = addCyberSwitchRow(titleCard,
+                I18n.get(activity, "custom_title"),
+                I18n.get(activity, "custom_title_hint"),
+                StockfishSettings.isCustomTitleEnabled(activity),
+                density, activity);
+
+        final LinearLayout titleSelectLayout = new LinearLayout(activity);
+        titleSelectLayout.setOrientation(LinearLayout.VERTICAL);
+        titleSelectLayout.setVisibility(StockfishSettings.isCustomTitleEnabled(activity) ? View.VISIBLE : View.GONE);
+        titleCard.addView(titleSelectLayout);
+
+        addCardSeparator(titleSelectLayout, density);
+
+        TextView titleChooseLabel = new TextView(activity);
+        titleChooseLabel.setText(I18n.get(activity, "choose_title"));
+        titleChooseLabel.setTextColor(COLOR_TEXT_SECONDARY);
+        titleChooseLabel.setTextSize(12f);
+        titleChooseLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        titleSelectLayout.addView(titleChooseLabel);
+
+        final String[] titleCodes = { "GM", "IM", "FM", "CM", "NM", "WGM" };
+        final TextView[] titleBtns = new TextView[titleCodes.length];
+        final String[] curTitle = { StockfishSettings.getCustomTitleCode(activity) };
+
+        LinearLayout titleRow1 = new LinearLayout(activity);
+        titleRow1.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow1.setPadding(0, (int) (6 * density), 0, 0);
+        titleSelectLayout.addView(titleRow1);
+
+        LinearLayout titleRow2 = new LinearLayout(activity);
+        titleRow2.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow2.setPadding(0, (int) (6 * density), 0, (int) (4 * density));
+        titleSelectLayout.addView(titleRow2);
+
+        for (int i = 0; i < titleCodes.length; i++) {
+            final String code = titleCodes[i];
+            final int idx = i;
+            TextView btn = createTabButton(activity, code, code.equalsIgnoreCase(curTitle[0]), density);
+            titleBtns[idx] = btn;
+            btn.setOnClickListener(v -> {
+                HapticHelper.tick(activity, v);
+                curTitle[0] = code;
+                StockfishSettings.setCustomTitleCode(activity, code);
+                for (int j = 0; j < titleCodes.length; j++) {
+                    updateTabStyle(titleBtns[j], titleCodes[j].equalsIgnoreCase(code), density);
+                }
+            });
+            if (i < 3) {
+                if (i > 0) {
+                    View sp = new View(activity);
+                    sp.setLayoutParams(new LinearLayout.LayoutParams((int) (6 * density), 1));
+                    titleRow1.addView(sp);
+                }
+                titleRow1.addView(btn);
+            } else {
+                if (i > 3) {
+                    View sp = new View(activity);
+                    sp.setLayoutParams(new LinearLayout.LayoutParams((int) (6 * density), 1));
+                    titleRow2.addView(sp);
+                }
+                titleRow2.addView(btn);
+            }
+        }
+
+        addCardSeparator(titleSelectLayout, density);
+
+        TextView userNoteView = new TextView(activity);
+        String detectedUser = app.prathxm.chess.extension.titles.CustomTitlesExtension.getCurrentAppUsername(activity);
+        String manualUser = StockfishSettings.getCustomTitleUser(activity);
+        String displayText;
+        if (manualUser != null && !manualUser.isEmpty()) {
+            displayText = (I18n.isVi(activity) ? "Tài khoản: " : "Account: ") + manualUser;
+        } else if (detectedUser != null && !detectedUser.isEmpty()) {
+            displayText = (I18n.isVi(activity) ? "Tài khoản (Tự động): " : "Account (Auto): ") + detectedUser;
+        } else {
+            displayText = I18n.get(activity, "user_only_title");
+        }
+        userNoteView.setText(displayText);
+        userNoteView.setTextColor(COLOR_ACCENT_CYAN);
+        userNoteView.setTextSize(11f);
+        userNoteView.setPadding(0, (int) (4 * density), 0, (int) (2 * density));
+        titleSelectLayout.addView(userNoteView);
+
+        titleSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setCustomTitleEnabled(activity, isChecked);
+            titleSelectLayout.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+
         // ─── TAB 5: ARROWS (Thiết Lập Mũi Tên & Bảng Màu) ───
         final LinearLayout panelArrows = new LinearLayout(activity);
         panelArrows.setOrientation(LinearLayout.VERTICAL);
