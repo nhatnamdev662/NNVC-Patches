@@ -5,65 +5,13 @@ import android.content.SharedPreferences;
 import android.util.Log;
 import app.prathxm.chess.extension.stockfish.StockfishExtension;
 import app.prathxm.chess.extension.stockfish.StockfishSettings;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import org.json.JSONObject;
 
 public class CustomTitlesExtension {
     private static final String TAG = "CustomTitlesExt";
-    private static final String JSON_URL = "https://raw.githubusercontent.com/PrathxmOp/my-apis/refs/heads/main/chess.json";
-    static final Map<String, String> titleOverrides = new HashMap<>();
-    private static boolean isInitialized = false;
 
+    // Khởi tạo hoàn toàn local, không tải file mạng, áp dụng tức thời 0ms
     public static void init() {
-        if (isInitialized) {
-            return;
-        }
-        isInitialized = true;
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    URL url = new URL(JSON_URL);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setConnectTimeout(5000);
-                    conn.setRequestMethod("GET");
-                    if (conn.getResponseCode() == 200) {
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                        StringBuilder sb = new StringBuilder();
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            sb.append(line);
-                        }
-                        reader.close();
-                        
-                        JSONObject json = new JSONObject(sb.toString());
-                        JSONObject titlesJson = json.has("titles") ? json.getJSONObject("titles") : json;
-                        
-                        synchronized (titleOverrides) {
-                            titleOverrides.clear();
-                            Iterator<String> keys = titlesJson.keys();
-                            while (keys.hasNext()) {
-                                String key = keys.next();
-                                String value = titlesJson.getString(key);
-                                if (value != null && !value.isEmpty()) {
-                                    titleOverrides.put(key.toLowerCase().trim(), value.toUpperCase().trim());
-                                }
-                            }
-                        }
-                        Log.i(TAG, "Loaded " + titleOverrides.size() + " custom titles from remote.");
-                    }
-                    conn.disconnect();
-                } catch (Exception e) {
-                    Log.e(TAG, "Fetch failed: " + e.getMessage());
-                }
-            }
-        }).start();
+        // No network fetch needed - 100% real-time local
     }
 
     /**
@@ -134,6 +82,7 @@ public class CustomTitlesExtension {
 
     /**
      * Xác định mã danh hiệu cuối cùng (GM, IM, FM, CM, NM, WGM...) áp dụng cho đối tượng.
+     * Hoạt động 100% Real-Time và độc lập với mạng.
      */
     public static String getResolvedTitle(Context context, String username, Object containerObj, String defaultTitle) {
         if (context == null) {
@@ -155,16 +104,7 @@ public class CustomTitlesExtension {
         }
 
         // Không phải tài khoản của người dùng (đối thủ hoặc người khác):
-        // Giữ nguyên danh hiệu thật của họ hoặc kiểm tra override remote từ GitHub nếu có
-        if (username != null) {
-            synchronized (titleOverrides) {
-                String remoteOverride = titleOverrides.get(username.toLowerCase().trim());
-                if (remoteOverride != null) {
-                    return remoteOverride;
-                }
-            }
-        }
-
+        // Giữ nguyên 100% danh hiệu gốc của đối thủ, tuyệt đối không can thiệp!
         return defaultTitle;
     }
 

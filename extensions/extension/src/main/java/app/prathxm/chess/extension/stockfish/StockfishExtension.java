@@ -2210,15 +2210,6 @@ public class StockfishExtension {
         return null;
     }
 
-    public static boolean getAnalysisPermission(boolean defaultValue, String permissionName) {
-        Context context = getContext();
-        if (context == null) return defaultValue;
-        if (StockfishSettings.isPremiumEnabled(context)) {
-            return true;
-        }
-        return defaultValue;
-    }
-
     public static boolean isBotPlayable(boolean original) {
         return true;
     }

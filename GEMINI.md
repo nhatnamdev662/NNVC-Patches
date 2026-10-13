@@ -10,22 +10,23 @@ khi không có đầy đủ dữ liệu để làm hoặc cải thiện tính n�
 
 ## Nhật ký cập nhật phiên bản
 ### v2.0.92 (2026-10-13)
-- **Ra Mắt Danh Hiệu Người Dùng Native (Fake Title) & Xóa Bỏ Triệt Để Icon Kim Cương**:
-  - **Danh Hiệu Người Dùng Native Real 100% (Fake Title Architecture - `CustomTitlesExtension.java`, `StockfishSettingsDialog.java`)**:
-    - **Hiển Thị Real Native**: Sử dụng trực tiếp enum `com.chess.palette.compose.component.ChessTitle` và component `ChessTitleBadge` chuẩn gốc của Chess.com (màu đỏ sang trọng), không phải vẽ đè layout giả hay can thiệp DOM.
-    - **Bộ Chọn Danh Hiệu Linh Hoạt**: Cho phép người dùng tùy chọn danh hiệu GM, IM, FM, CM, NM, WGM trong Tab VISUAL của Menu Cài Đặt NNVC.
-    - **Cô Lập & Chỉ Áp Dụng Cho Tài Khoản Người Dùng**: Tự động nhận diện username của tài khoản đang đăng nhập trên máy (`com.chess.app.session_preferences` -> `pref_username` và `com.chess.app.login_credentials` -> `pref_username_or_email`), CHỈ gán danh hiệu cho chính người chơi. Tuyệt đối không can thiệp hay làm thay đổi danh hiệu thật của đối thủ.
-    - **Tùy Chỉnh Username Thủ Công**: Hỗ trợ nhập username tùy chỉnh trong Cài đặt nếu người dùng muốn override một tài khoản cụ thể.
+- **Ra Mắt Danh Hiệu Người Dùng Native (Fake Title Real-Time & Extension Style Selector) & Xóa Bỏ Triệt Để Icon Kim Cương**:
+  - **Giao Diện Chọn Danh Hiệu Phong Cách Extension Cực Gọn & Đẹp (`StockfishSettingsDialog.java`)**:
+    - **Nút Selector Tinh Tế**: Thay thế hoàn toàn cụm 6 nút chip to chiếm 2 dòng cũ bằng 1 hàng ngang duy nhất: `Chọn Danh Hiệu` kèm nút Selector `[ GM ▾ ]` phong cách luxury bo góc viền đỏ cờ vua sang trọng.
+    - **Hộp Thoại Chọn Danh Hiệu Chuyên Nghiệp (Title Picker Modal)**: Khi bấm vào selector, hiển thị danh sách 10 danh hiệu chuẩn FIDE/Chess.com (GM, IM, FM, CM, NM, WGM, WIM, WFM, WCM, WNM) với badge đỏ preview rực rỡ, tên đầy đủ và dấu tick xanh `✓` báo hiệu danh hiệu đang chọn.
+  - **Áp Dụng Tức Thì Real-Time & 100% Offline Không Tải File Mạng (`CustomTitlesExtension.java`, `StockfishSettingsDialog.java`)**:
+    - **Triệt tiêu tải file mạng**: Xóa bỏ hoàn toàn URL fetch JSON từ GitHub trong `CustomTitlesExtension.java`, mọi xử lý chuyển sang 100% local trong RAM và SharedPreferences với 0ms độ trễ.
+    - **Real-Time UI Recreate**: Khi người dùng đổi danh hiệu hoặc bật/tắt trong cài đặt, hệ thống lập tức invalidate DecorView và khi đóng dialog tự động trigger `activity.recreate()` để áp dụng danh hiệu mới trên toàn bộ giao diện app ngay lập tức (không cần thoát app hay load lại trang).
+  - **Dọn Dẹp Triệt Để Dead Code (`StockfishExtension.java`)**:
+    - Xóa bỏ hoàn toàn hàm dư thừa `getAnalysisPermission` không còn được sử dụng, đảm bảo codebase sạch sẽ và không gây lỗi tiềm ẩn.
   - **Xóa Bỏ Triệt Để 100% Icon Kim Cương (Diamond Membership Badge Removal - `AdFreePatchKt`, `StockfishExtension.java`)**:
-    - **Nguyên nhân gốc rễ**: Trước đây patch Ad-Free hook ép `LoginData.getPremium_status()` trả về giá trị 3 (`DIAMOND`) và `UserData.getPremium_status()` gọi `getDiamondStatus()`, khiến toàn bộ tài khoản người dùng đều bị ép hiện huy hiệu kim cương bên cạnh username.
-    - **Khắc phục triệt để**:
-      - NOP triệt để các bytecode instructions hook `LoginDataGetPremiumStatusFingerprint` và `UserDataGetPremiumStatusFingerprint` trong `AdFreePatchKt.class`.
-      - `StockfishExtension.getDiamondStatus()` trả về `null` và `getPremiumStatusObject(defaultValue)` trả về nguyên vẹn `defaultValue`.
-      - Huy hiệu kim cương biến mất hoàn toàn trên toàn bộ ứng dụng (bàn cờ, chat, trang cá nhân, menu).
-      - Bảo toàn 100% các tính năng Ad-Free, Bot Unlock, Analysis, Chat và Engine hoạt động ổn định.
-  - Bộ kiểm thử tự động `SelfTest`: 166/166 test cases vượt qua thành công (100% passed).
+    - NOP triệt để các bytecode instructions hook `LoginDataGetPremiumStatusFingerprint` và `UserDataGetPremiumStatusFingerprint` trong `AdFreePatchKt.class`.
+    - `StockfishExtension.getDiamondStatus()` trả về `null` và `getPremiumStatusObject(defaultValue)` trả về nguyên vẹn `defaultValue`.
+    - Huy hiệu kim cương biến mất hoàn toàn trên toàn bộ ứng dụng (bàn cờ, chat, trang cá nhân, menu).
+    - Bảo toàn 100% các tính năng Ad-Free, Bot Unlock, Analysis, Chat và Engine hoạt động ổn định.
+  - Bộ kiểm thử tự động `SelfTest`: 167/167 test cases vượt qua thành công (100% passed).
   - Bump phiên bản lên `v2.0.92` (versionCode `20092`) trong `patches-bundle.json` và `patches-list.json`.
-  - Biên dịch sạch 45 file Java Extension thành `extension.mpe` (2,801,296 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (94,860 bytes), đóng gói thành công `patches-2.0.92.mpp` (227,466,814 bytes).
+  - Biên dịch sạch 45 file Java Extension thành `extension.mpe` (2,803,132 bytes, header `dex\035\0`) và DEX gốc `classes.dex` (94,860 bytes), đóng gói thành công `patches-2.0.92.mpp` (227,467,505 bytes).
 
 ### v2.0.91 (2026-10-13)
 - **Nâng Cấp Mũi Tên Premove Hỗ Trợ Thế Cờ Chiếu Tướng Ép Nước (Only Move Premove Architecture)**:

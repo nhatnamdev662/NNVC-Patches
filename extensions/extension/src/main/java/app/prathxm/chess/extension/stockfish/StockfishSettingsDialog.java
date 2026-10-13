@@ -78,10 +78,18 @@ public class StockfishSettingsDialog {
         });
         borderGlowAnim.start();
 
-        dialog.setOnDismissListener(d -> borderGlowAnim.cancel());
+        final boolean[] hasTitleChanged = { false };
+        dialog.setOnDismissListener(d -> {
+            borderGlowAnim.cancel();
+            if (hasTitleChanged[0]) {
+                try {
+                    activity.recreate();
+                } catch (Throwable ignored) {}
+            }
+        });
 
         final int[] currentTabIndex = { 0 };
-        View windowRoot = buildSettingsContentView(activity, dialog, currentTabIndex, targetDialogWidth, targetDialogHeight, density);
+        View windowRoot = buildSettingsContentView(activity, dialog, currentTabIndex, targetDialogWidth, targetDialogHeight, density, hasTitleChanged);
         dialog.setContentView(windowRoot);
         dialog.show();
 
@@ -89,7 +97,7 @@ public class StockfishSettingsDialog {
         dialog.getWindow().setLayout(targetDialogWidth, targetDialogHeight);
     }
 
-    private static View buildSettingsContentView(final Activity activity, final Dialog dialog, final int[] currentTabIndex, final int targetDialogWidth, final int targetDialogHeight, final float density) {
+    private static View buildSettingsContentView(final Activity activity, final Dialog dialog, final int[] currentTabIndex, final int targetDialogWidth, final int targetDialogHeight, final float density, final boolean[] hasTitleChanged) {
         // Root container (Cố định chiều cao và chiều rộng)
         LinearLayout windowRoot = new LinearLayout(activity);
         windowRoot.setOrientation(LinearLayout.VERTICAL);
@@ -213,7 +221,7 @@ public class StockfishSettingsDialog {
             String newLang = isCurrentVi ? "en" : "vi";
             StockfishSettings.setLanguage(activity, newLang);
             OverlayManager.refreshOverlaysLanguage(activity);
-            View newRoot = buildSettingsContentView(activity, dialog, currentTabIndex, targetDialogWidth, targetDialogHeight, density);
+            View newRoot = buildSettingsContentView(activity, dialog, currentTabIndex, targetDialogWidth, targetDialogHeight, density, hasTitleChanged);
             dialog.setContentView(newRoot);
             if (dialog.getWindow() != null) {
                 dialog.getWindow().setLayout(targetDialogWidth, targetDialogHeight);
@@ -819,56 +827,43 @@ public class StockfishSettingsDialog {
 
         addCardSeparator(titleSelectLayout, density);
 
-        TextView titleChooseLabel = new TextView(activity);
-        titleChooseLabel.setText(I18n.get(activity, "choose_title"));
-        titleChooseLabel.setTextColor(COLOR_TEXT_SECONDARY);
-        titleChooseLabel.setTextSize(12f);
-        titleChooseLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        titleSelectLayout.addView(titleChooseLabel);
+        // Hàng chọn danh hiệu phong cách Extension: [ Chọn Danh Hiệu ] ........... [ GM ▾ ]
+        LinearLayout titleRow = new LinearLayout(activity);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.setPadding(0, (int) (6 * density), 0, (int) (6 * density));
+        titleSelectLayout.addView(titleRow);
 
-        final String[] titleCodes = { "GM", "IM", "FM", "CM", "NM", "WGM" };
-        final TextView[] titleBtns = new TextView[titleCodes.length];
-        final String[] curTitle = { StockfishSettings.getCustomTitleCode(activity) };
+        TextView titleLabel = new TextView(activity);
+        titleLabel.setText(I18n.get(activity, "choose_title"));
+        titleLabel.setTextColor(COLOR_TEXT_PRIMARY);
+        titleLabel.setTextSize(13f);
+        titleLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        titleLabel.setLayoutParams(labelParams);
+        titleRow.addView(titleLabel);
 
-        LinearLayout titleRow1 = new LinearLayout(activity);
-        titleRow1.setOrientation(LinearLayout.HORIZONTAL);
-        titleRow1.setPadding(0, (int) (6 * density), 0, 0);
-        titleSelectLayout.addView(titleRow1);
+        // Nút Selector phong cách Extension
+        final TextView titleSelectorBtn = new TextView(activity);
+        String currentCode = StockfishSettings.getCustomTitleCode(activity);
+        titleSelectorBtn.setText(currentCode + "  ▾");
+        titleSelectorBtn.setTextColor(COLOR_TEXT_PRIMARY);
+        titleSelectorBtn.setTextSize(13f);
+        titleSelectorBtn.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        titleSelectorBtn.setGravity(Gravity.CENTER);
+        titleSelectorBtn.setPadding((int) (14 * density), (int) (6 * density), (int) (14 * density), (int) (6 * density));
 
-        LinearLayout titleRow2 = new LinearLayout(activity);
-        titleRow2.setOrientation(LinearLayout.HORIZONTAL);
-        titleRow2.setPadding(0, (int) (6 * density), 0, (int) (4 * density));
-        titleSelectLayout.addView(titleRow2);
+        GradientDrawable selectorBg = new GradientDrawable();
+        selectorBg.setColor(0xFFCC0000); // Đỏ cờ vua đặc trưng Chess.com
+        selectorBg.setCornerRadius(8 * density);
+        selectorBg.setStroke((int) (1.2f * density), 0xFFFF453A);
+        titleSelectorBtn.setBackground(selectorBg);
 
-        for (int i = 0; i < titleCodes.length; i++) {
-            final String code = titleCodes[i];
-            final int idx = i;
-            TextView btn = createTabButton(activity, code, code.equalsIgnoreCase(curTitle[0]), density);
-            titleBtns[idx] = btn;
-            btn.setOnClickListener(v -> {
-                HapticHelper.tick(activity, v);
-                curTitle[0] = code;
-                StockfishSettings.setCustomTitleCode(activity, code);
-                for (int j = 0; j < titleCodes.length; j++) {
-                    updateTabStyle(titleBtns[j], titleCodes[j].equalsIgnoreCase(code), density);
-                }
-            });
-            if (i < 3) {
-                if (i > 0) {
-                    View sp = new View(activity);
-                    sp.setLayoutParams(new LinearLayout.LayoutParams((int) (6 * density), 1));
-                    titleRow1.addView(sp);
-                }
-                titleRow1.addView(btn);
-            } else {
-                if (i > 3) {
-                    View sp = new View(activity);
-                    sp.setLayoutParams(new LinearLayout.LayoutParams((int) (6 * density), 1));
-                    titleRow2.addView(sp);
-                }
-                titleRow2.addView(btn);
-            }
-        }
+        titleSelectorBtn.setOnClickListener(v -> {
+            HapticHelper.pop(activity, v);
+            showTitlePickerDialog(activity, density, titleSelectorBtn, hasTitleChanged);
+        });
+        titleRow.addView(titleSelectorBtn);
 
         addCardSeparator(titleSelectLayout, density);
 
@@ -886,11 +881,16 @@ public class StockfishSettingsDialog {
         userNoteView.setText(displayText);
         userNoteView.setTextColor(COLOR_ACCENT_CYAN);
         userNoteView.setTextSize(11f);
-        userNoteView.setPadding(0, (int) (4 * density), 0, (int) (2 * density));
+        userNoteView.setPadding(0, (int) (2 * density), 0, (int) (2 * density));
         titleSelectLayout.addView(userNoteView);
 
         titleSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setCustomTitleEnabled(activity, isChecked);
+            hasTitleChanged[0] = true;
+            try {
+                activity.getWindow().getDecorView().invalidate();
+                activity.getWindow().getDecorView().requestLayout();
+            } catch (Throwable ignored) {}
             titleSelectLayout.setVisibility(isChecked ? View.VISIBLE : View.GONE);
         });
 
@@ -2114,6 +2114,145 @@ public class StockfishSettingsDialog {
             sb.append("Không có log nào khớp với bộ lọc đã chọn.");
         }
         return sb;
+    }
+
+    private static void showTitlePickerDialog(final Activity activity, final float density, final TextView selectorBtn, final boolean[] hasTitleChanged) {
+        final Dialog pickerDialog = new Dialog(activity);
+        pickerDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+        int pickerWidth = (int) (dm.widthPixels * 0.85f);
+
+        GradientDrawable pickerBg = new GradientDrawable();
+        pickerBg.setColor(0xF50C0F16);
+        pickerBg.setCornerRadius(18 * density);
+        pickerBg.setStroke((int) (1.4f * density), COLOR_ACCENT_BLUE);
+        pickerDialog.getWindow().setBackgroundDrawable(pickerBg);
+
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding((int) (18 * density), (int) (16 * density), (int) (18 * density), (int) (16 * density));
+
+        // Header Title
+        TextView header = new TextView(activity);
+        header.setText(I18n.isVi(activity) ? "CHỌN DANH HIỆU" : "SELECT TITLE");
+        header.setTextColor(COLOR_TEXT_PRIMARY);
+        header.setTextSize(14f);
+        header.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        header.setGravity(Gravity.CENTER);
+        root.addView(header);
+
+        View div = new View(activity);
+        div.setBackgroundColor(0x330A84FF);
+        LinearLayout.LayoutParams divParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (1 * density));
+        divParams.topMargin = (int) (10 * density);
+        divParams.bottomMargin = (int) (10 * density);
+        div.setLayoutParams(divParams);
+        root.addView(div);
+
+        ScrollView scroll = new ScrollView(activity);
+        LinearLayout list = new LinearLayout(activity);
+        list.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(list);
+
+        final String[][] titles = {
+            {"GM", "Grandmaster", "Đại Kiện Tướng"},
+            {"IM", "International Master", "Kiện Tướng Quốc Tế"},
+            {"FM", "FIDE Master", "Kiện Tướng FIDE"},
+            {"CM", "Candidate Master", "Dự Bị Kiện Tướng"},
+            {"NM", "National Master", "Kiện Tướng Quốc Gia"},
+            {"WGM", "Woman Grandmaster", "Nữ Đại Kiện Tướng"},
+            {"WIM", "Woman International Master", "Nữ Kiện Tướng Quốc Tế"},
+            {"WFM", "Woman FIDE Master", "Nữ Kiện Tướng FIDE"},
+            {"WCM", "Woman Candidate Master", "Nữ Dự Bị Kiện Tướng"},
+            {"WNM", "Woman National Master", "Nữ Kiện Tướng Quốc Gia"}
+        };
+
+        String curCode = StockfishSettings.getCustomTitleCode(activity);
+
+        for (final String[] t : titles) {
+            final String code = t[0];
+            String nameEn = t[1];
+            String nameVi = t[2];
+            final boolean isSelected = code.equalsIgnoreCase(curCode);
+
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding((int) (10 * density), (int) (8 * density), (int) (10 * density), (int) (8 * density));
+
+            GradientDrawable rowBg = new GradientDrawable();
+            rowBg.setColor(isSelected ? 0x260A84FF : 0x0AFFFFFF);
+            rowBg.setCornerRadius(10 * density);
+            if (isSelected) {
+                rowBg.setStroke((int) (1.2f * density), COLOR_ACCENT_CYAN);
+            }
+            row.setBackground(rowBg);
+
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rowParams.bottomMargin = (int) (6 * density);
+            row.setLayoutParams(rowParams);
+
+            // Red Title Badge (Chuẩn phong cách Chess.com)
+            TextView badge = new TextView(activity);
+            badge.setText(code);
+            badge.setTextColor(0xFFFFFFFF);
+            badge.setTextSize(11f);
+            badge.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            badge.setGravity(Gravity.CENTER);
+            badge.setPadding((int) (6 * density), (int) (2 * density), (int) (6 * density), (int) (2 * density));
+
+            GradientDrawable badgeBg = new GradientDrawable();
+            badgeBg.setColor(0xFFCC0000); // Đỏ cờ vua đặc trưng Chess.com
+            badgeBg.setCornerRadius(4 * density);
+            badge.setBackground(badgeBg);
+            row.addView(badge);
+
+            // Description Label
+            TextView desc = new TextView(activity);
+            desc.setText("  " + (I18n.isVi(activity) ? nameVi : nameEn));
+            desc.setTextColor(isSelected ? COLOR_TEXT_PRIMARY : COLOR_TEXT_SECONDARY);
+            desc.setTextSize(12.5f);
+            desc.setTypeface(Typeface.create("sans-serif", isSelected ? Typeface.BOLD : Typeface.NORMAL));
+            LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            desc.setLayoutParams(descParams);
+            row.addView(desc);
+
+            // Checkmark if selected
+            if (isSelected) {
+                TextView check = new TextView(activity);
+                check.setText("✓");
+                check.setTextColor(COLOR_GREEN_READY);
+                check.setTextSize(14f);
+                check.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+                row.addView(check);
+            }
+
+            row.setOnClickListener(v -> {
+                HapticHelper.tick(activity, v);
+                StockfishSettings.setCustomTitleCode(activity, code);
+                selectorBtn.setText(code + "  ▾");
+                hasTitleChanged[0] = true;
+                try {
+                    activity.getWindow().getDecorView().invalidate();
+                    activity.getWindow().getDecorView().requestLayout();
+                } catch (Throwable ignored) {}
+                pickerDialog.dismiss();
+            });
+
+            list.addView(row);
+        }
+
+        // Set max height for ScrollView (300dp or 45% screen height)
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (dm.heightPixels * 0.45f));
+        scroll.setLayoutParams(scrollParams);
+        root.addView(scroll);
+
+        pickerDialog.setContentView(root);
+        pickerDialog.show();
+        if (pickerDialog.getWindow() != null) {
+            pickerDialog.getWindow().setLayout(pickerWidth, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
     }
 }
 

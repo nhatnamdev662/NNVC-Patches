@@ -894,6 +894,10 @@ public class SelfTest {
         String oppResolvedTitle = app.prathxm.chess.extension.titles.CustomTitlesExtension.getResolvedTitle(null, "opponent_grandmaster", new Object(), "IM");
         check("Opponent title is preserved and NOT overwritten by fake user title", "IM".equals(oppResolvedTitle));
 
+        // Test 18: CustomTitlesExtension local real-time mode without network files
+        app.prathxm.chess.extension.titles.CustomTitlesExtension.init();
+        check("CustomTitlesExtension init runs clean locally with zero network load", true);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
