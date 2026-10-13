@@ -372,8 +372,8 @@ public class StockfishExtension {
         Log.d(TAG, "Position changed → FEN: " + fen);
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
-            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
-                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled, skipping duplicate reset.");
+            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
+                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled and rendered, skipping duplicate reset.");
                 return;
             }
             lastLoadedMove0Fen = fen;
@@ -809,7 +809,7 @@ public class StockfishExtension {
                                     if (activity.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) return;
                                     if (!isGameOver(activity)) {
                                         boolean loaded = tryLoadMove0(activity);
-                                        if (loaded) {
+                                        if (loaded && OverlayManager.hasArrows()) {
                                             android.os.Handler curH = getMove0RetryHandler();
                                             if (curH != null) curH.removeCallbacksAndMessages(null);
                                         }
@@ -967,8 +967,8 @@ public class StockfishExtension {
         if (fen == null) return false;
 
         boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
-            return true; // Already loaded and scheduled!
+        if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
+            return true; // Already loaded, scheduled and visibly rendered!
         }
 
         onBoardChanged(getStateImpl(), pos);
@@ -1298,8 +1298,8 @@ public class StockfishExtension {
                 String fen = extractFen(pos);
                 if (fen != null) {
                     boolean isMove0 = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
-                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen)) {
-                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp, bỏ qua gọi lặp lại.");
+                    if (isMove0 && isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && OverlayManager.hasArrows()) {
+                        Log.d(TAG, "[MOVE 0 SKIP] Thế cờ Move 0 đã được nạp và đã có mũi tên, bỏ qua gọi lặp lại.");
                         return;
                     }
                 }

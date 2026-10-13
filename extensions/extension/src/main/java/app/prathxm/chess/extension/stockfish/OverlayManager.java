@@ -199,6 +199,7 @@ public class OverlayManager {
 
                     final BoardMetrics bm = getBoardMetrics(decorView);
                     if (bm == null) {
+                        StockfishExtension.resetArrowSignature();
                         final View bv = findChessBoardView(decorView);
                         if (bv != null) {
                             bv.post(new Runnable() {
@@ -643,6 +644,17 @@ public class OverlayManager {
                                            int oldLeft, int oldTop, int oldRight, int oldBottom) {
                     if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
                         invalidateArrowOverlay();
+                        if (!hasArrows()) {
+                            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Activity act = StockfishExtension.getCurrentActivity();
+                                    if (act != null && !StockfishExtension.isGameOver(act) && !StockfishExtension.isReviewOrAnalysisActivity(act)) {
+                                        StockfishExtension.tryLoadMove0(act);
+                                    }
+                                }
+                            });
+                        }
                     }
                 }
             });

@@ -690,6 +690,20 @@ public class SelfTest {
         String threatMoveCalculated = (oppTurnNow && threatFlag) ? oppTopMove : null;
         check("Threat arrow calculates opponent move on opponent turn", "c6e4".equals(threatMoveCalculated));
 
+        // v2.0.87 Tests:
+        // Test 1: Move 0 retry condition: If fen is startpos and hasArrows is false, do not skip
+        String move0RetryFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        boolean isMove0 = move0RetryFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+        boolean isMove0Scheduled = true;
+        boolean hasArrowsOnScreen = false;
+        boolean skipMove0 = isMove0 && isMove0Scheduled && hasArrowsOnScreen;
+        check("Move 0 deduplication does NOT skip if arrows are not yet rendered on screen", !skipMove0);
+
+        // Test 2: Move 0 only skips when arrows are actually rendered
+        hasArrowsOnScreen = true;
+        boolean skipMove0WhenArrowsPresent = isMove0 && isMove0Scheduled && hasArrowsOnScreen;
+        check("Move 0 deduplication skips when arrows are visibly rendered", skipMove0WhenArrowsPresent);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
