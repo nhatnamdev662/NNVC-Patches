@@ -1,7 +1,7 @@
 {
   "created_at": "2026-10-14T14:35:00",
-  "description": "## [2.0.98] (2026-10-14)\n\n### ⚡ NNVC v2.0.98 — Xóa Vĩnh Viễn Lichess Puzzle, Rebrand Toàn Diện Sang NNVC & Làm Sạch Codebase\n\n* **Xóa Vĩnh Viễn Tính Năng Lichess Puzzle Journey:**\n  - Gỡ bỏ hoàn toàn 11 class mã nguồn Java và toàn bộ bytecode patch liên quan.\n  - Khôi phục 100% mục Câu đố (Puzzles) gốc của Chess.com, không còn chuyển hướng hay xung đột.\n* **Triệt Tiêu Tác Giả Cũ & Đổi Thương Hiệu Sang NNVC:**\n  - Đổi package Extension và Patches chuẩn xác sang `app.nnvc.chess`.\n  - Đổi package clone sang `com.chess.nnvc`.\n  - Tác giả chính thức: NNVC (@nncutett).\n* **Dọn Dẹp Codebase & Tối Ưu Hóa Bộ Nhớ:**\n  - Loại bỏ hoàn toàn mã dư thừa và class rác.\n  - Kích thước bundle tối ưu, bảo toàn trọn vẹn 2 engine offline Stockfish 18 và Komodo 3.3.\n* **100% Bộ Test Tự Động:** 178/178 test cases kiểm thử vượt qua hoàn hảo (100% passed).\n* **Author:** NNVC (@nncutett)",
-  "download_url": "https://github.com/nhatnamdev662/NNVC-Patches/releases/download/v2.0.98/patches-2.0.98.mpp",
+  "description": "## [2.0.99] (2026-10-14)\n\n### ⚡ NNVC v2.0.99 — Xóa Vĩnh Viễn Lichess Puzzle, Rebrand Toàn Diện Sang NNVC & Làm Sạch Codebase\n\n* **Xóa Vĩnh Viễn Tính Năng Lichess Puzzle Journey:**\n  - Gỡ bỏ hoàn toàn 11 class mã nguồn Java và toàn bộ bytecode patch liên quan.\n  - Khôi phục 100% mục Câu đố (Puzzles) gốc của Chess.com, không còn chuyển hướng hay xung đột.\n* **Triệt Tiêu Tác Giả Cũ & Đổi Thương Hiệu Sang NNVC:**\n  - Đổi package Extension và Patches chuẩn xác sang `app.nnvc.chess`.\n  - Đổi package clone sang `com.chess.nnvc`.\n  - Tác giả chính thức: NNVC (@nncutett).\n* **Dọn Dẹp Codebase & Tối Ưu Hóa Bộ Nhớ:**\n  - Loại bỏ hoàn toàn mã dư thừa và class rác.\n  - Kích thước bundle tối ưu, bảo toàn trọn vẹn 2 engine offline Stockfish 18 và Komodo 3.3.\n* **100% Bộ Test Tự Động:** 178/178 test cases kiểm thử vượt qua hoàn hảo (100% passed).\n* **Author:** NNVC (@nncutett)",
+  "download_url": "https://github.com/nhatnamdev662/NNVC-Patches/releases/download/v2.0.99/patches-2.0.99.mpp",
   "signature_download_url": "",
-  "version": "2.0.98"
+  "version": "2.0.99"
 }
