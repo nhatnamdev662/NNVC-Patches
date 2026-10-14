@@ -940,6 +940,48 @@ public class SelfTest {
         check("NnvcLogger records INFO log correctly", hasTestLog);
         check("TorchEngine.log routes into NnvcLogger", hasTorchLog);
 
+        // Test 25: Level 2 Anti-Crack Cryptographic Coupling & CryptoStream
+        byte[] officialKey = ApkSignatureHelper.getSigningCertificateSha256(null);
+        check("ApkSignatureHelper returns 32-byte SHA256 key", officialKey != null && officialKey.length == 32);
+        check("ApkSignatureHelper matches official NNVC key header", officialKey[0] == (byte) 0x77 && officialKey[1] == (byte) 0xC4);
+
+        byte[] fakeKey = new byte[32];
+        fakeKey[0] = (byte) 0x11;
+        byte[] sampleWasm = new byte[] { 0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00, 0x0A, 0x0B, 0x0C, 0x0D };
+        byte[] encryptedWasm = new byte[sampleWasm.length];
+        for (int i = 0; i < sampleWasm.length; i++) {
+            encryptedWasm[i] = (byte) (sampleWasm[i] ^ officialKey[i % officialKey.length]);
+        }
+        // Encrypted header must NOT be valid WASM magic \0asm
+        check("Encrypted WASM header is scrambled", encryptedWasm[0] != 0x00 || encryptedWasm[1] != 0x61 || encryptedWasm[2] != 0x73 || encryptedWasm[3] != 0x6D);
+
+        // Decrypt with correct key via CryptoStream
+        java.io.ByteArrayInputStream baisGood = new java.io.ByteArrayInputStream(encryptedWasm);
+        CryptoStream csGood = new CryptoStream(baisGood, officialKey);
+        byte[] decryptedGood = new byte[sampleWasm.length];
+        int readGood = 0;
+        try {
+            readGood = csGood.read(decryptedGood);
+        } catch (java.io.IOException ignored) {}
+        check("CryptoStream decrypts correct length", readGood == sampleWasm.length);
+        check("CryptoStream recovers valid WASM magic \\0asm",
+            decryptedGood[0] == 0x00 && decryptedGood[1] == 0x61 && decryptedGood[2] == 0x73 && decryptedGood[3] == 0x6D);
+        boolean goodMatchesAll = true;
+        for (int i = 0; i < sampleWasm.length; i++) {
+            if (decryptedGood[i] != sampleWasm[i]) { goodMatchesAll = false; break; }
+        }
+        check("CryptoStream decodes 100% exact WASM bytes with official key", goodMatchesAll);
+
+        // Decrypt with corrupt/tampered key (MT Manager re-sign)
+        java.io.ByteArrayInputStream baisBad = new java.io.ByteArrayInputStream(encryptedWasm);
+        CryptoStream csBad = new CryptoStream(baisBad, fakeKey);
+        byte[] decryptedBad = new byte[sampleWasm.length];
+        try {
+            csBad.read(decryptedBad);
+        } catch (java.io.IOException ignored) {}
+        check("Tampered APK signature mathematically fails WASM magic check",
+            decryptedBad[0] != 0x00 || decryptedBad[1] != 0x61 || decryptedBad[2] != 0x73 || decryptedBad[3] != 0x6D);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

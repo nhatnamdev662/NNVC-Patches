@@ -536,11 +536,14 @@ public class WasmEngineManager {
         headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
         headers.put("Access-Control-Allow-Headers", "*");
 
+        byte[] sigKey = ApkSignatureHelper.getSigningCertificateSha256(context);
+
         if (url.contains("stockfish-18-lite-single.wasm")) {
             try {
                 File f = getStockfishWasm();
                 if (f != null && f.exists()) {
-                    return new WebResourceResponse("application/wasm", null, 200, "OK", headers, new FileInputStream(f));
+                    InputStream stream = new CryptoStream(new FileInputStream(f), sigKey);
+                    return new WebResourceResponse("application/wasm", null, 200, "OK", headers, stream);
                 }
             } catch (Throwable t) {
                 NnvcLogger.e(TAG, "Error streaming stockfish wasm: " + t.getMessage());
@@ -560,7 +563,8 @@ public class WasmEngineManager {
             try {
                 File f = getKomodoWasm();
                 if (f != null && f.exists()) {
-                    return new WebResourceResponse("application/wasm", null, 200, "OK", headers, new FileInputStream(f));
+                    InputStream stream = new CryptoStream(new FileInputStream(f), sigKey);
+                    return new WebResourceResponse("application/wasm", null, 200, "OK", headers, stream);
                 }
             } catch (Throwable t) {
                 NnvcLogger.e(TAG, "Error streaming komodo wasm: " + t.getMessage());

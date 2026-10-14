@@ -255,7 +255,9 @@ public class TorchEngine {
                                 Map<String, String> headers = new HashMap<>();
                                 headers.put("Access-Control-Allow-Origin", "*");
                                 log("[HTTP] Đã stream torch.wasm (" + w.length() + " bytes)");
-                                return new WebResourceResponse("application/wasm", "binary", 200, "OK", headers, new FileInputStream(w));
+                                byte[] sigKey = ApkSignatureHelper.getSigningCertificateSha256(context);
+                                InputStream stream = new CryptoStream(new FileInputStream(w), sigKey);
+                                return new WebResourceResponse("application/wasm", "binary", 200, "OK", headers, stream);
                             }
                         } catch (Throwable t) {
                             log("[HTTP ERROR] Lỗi stream torch.wasm: " + t.getMessage());
