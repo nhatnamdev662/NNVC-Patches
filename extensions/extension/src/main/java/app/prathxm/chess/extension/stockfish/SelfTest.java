@@ -918,6 +918,15 @@ public class SelfTest {
         // Test 22: COLOR_CHESS_TITLE_BG matches Chess.com Design System token bgChesstitle (0xFF7C2929)
         check("COLOR_CHESS_TITLE_BG matches 0xFF7C2929", StockfishSettingsDialog.COLOR_CHESS_TITLE_BG == 0xFF7C2929);
 
+        // Test 23: I18n translations match chess standards
+        check("I18n rate_moves returns Phân Loại Nước Đi", "Phân Loại Nước Đi".equals(I18n.get(null, "rate_moves")));
+        check("I18n coach_depth returns Độ Sâu Phân Loại", "Độ Sâu Phân Loại".equals(I18n.get(null, "coach_depth")));
+        check("I18n coach_title returns HUẤN LUYỆN VIÊN", "HUẤN LUYỆN VIÊN".equals(I18n.get(null, "coach_title")));
+        check("I18n engine_choice returns Chọn Engine", "Chọn Engine".equals(I18n.get(null, "engine_choice")));
+        check("I18n engine_stockfish returns Stockfish 18", "Stockfish 18".equals(I18n.get(null, "engine_stockfish")));
+        check("I18n engine_komodo returns Komodo 3.3", "Komodo 3.3".equals(I18n.get(null, "engine_komodo")));
+        check("I18n custom_title returns Danh Hiệu Người Dùng", "Danh Hiệu Người Dùng".equals(I18n.get(null, "custom_title")));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

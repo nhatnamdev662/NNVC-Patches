@@ -5,7 +5,12 @@ import android.content.Context;
 public class I18n {
 
     public static boolean isVi(Context context) {
-        return "vi".equalsIgnoreCase(StockfishSettings.getLanguage(context));
+        if (context == null) return true;
+        try {
+            return "vi".equalsIgnoreCase(StockfishSettings.getLanguage(context));
+        } catch (Throwable ignored) {
+            return true;
+        }
     }
 
     public static String get(Context context, String key) {
@@ -72,9 +77,9 @@ public class I18n {
             case "eval_bar_hint":
                 return isVi ? "Hiện thanh đánh giá cạnh bàn cờ." : "Show evaluation bar next to the board.";
             case "rate_moves":
-                return isVi ? "Đánh Giá Nước Đi" : "Rate Moves";
+                return isVi ? "Phân Loại Nước Đi" : "Move Classification";
             case "rate_moves_hint":
-                return isVi ? "Phân loại nước đi theo chuẩn Game Review: Brilliant, Great, Best, Blunder..." : "Move classification matching Game Review: Brilliant, Great, Best, Blunder...";
+                return isVi ? "Hiển thị biểu tượng đánh giá chất lượng nước đi như Báo cáo trận đấu: Xuất sắc, Tối ưu, Sai lầm, Đại sai lầm..." : "Display Game Review badges for every move: Brilliant, Great, Best, Inaccuracy, Mistake, Blunder...";
             case "vibrate_blunder":
                 return isVi ? "Rung Khi Mắc Sai Lầm" : "Vibrate on Mistakes";
             case "vibrate_hint":
@@ -122,23 +127,23 @@ public class I18n {
             case "engine_choice":
                 return isVi ? "Chọn Engine" : "Engine";
             case "engine_choice_hint":
-                return isVi ? "Chọn động cơ phân tích WebAssembly (Komodo Dragon 3.3 hoặc Stockfish 18)." : "Select WebAssembly engine (Komodo Dragon 3.3 or Stockfish 18).";
+                return isVi ? "Lựa chọn động cơ phân tích phù hợp với phong cách thi đấu của bạn." : "Select the chess engine that matches your strategic playing style.";
             case "engine_komodo":
-                return "Komodo 3.3 (WASM)";
+                return "Komodo 3.3";
             case "engine_stockfish":
-                return "Stockfish 18 (WASM)";
+                return "Stockfish 18";
             case "debug_log":
-                return isVi ? "Nhật Ký Hoạt Động (Debug Log)" : "Activity Log (Debug Log)";
+                return isVi ? "Nhật Ký Hoạt Động" : "Activity Log";
             case "debug_log_hint":
-                return isVi ? "Xem, sao chép log tại /sdcard/Android/data/com.chess/files/nnvc_debug.log" : "View and copy logs at /sdcard/Android/data/com.chess/files/nnvc_debug.log";
+                return isVi ? "Nhật ký hệ thống phục vụ chẩn đoán." : "System diagnostics log.";
             case "floating_log_pill":
-                return isVi ? "Nút Log Nổi Trên Bàn Cờ" : "Floating Log Pill on Board";
+                return isVi ? "Nút Nổi" : "Floating Pill";
             case "floating_log_pill_hint":
-                return isVi ? "Hiện nút tròn nhỏ trên màn hình để mở log nhanh khi đang đấu." : "Show small floating pill on screen for instant log view during match.";
+                return isVi ? "Nút nổi hỗ trợ truy cập nhanh." : "Floating shortcut button.";
             case "auto_depth":
                 return isVi ? "Tự Động Độ Sâu Theo Elo" : "Auto Depth by Elo";
             case "auto_depth_hint":
-                return isVi ? "Tự động gán độ sâu phù hợp nhất theo mức Elo (chuẩn Extension)." : "Automatically assign optimal depth based on Elo.";
+                return isVi ? "Tự động tối ưu hóa độ sâu tìm kiếm tương ứng với trình độ Elo đã chọn." : "Automatically optimize search depth according to selected Elo rating.";
             case "komodo_style":
                 return isVi ? "Lối Chơi Komodo" : "Komodo Style";
             case "style_default":
@@ -148,27 +153,27 @@ public class I18n {
             case "style_defensive":
                 return isVi ? "Phòng thủ" : "Defensive";
             case "coach_depth":
-                return isVi ? "Độ Sâu Phân Loại (Torch Depth)" : "Classification Depth (Torch)";
+                return isVi ? "Độ Sâu Phân Loại" : "Classification Depth";
             case "coach_depth_hint":
-                return isVi ? "Độ sâu tính toán của Huấn luyện viên Torch CEE (Mặc định: 2, giống Extension). Số càng thấp phản hồi càng nhanh." : "Calculation depth for Torch CEE Coach (Default: 2, matching Extension). Lower value provides faster responses.";
+                return isVi ? "Độ sâu tính toán khi phân loại nước đi (Mặc định: 2). Giá trị thấp giúp phản hồi nhanh và mượt mà hơn." : "Calculation depth for move classification (Default: 2). Lower values provide faster responses.";
             case "show_accuracy_elo":
                 return isVi ? "Độ Chính Xác & Elo Trực Tiếp" : "Live Accuracy & Estimated Elo";
             case "show_accuracy_elo_hint":
-                return isVi ? "Hiển thị widget Độ chính xác (%) và Elo ước tính chuẩn Extension (kéo thả tự do)." : "Display live Accuracy (%) and Estimated Elo widget matching Extension (draggable).";
+                return isVi ? "Hiển thị tiện ích thống kê độ chính xác (%) và ước tính Elo theo thời gian thực." : "Display real-time move accuracy percentage and estimated performance rating.";
             case "white":
                 return isVi ? "Trắng" : "White";
             case "black":
                 return isVi ? "Đen" : "Black";
             case "coach_title":
-                return isVi ? "HUẤN LUYỆN VIÊN (TORCH WASM)" : "COACH (TORCH WASM)";
+                return isVi ? "HUẤN LUYỆN VIÊN" : "AI COACH";
             case "coach_sub":
-                return isVi ? "Động cơ phân loại nước đi Torch CEE 26MB (Komodo WebAssembly) độc lập 100%." : "Torch CEE 26MB (Komodo WebAssembly) standalone classification engine.";
+                return isVi ? "Phân tích thế trận, giải thích chiến thuật và hướng dẫn nước cờ tối ưu sau mỗi lượt đi." : "Real-time position insights, move analysis, and tactical coaching after every turn.";
             case "coach_log":
-                return isVi ? "📋 Xem Nhật Ký Chẩn Đoán Torch WASM" : "📋 View Torch WASM Diagnostic Log";
+                return isVi ? "📋 Nhật Ký Huấn Luyện Viên" : "📋 Coach Diagnostic Log";
             case "view_copy_log":
                 return isVi ? "📋 Xem & Copy Log" : "📋 View & Copy Log";
             case "log_title":
-                return isVi ? "⚡ NHẬT KÝ HỆ THỐNG & TORCH" : "⚡ SYSTEM & TORCH LOGS";
+                return isVi ? "⚡ NHẬT KÝ HỆ THỐNG" : "⚡ SYSTEM LOGS";
             case "jump_bottom":
                 return isVi ? "⬇ Cuối" : "⬇ Bottom";
             case "jump_top":
@@ -192,15 +197,19 @@ public class I18n {
             case "label_elo":
                 return isVi ? "ELO ĐÁNH GIÁ" : "EST. ELO";
             case "custom_title":
-                return isVi ? "Danh Hiệu Người Dùng (Fake Title)" : "User Title (Fake Title)";
+                return isVi ? "Danh Hiệu Người Dùng" : "User Title";
             case "custom_title_hint":
-                return isVi ? "Hiển thị huy hiệu danh hiệu native (GM, IM, FM, NM...) trên tên tài khoản của bạn." : "Display native title badge (GM, IM, FM, NM...) on your account username.";
+                return isVi ? "Hiển thị danh hiệu cờ vua (GM, IM, FM, NM...) trên hồ sơ và tên người chơi của bạn." : "Display authentic chess title badge (GM, IM, FM, NM...) on your profile and username.";
             case "choose_title":
                 return isVi ? "Chọn Danh Hiệu" : "Choose Title";
             case "user_only_title":
                 return isVi ? "Chỉ Áp Dụng Cho Tài Khoản Của Bạn" : "Applied To Your Account Only";
             case "custom_title_user_hint":
                 return isVi ? "Nhập username của bạn (để trống sẽ tự nhận diện nick đang đăng nhập)." : "Enter your username (leave blank to auto-detect logged-in account).";
+            case "status_ready":
+                return isVi ? "ĐANG HOẠT ĐỘNG" : "ANALYSIS ACTIVE";
+            case "status_off":
+                return isVi ? "ĐANG TẮT" : "ANALYSIS DISABLED";
             default:
                 return key;
         }

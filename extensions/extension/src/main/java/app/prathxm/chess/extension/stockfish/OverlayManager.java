@@ -195,8 +195,6 @@ public class OverlayManager {
                     ViewGroup decorView = (ViewGroup) window.getDecorView();
                     if (decorView == null) return;
 
-                    FloatingLogPillView.ensureAttached(decorView);
-
                     final BoardMetrics bm = getBoardMetrics(decorView);
                     if (bm == null) {
                         StockfishExtension.resetArrowSignature();

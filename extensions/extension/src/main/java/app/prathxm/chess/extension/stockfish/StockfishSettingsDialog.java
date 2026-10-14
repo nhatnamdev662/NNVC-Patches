@@ -232,33 +232,7 @@ public class StockfishSettingsDialog {
         });
         headerBtns.addView(langBtn);
 
-        // Spacer between Lang button and Log button
-        View hdrSpacer1 = new View(activity);
-        hdrSpacer1.setLayoutParams(new LinearLayout.LayoutParams((int) (8 * density), 1));
-        headerBtns.addView(hdrSpacer1);
-
-        // Debug Log Button (📜)
-        TextView logBtn = new TextView(activity);
-        logBtn.setText("📜");
-        logBtn.setTextColor(COLOR_TEXT_PRIMARY);
-        logBtn.setTextSize(12);
-        logBtn.setGravity(Gravity.CENTER);
-        int logPad = (int) (6 * density);
-        logBtn.setPadding(logPad, (int) (3 * density), logPad, (int) (3 * density));
-
-        GradientDrawable logBg = new GradientDrawable();
-        logBg.setColor(0x22FFFFFF);
-        logBg.setCornerRadius(8 * density);
-        logBg.setStroke((int) (1 * density), COLOR_CARD_BORDER);
-        logBtn.setBackground(logBg);
-
-        logBtn.setOnClickListener(v -> {
-            HapticHelper.pop(activity, v);
-            NnvcLogViewerDialog.show(activity);
-        });
-        headerBtns.addView(logBtn);
-
-        // Spacer between Log button and Close button
+        // Spacer between Lang button and Close button
         View hdrSpacer = new View(activity);
         hdrSpacer.setLayoutParams(new LinearLayout.LayoutParams((int) (8 * density), 1));
         headerBtns.addView(hdrSpacer);
@@ -381,7 +355,7 @@ public class StockfishSettingsDialog {
         statusDot.startAnimation(pulseAnim);
 
         TextView statusLabel = new TextView(activity);
-        statusLabel.setText(StockfishSettings.isEngineEnabled(activity) ? "ENGINE READY" : "ENGINE OFF");
+        statusLabel.setText(I18n.get(activity, StockfishSettings.isEngineEnabled(activity) ? "status_ready" : "status_off"));
         statusLabel.setTextColor(COLOR_TEXT_SECONDARY);
         statusLabel.setTextSize(11);
         statusLabel.setTypeface(Typeface.create("monospace", Typeface.BOLD));
@@ -406,7 +380,7 @@ public class StockfishSettingsDialog {
             dBg.setColor(isChecked ? COLOR_GREEN_READY : COLOR_DANGER_RED);
             dBg.setCornerRadius(999 * density);
             statusDot.setBackground(dBg);
-            statusLabel.setText(isChecked ? "ENGINE READY" : "ENGINE OFF");
+            statusLabel.setText(I18n.get(activity, isChecked ? "status_ready" : "status_off"));
             if (!isChecked) {
                 OverlayManager.hideArrowOverlay();
                 OverlayManager.hideEvalBar();
@@ -548,51 +522,6 @@ public class StockfishSettingsDialog {
             }
         });
 
-        // Card 1.5: Nhật Ký Hoạt Động (Debug Log) & Floating Pill
-        LinearLayout debugCard = createGlassCard(activity, density);
-        panelEngine.addView(debugCard);
-
-        TextView debugTitle = new TextView(activity);
-        debugTitle.setText("📜 " + I18n.get(activity, "debug_log"));
-        debugTitle.setTextColor(COLOR_TEXT_PRIMARY);
-        debugTitle.setTextSize(13f);
-        debugTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        debugCard.addView(debugTitle);
-
-        TextView debugHint = new TextView(activity);
-        debugHint.setText(I18n.get(activity, "debug_log_hint"));
-        debugHint.setTextColor(COLOR_TEXT_MUTED);
-        debugHint.setTextSize(9.5f);
-        debugHint.setTypeface(Typeface.MONOSPACE);
-        LinearLayout.LayoutParams dbhParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        dbhParams.setMargins(0, (int) (2 * density), 0, (int) (8 * density));
-        debugHint.setLayoutParams(dbhParams);
-        debugCard.addView(debugHint);
-
-        LinearLayout dbRow = new LinearLayout(activity);
-        dbRow.setOrientation(LinearLayout.HORIZONTAL);
-        dbRow.setGravity(Gravity.CENTER_VERTICAL);
-        debugCard.addView(dbRow);
-
-        TextView openLogBtn = createTabButton(activity, "📋 " + I18n.get(activity, "view_copy_log"), true, density);
-        openLogBtn.setOnClickListener(v -> {
-            HapticHelper.pop(activity, v);
-            NnvcLogViewerDialog.show(activity);
-        });
-        dbRow.addView(openLogBtn);
-
-        addCardSeparator(debugCard, density);
-
-        CyberSwitchView pillSwitch = addCyberSwitchRow(debugCard,
-                I18n.get(activity, "floating_log_pill"),
-                I18n.get(activity, "floating_log_pill_hint"),
-                StockfishSettings.isFloatingLogPillEnabled(activity),
-                density, activity);
-        pillSwitch.setOnCheckedChangeListener((view, isChecked) -> {
-            StockfishSettings.setFloatingLogPillEnabled(activity, isChecked);
-            FloatingLogPillView.updateVisibility(activity);
-        });
-
         // Card 2: Sức mạnh & Độ sâu (Auto Depth, Elo 100-3500)
         LinearLayout engineCard = createGlassCard(activity, density);
         panelEngine.addView(engineCard);
@@ -730,20 +659,6 @@ public class StockfishSettingsDialog {
         LinearLayout coachCard = createGlassCard(activity, density);
         panelCoach.addView(coachCard);
 
-        TextView coachTitle = new TextView(activity);
-        coachTitle.setText(I18n.get(activity, "coach_title"));
-        coachTitle.setTextColor(COLOR_TEXT_PRIMARY);
-        coachTitle.setTextSize(13.5f);
-        coachTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        coachCard.addView(coachTitle);
-
-        TextView coachSub = new TextView(activity);
-        coachSub.setText(I18n.get(activity, "coach_sub"));
-        coachSub.setTextColor(COLOR_TEXT_MUTED);
-        coachSub.setTextSize(10.5f);
-        coachSub.setPadding(0, (int) (2 * density), 0, (int) (8 * density));
-        coachCard.addView(coachSub);
-
         final CyberSwitchView classifSwitch = addCyberSwitchRow(coachCard,
                 I18n.get(activity, "rate_moves"),
                 I18n.get(activity, "rate_moves_hint"),
@@ -867,25 +782,6 @@ public class StockfishSettingsDialog {
             showTitlePickerDialog(activity, density, titleSelectorBtn, hasTitleChanged);
         });
         titleRow.addView(titleSelectorBtn);
-
-        addCardSeparator(titleSelectLayout, density);
-
-        TextView userNoteView = new TextView(activity);
-        String detectedUser = app.prathxm.chess.extension.titles.CustomTitlesExtension.getCurrentAppUsername(activity);
-        String manualUser = StockfishSettings.getCustomTitleUser(activity);
-        String displayText;
-        if (manualUser != null && !manualUser.isEmpty()) {
-            displayText = (I18n.isVi(activity) ? "Tài khoản: " : "Account: ") + manualUser;
-        } else if (detectedUser != null && !detectedUser.isEmpty()) {
-            displayText = (I18n.isVi(activity) ? "Tài khoản (Tự động): " : "Account (Auto): ") + detectedUser;
-        } else {
-            displayText = I18n.get(activity, "user_only_title");
-        }
-        userNoteView.setText(displayText);
-        userNoteView.setTextColor(COLOR_ACCENT_CYAN);
-        userNoteView.setTextSize(11f);
-        userNoteView.setPadding(0, (int) (2 * density), 0, (int) (2 * density));
-        titleSelectLayout.addView(userNoteView);
 
         titleSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setCustomTitleEnabled(activity, isChecked);

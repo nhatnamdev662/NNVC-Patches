@@ -1,7 +1,7 @@
-{
+﻿{
   "created_at": "2026-10-14T13:20:00",
   "description": "## [2.0.95] (2026-10-14)\n\n### ⚡ NNVC v2.0.95 — Đồng Bộ Màu Huy Hiệu Danh Hiệu Chuẩn Design System Chess.com (bgChesstitle)\n\n* **Chuẩn Hóa Màu Sắc Huy Hiệu Title Selector (`0xFF7C2929`):**\n  - Chuyển toàn bộ badge danh hiệu trong modal chọn (`[GM]`, `[IM]`, `[FM]`, v.v.) và nút Selector từ màu đỏ tươi (`#CC0000`) sang màu đỏ thẫm Crimson Burgundy chuẩn gốc (`#7C2929` - token `bgChesstitle` trong `StandardChessComColorScheme` của Chess.com).\n  - Bo góc tinh xảo `3dp` (`tokens.k.size3`), padding chuẩn `4dp` x `2dp`, chữ trắng in đậm sắc nét đồng bộ 100% với huy hiệu trên trang cá nhân và vương miện hoàng gia.\n* **Theme Hộp Thoại Đồng Bộ:** Đổi viền dialog và đường phân cách sang tone đỏ cờ vua sang trọng `COLOR_CHESS_TITLE_STROKE` (`0xFF9E3838`).\n* **100% Bộ Test Tự Động:** 171/171 test cases kiểm thử vượt qua hoàn hảo (100% passed).\n* **Author:** NNVC (@nncutett)",
   "download_url": "https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.95/patches-2.0.95.mpp",
   "signature_download_url": "",
-  "version": "2.0.95"
+  "version": "2.0.96"
 }
