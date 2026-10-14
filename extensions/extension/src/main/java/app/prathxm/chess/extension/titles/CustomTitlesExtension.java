@@ -9,6 +9,18 @@ import app.prathxm.chess.extension.stockfish.StockfishSettings;
 public class CustomTitlesExtension {
     private static final String TAG = "CustomTitlesExt";
 
+    private static void logE(String msg) {
+        try {
+            Log.e(TAG, msg);
+        } catch (Throwable ignored) {}
+    }
+
+    private static void logE(String msg, Throwable t) {
+        try {
+            Log.e(TAG, msg, t);
+        } catch (Throwable ignored) {}
+    }
+
     // Khởi tạo hoàn toàn local, không tải file mạng, áp dụng tức thời 0ms
     public static void init() {
         // No network fetch needed - 100% real-time local
@@ -187,7 +199,7 @@ public class CustomTitlesExtension {
             }
             return defaultTitleObj;
         } catch (Exception e) {
-            Log.e(TAG, "getOverrideAsPaletteChessTitle failed: " + e.getMessage());
+            logE("getOverrideAsPaletteChessTitle failed: " + e.getMessage());
             return defaultTitleObj;
         }
     }
@@ -270,7 +282,7 @@ public class CustomTitlesExtension {
             
             return getResolvedTitle(StockfishExtension.getContext(), username, modelObj, defaultTitle);
         } catch (Exception e) {
-            Log.e(TAG, "overrideModelChessTitle failed: " + e.getMessage());
+            logE("overrideModelChessTitle failed: " + e.getMessage());
         }
         return null;
     }
@@ -308,8 +320,111 @@ public class CustomTitlesExtension {
             }
             return defaultTitleObj;
         } catch (Exception e) {
-            Log.e(TAG, "overridePaletteChessTitle failed: " + e.getMessage());
+            logE("overridePaletteChessTitle failed: " + e.getMessage());
         }
         return null;
     }
+
+    /**
+     * Bổ sung thẻ banner danh hiệu [ 👑 Đại kiện tướng / Title Banner ] trong Trang cá nhân (User Profile).
+     * Tự động sinh UserLabelUi chuẩn gốc của Chess.com (Vương miện 👑, nền đỏ thẫm #O, tên danh hiệu đa ngôn ngữ).
+     * Tuyệt đối bảo toàn: Chỉ hiển thị cho chính người dùng (isCurrentUser == true), không can thiệp người khác.
+     */
+    public static java.util.List<?> overrideProfileLabels(Object uiModel) {
+        if (uiModel == null) {
+            return null;
+        }
+        java.util.List<?> originalLabels = null;
+        try {
+            java.lang.reflect.Field labelsField = uiModel.getClass().getDeclaredField("e");
+            labelsField.setAccessible(true);
+            originalLabels = (java.util.List<?>) labelsField.get(uiModel);
+        } catch (Throwable t) {
+            try {
+                java.lang.reflect.Field labelsField = uiModel.getClass().getDeclaredField("labels");
+                labelsField.setAccessible(true);
+                originalLabels = (java.util.List<?>) labelsField.get(uiModel);
+            } catch (Throwable ignored) {}
+        }
+
+        try {
+            Context context = StockfishExtension.getContext();
+            boolean enabled = (context != null) && StockfishSettings.isCustomTitleEnabled(context);
+            if (!enabled) {
+                return originalLabels;
+            }
+
+            // Kiểm tra xem có phải trang cá nhân của chính người dùng hay không
+            boolean isCurrentUser = false;
+            try {
+                java.lang.reflect.Method isCurrentUserMethod = uiModel.getClass().getMethod("w");
+                isCurrentUser = (Boolean) isCurrentUserMethod.invoke(uiModel);
+            } catch (Throwable t) {
+                try {
+                    java.lang.reflect.Field f = uiModel.getClass().getDeclaredField("m");
+                    f.setAccessible(true);
+                    isCurrentUser = (Boolean) f.get(uiModel);
+                } catch (Throwable ignored) {}
+            }
+
+            if (!isCurrentUser) {
+                return originalLabels;
+            }
+
+            String titleCode = StockfishSettings.getCustomTitleCode(context);
+            if (titleCode == null || titleCode.trim().isEmpty()) {
+                return originalLabels;
+            }
+            titleCode = titleCode.trim().toUpperCase();
+
+            // Kiểm tra xem danh sách hiện tại đã có thẻ danh hiệu chưa (tránh trùng lặp)
+            if (originalLabels != null) {
+                for (Object labelUi : originalLabels) {
+                    if (labelUi != null && labelUi.toString().contains("TitledPlayer")) {
+                        return originalLabels;
+                    }
+                }
+            }
+
+            // 1. Lấy enum com.chess.entities.ChessTitle tương ứng
+            Object chessTitleEnum = getOverrideAsChessTitle(titleCode, null);
+            if (chessTitleEnum == null) {
+                return originalLabels;
+            }
+
+            // 2. Khởi tạo đối tượng UserLabel.TitledPlayer
+            Class<?> titledPlayerClass = Class.forName("com.chess.net.v1.users.UserLabel$TitledPlayer");
+            Class<?> chessTitleClass = Class.forName("com.chess.entities.ChessTitle");
+            java.lang.reflect.Constructor<?> tpCtor = titledPlayerClass.getConstructor(chessTitleClass);
+            Object titledPlayer = tpCtor.newInstance(chessTitleEnum);
+
+            // 3. Gọi UserLabelUi.Companion.a(titledPlayer) để sinh UserLabelUi chuẩn gốc
+            Class<?> userLabelUiClass = Class.forName("com.chess.profile.f5");
+            java.lang.reflect.Field uiCompanionField = null;
+            try {
+                uiCompanionField = userLabelUiClass.getField("INSTANCE");
+            } catch (Throwable t) {
+                uiCompanionField = userLabelUiClass.getField("d");
+            }
+            Object uiCompanion = uiCompanionField.get(null);
+            java.lang.reflect.Method createMethod = uiCompanion.getClass().getMethod("a", Class.forName("com.chess.net.v1.users.UserLabel"));
+            Object userLabelUi = createMethod.invoke(uiCompanion, titledPlayer);
+
+            if (userLabelUi == null) {
+                return originalLabels;
+            }
+
+            // 4. Tạo danh sách mới với thẻ danh hiệu ở vị trí đầu tiên (Rank 3 trên Rank 4 Premium)
+            java.util.List<Object> newList = new java.util.ArrayList<>();
+            newList.add(userLabelUi);
+            if (originalLabels != null) {
+                newList.addAll(originalLabels);
+            }
+            return newList;
+        } catch (Throwable e) {
+            logE("overrideProfileLabels failed: " + e.getMessage(), e);
+            return originalLabels;
+        }
+    }
 }
+

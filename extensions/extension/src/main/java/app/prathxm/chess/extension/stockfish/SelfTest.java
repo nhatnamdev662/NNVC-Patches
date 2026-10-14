@@ -898,6 +898,23 @@ public class SelfTest {
         app.prathxm.chess.extension.titles.CustomTitlesExtension.init();
         check("CustomTitlesExtension init runs clean locally with zero network load", true);
 
+        // Test 19: overrideProfileLabels with null returns null safely
+        java.util.List<?> nullRes = app.prathxm.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(null);
+        check("overrideProfileLabels(null) returns null without exception", nullRes == null);
+
+        // Test 20: overrideProfileLabels with isCurrentUser=false returns original list untouched
+        final java.util.List<String> mockOriginalLabels = java.util.Arrays.asList("badge1", "badge2");
+        Object mockOpponentUiModel = new Object() {
+            public boolean w() { return false; } // isCurrentUser == false
+            public java.util.List<String> e = mockOriginalLabels;
+        };
+        java.util.List<?> oppLabels = app.prathxm.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(mockOpponentUiModel);
+        check("overrideProfileLabels on opponent profile preserves original labels untouched", oppLabels == mockOriginalLabels);
+
+        // Test 21: getOverrideAsChessTitle fallback behavior on non-Android test runtime
+        Object titleObj = app.prathxm.chess.extension.titles.CustomTitlesExtension.getOverrideAsChessTitle("GM", "DEFAULT");
+        check("getOverrideAsChessTitle returns non-null fallback or mapped title", titleObj != null);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
