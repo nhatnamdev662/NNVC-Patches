@@ -35,62 +35,15 @@ public class EngineStatusHUD {
     private static Runnable autoDismissRunnable = null;
 
     public static void show(final Context context, final String message, final boolean isError, final long autoDismissMs) {
-        if (context == null) return;
-        mainHandler.post(() -> {
-            try {
-                Activity activity = StockfishExtension.getCurrentActivity();
-                if (activity == null || activity.isFinishing()) return;
-                Window window = activity.getWindow();
-                if (window == null) return;
-                ViewGroup decorView = (ViewGroup) window.getDecorView();
-                if (decorView == null) return;
-
-                View existing = decorView.findViewWithTag(HUD_TAG);
-                if (existing != null) {
-                    updateView(existing, message, isError);
-                } else {
-                    View hud = createHudView(activity, message, isError);
-                    hud.setTag(HUD_TAG);
-                    decorView.addView(hud);
-                }
-
-                if (autoDismissRunnable != null) {
-                    mainHandler.removeCallbacks(autoDismissRunnable);
-                    autoDismissRunnable = null;
-                }
-
-                if (autoDismissMs > 0) {
-                    autoDismissRunnable = () -> dismiss(activity);
-                    mainHandler.postDelayed(autoDismissRunnable, autoDismissMs);
-                }
-            } catch (Throwable t) {
-                NnvcLogger.e(TAG, "Failed to show EngineStatusHUD: " + t.getMessage(), t);
-            }
-        });
+        // Disabled: 100% offline local extraction, hide all loading/download HUD overlays
     }
 
     public static void update(final String message, final boolean isError) {
-        mainHandler.post(() -> {
-            try {
-                Activity activity = StockfishExtension.getCurrentActivity();
-                if (activity == null || activity.isFinishing()) return;
-                Window window = activity.getWindow();
-                if (window == null) return;
-                ViewGroup decorView = (ViewGroup) window.getDecorView();
-                if (decorView == null) return;
-
-                View existing = decorView.findViewWithTag(HUD_TAG);
-                if (existing != null) {
-                    updateView(existing, message, isError);
-                } else {
-                    show(activity, message, isError, 0);
-                }
-            } catch (Throwable ignored) {}
-        });
+        // Disabled
     }
 
     public static void showReady(final Context context, final String engineName) {
-        show(context, "✓ " + engineName + " sẵn sàng", false, 3000);
+        // Disabled
     }
 
     public static void dismiss(final Activity activity) {
