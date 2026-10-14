@@ -12,7 +12,7 @@ body:
         Before creating a new enhancement request, please keep the following in mind:
         
         - :rotating_light: **If you're requesting a patch for currently unsupported app, you're in the wrong place! Please request via Discussions.** :rotating_light:
-        - **Do not submit a duplicate feature request**: Search for existing feature requests [here](https://github.com/PrathxmOp/Prathxm-Patches/issues?q=label%3A%22enhancement%22).
+        - **Do not submit a duplicate feature request**: Search for existing feature requests [here](https://github.com/nhatnamdev662/NNVC-Patches/issues?q=label%3A%22enhancement%22).
         - **Please don't ask for the world.** I'm only one person.
   - type: textarea
     attributes:

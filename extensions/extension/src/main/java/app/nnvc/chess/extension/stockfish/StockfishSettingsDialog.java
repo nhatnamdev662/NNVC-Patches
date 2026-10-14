@@ -1008,9 +1008,9 @@ public class StockfishSettingsDialog {
 
         addDialogSpacer(footerLayout, 6, density);
 
-        // Version metadata
+        // Version / author metadata (version hidden)
         TextView patchTv = new TextView(activity);
-        patchTv.setText("NNVC v" + BuildConfig.PATCH_VERSION + " · by @nncutett");
+        patchTv.setText("NNVC · by @nncutett");
         patchTv.setTextColor(COLOR_TEXT_MUTED);
         patchTv.setTextSize(10.5f);
         patchTv.setGravity(Gravity.CENTER);

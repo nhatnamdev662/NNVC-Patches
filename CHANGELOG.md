@@ -181,7 +181,7 @@
 
 ### 🐛 Bug Fixes
 
-* **Chess.com:** resolve SQLite database lock crash in Lichess puzzles ([569c8b8](https://github.com/NNVC/NNVC-Patches/commit/569c8b8ed1b1c83c61eadaaf6653a2cda08e9db2))
+* **Chess.com:** resolve SQLite database lock crash in Puzzles ([569c8b8](https://github.com/NNVC/NNVC-Patches/commit/569c8b8ed1b1c83c61eadaaf6653a2cda08e9db2))
 
 ### ✨ New Features
 
@@ -197,7 +197,7 @@
 
 ### 🐛 Bug Fixes
 
-* **Chess.com:** resolve SQLite database lock crash in Lichess puzzles ([569c8b8](https://github.com/NNVC/NNVC-Patches/commit/569c8b8ed1b1c83c61eadaaf6653a2cda08e9db2))
+* **Chess.com:** resolve SQLite database lock crash in Puzzles ([569c8b8](https://github.com/NNVC/NNVC-Patches/commit/569c8b8ed1b1c83c61eadaaf6653a2cda08e9db2))
 
 ### 🔧 Improvements
 
@@ -230,7 +230,7 @@
 * **Chess.com:** resolve crash handler blank screen and fix github issue reporting ([101ab1e](https://github.com/NNVC/NNVC-Patches/commit/101ab1ed2b592f6dbf5f026f82fb7f1b3301b91d))
 * **Chess.com:** resolve redundant state reset race and allow castling/en passant moves ([89c46af](https://github.com/NNVC/NNVC-Patches/commit/89c46afd58f992bb1f3d836ce7e5f6d5d241b7db))
 * **Chess:** restore SessionStoreIsGuestFingerprint and correct guest premium check ([b6f0651](https://github.com/NNVC/NNVC-Patches/commit/b6f0651e2ab8c867f101daaf9ed85a130ae6b730))
-* **lichesspuzzle:** resolve connection error on theme puzzle completion ([309b290](https://github.com/NNVC/NNVC-Patches/commit/309b290aead0c53f3a0729f60b319ad68619d051))
+* **puzzle:** resolve connection error on theme puzzle completion ([309b290](https://github.com/NNVC/NNVC-Patches/commit/309b290aead0c53f3a0729f60b319ad68619d051))
 
 ### ✨ New Features
 
@@ -247,7 +247,7 @@
 ### 🐛 Bug Fixes
 
 * **Chess.com:** resolve redundant state reset race and allow castling/en passant moves ([89c46af](https://github.com/NNVC/NNVC-Patches/commit/89c46afd58f992bb1f3d836ce7e5f6d5d241b7db))
-* **lichesspuzzle:** resolve connection error on theme puzzle completion ([309b290](https://github.com/NNVC/NNVC-Patches/commit/309b290aead0c53f3a0729f60b319ad68619d051))
+* **puzzle:** resolve connection error on theme puzzle completion ([309b290](https://github.com/NNVC/NNVC-Patches/commit/309b290aead0c53f3a0729f60b319ad68619d051))
 
 ### ✨ New Features
 
@@ -329,8 +329,8 @@
 * **Chess.com:** resolve concurrency, UI overlap, timer reset, and game review bugs ([eec6608](https://github.com/NNVC/NNVC-Patches/commit/eec6608e535dc7dba612de80f1e0f41b329654d6))
 * **classification:** enable move classification for user moves when My Side Only is active ([6bb2a12](https://github.com/NNVC/NNVC-Patches/commit/6bb2a12a4d2fa20e4e1314d216370e358679a61f))
 * **eval-bar:** stabilize eval bar and move WDL to horizontal strip below board ([d2ef96c](https://github.com/NNVC/NNVC-Patches/commit/d2ef96c6ee329469ec528877100b96d7bccdacaa))
-* **lichess-puzzle:** fix closed cursor crash and update download_offset incrementally ([398e950](https://github.com/NNVC/NNVC-Patches/commit/398e9509f54d60dec9094b1ab8d46e6e2c077b60))
-* **lichess-puzzle:** resolve NullPointerException on progress overlay initialization ([5a0f72d](https://github.com/NNVC/NNVC-Patches/commit/5a0f72da3be73b060bd5b24fcf3160135dd528f0))
+* **puzzle:** fix closed cursor crash and update download_offset incrementally ([398e950](https://github.com/NNVC/NNVC-Patches/commit/398e9509f54d60dec9094b1ab8d46e6e2c077b60))
+* **puzzle:** resolve NullPointerException on progress overlay initialization ([5a0f72d](https://github.com/NNVC/NNVC-Patches/commit/5a0f72da3be73b060bd5b24fcf3160135dd528f0))
 * rename discussion template to match category slug ([32fa2a3](https://github.com/NNVC/NNVC-Patches/commit/32fa2a3704a2004d01d04f7dd70a9e11d91c1e3b))
 * resolve user session validation issues and optimize telemetry blocker ([aef8362](https://github.com/NNVC/NNVC-Patches/commit/aef83620d1a49b58ad01fde067e4ef583922189d))
 * **stockfish:** correct move classification priority and update settings defaults ([f4c8e84](https://github.com/NNVC/NNVC-Patches/commit/f4c8e84061bd9d12527dec6c14ecad7763666a29))
@@ -345,17 +345,17 @@
 * **fair-play:** implement Fair Play Analysis Controls, warnings, silent mode, and post-game summary ([01d2993](https://github.com/NNVC/NNVC-Patches/commit/01d299326b9c2b01cc32668c5ce39177e99b23e4))
 * **gestures:** hide all overlays on double-tap and fix WDL percentage scale ([8a6c65f](https://github.com/NNVC/NNVC-Patches/commit/8a6c65f5d6deeded7a78470cd8218f9ccdf5b522))
 * implement universal bot unlocking patch and fix UI/matchmaking crashes ([6d48fd1](https://github.com/NNVC/NNVC-Patches/commit/6d48fd1dfcb3171d4cebbe0822af772a4d131027))
-* initial lichess puzzle implementation (fallback point) ([c2e0106](https://github.com/NNVC/NNVC-Patches/commit/c2e010671791600b5b0adb8dba0c5d137ef3781c))
+* initial puzzle implementation (fallback point) ([c2e0106](https://github.com/NNVC/NNVC-Patches/commit/c2e010671791600b5b0adb8dba0c5d137ef3781c))
 * integrate Stockfish engine, settings menu, and migrate packages to app.nnvc.chess ([c89fd4f](https://github.com/NNVC/NNVC-Patches/commit/c89fd4f6263dfe362a1591f90bbb751016958788))
-* **lichess-puzzle:** add 5 download sizes and GitHub Action database auto-updater ([e003a85](https://github.com/NNVC/NNVC-Patches/commit/e003a8587aff640fe5c5e0778d16927610435942))
-* **lichess-puzzle:** add download size selector, fix milestones and display active theme ([304d460](https://github.com/NNVC/NNVC-Patches/commit/304d460fd4e3ed36997b0c1188f380e0dae70b85))
-* **lichess-puzzle:** add support for thematic puzzle categories and category progress tracking ([c48450a](https://github.com/NNVC/NNVC-Patches/commit/c48450a076a7e7e92ba03c1d1b21095e526d52db))
-* **lichess-puzzle:** integrate gamified streak progress bar and premium UI elements into journey map activity ([c057640](https://github.com/NNVC/NNVC-Patches/commit/c057640fc2d5bb766df94fb423b911494707514a))
-* **lichess-puzzle:** migrate offline puzzle storage to persistent SQLite database ([72cb24d](https://github.com/NNVC/NNVC-Patches/commit/72cb24d29f065533664ff89daec0985799ce0841))
-* **lichess-puzzle:** refine standalone puzzle journey, board rendering, game sounds, and daily puzzle completions ([4157eae](https://github.com/NNVC/NNVC-Patches/commit/4157eaeb1635bd11675d318c501b7d9dc80278ad))
+* **puzzle:** add 5 download sizes and GitHub Action database auto-updater ([e003a85](https://github.com/NNVC/NNVC-Patches/commit/e003a8587aff640fe5c5e0778d16927610435942))
+* **puzzle:** add download size selector, fix milestones and display active theme ([304d460](https://github.com/NNVC/NNVC-Patches/commit/304d460fd4e3ed36997b0c1188f380e0dae70b85))
+* **puzzle:** add support for thematic puzzle categories and category progress tracking ([c48450a](https://github.com/NNVC/NNVC-Patches/commit/c48450a076a7e7e92ba03c1d1b21095e526d52db))
+* **puzzle:** integrate gamified streak progress bar and premium UI elements into journey map activity ([c057640](https://github.com/NNVC/NNVC-Patches/commit/c057640fc2d5bb766df94fb423b911494707514a))
+* **puzzle:** migrate offline puzzle storage to persistent SQLite database ([72cb24d](https://github.com/NNVC/NNVC-Patches/commit/72cb24d29f065533664ff89daec0985799ce0841))
+* **puzzle:** refine standalone puzzle journey, board rendering, game sounds, and daily puzzle completions ([4157eae](https://github.com/NNVC/NNVC-Patches/commit/4157eaeb1635bd11675d318c501b7d9dc80278ad))
 * **patch:** add custom titles patch and Java extension ([663fee3](https://github.com/NNVC/NNVC-Patches/commit/663fee35cad82b063544e47b73066329afdee712))
 * **patch:** add telemetry and analytics blocker patch ([aff1b91](https://github.com/NNVC/NNVC-Patches/commit/aff1b915539a27019db7579599477b4099702c9b))
-* **puzzles:** align LichessPuzzleJourney UI with premium Chess.com standards ([b4cdfa0](https://github.com/NNVC/NNVC-Patches/commit/b4cdfa07a20539a2a3667e997ffa617d25cb699b))
+* **puzzles:** align PuzzleJourney UI with premium Chess.com standards ([b4cdfa0](https://github.com/NNVC/NNVC-Patches/commit/b4cdfa07a20539a2a3667e997ffa617d25cb699b))
 * refine settings UI, add Clone App patch, and stabilize fair play logic ([dc59037](https://github.com/NNVC/NNVC-Patches/commit/dc59037f129b9eac16579c63634ba02225a7af0f))
 * **stockfish:** add move classification, blunder alerts, custom settings UI, and workflows ([2032146](https://github.com/NNVC/NNVC-Patches/commit/2032146a06d24b372ee459e6980e3b417a3079bc))
 * **stockfish:** dynamic reflection for local analysis flow and offline review integration ([29594f0](https://github.com/NNVC/NNVC-Patches/commit/29594f06c773a2699daf8d97ddc4221d20120c4a))
@@ -369,7 +369,7 @@
 
 ### 🐛 Bug Fixes
 
-* **lichesspuzzle & stockfish:** resolve concurrency, UI overlap, timer reset, and game review bugs ([2d4b9bd](https://github.com/NNVC/NNVC-Patches/commit/2d4b9bddd1b03731cbc3c4d7da2bf3253ba7acf6))
+* **puzzle & stockfish:** resolve concurrency, UI overlap, timer reset, and game review bugs ([2d4b9bd](https://github.com/NNVC/NNVC-Patches/commit/2d4b9bddd1b03731cbc3c4d7da2bf3253ba7acf6))
 
 ## [1.6.0-dev.2](https://github.com/NNVC/NNVC-Patches/compare/v1.6.0-dev.1...v1.6.0-dev.2) (2026-07-04)
 
@@ -400,25 +400,25 @@
 
 ### 🐛 Bug Fixes
 
-* **lichess-puzzle:** resolve NullPointerException on progress overlay initialization ([b970893](https://github.com/NNVC/NNVC-Patches/commit/b9708930a0481f2c08deeeb6c567abe1ede0f27e))
+* **puzzle:** resolve NullPointerException on progress overlay initialization ([b970893](https://github.com/NNVC/NNVC-Patches/commit/b9708930a0481f2c08deeeb6c567abe1ede0f27e))
 
 ## [1.4.0](https://github.com/NNVC/NNVC-Patches/compare/v1.3.1...v1.4.0) (2026-07-01)
 
 ### 🐛 Bug Fixes
 
-* **lichess-puzzle:** fix closed cursor crash and update download_offset incrementally ([ed3ae1f](https://github.com/NNVC/NNVC-Patches/commit/ed3ae1fc17c69a476d429d1da8e7d4f40cc83db8))
+* **puzzle:** fix closed cursor crash and update download_offset incrementally ([ed3ae1f](https://github.com/NNVC/NNVC-Patches/commit/ed3ae1fc17c69a476d429d1da8e7d4f40cc83db8))
 
 ### ✨ New Features
 
 * **ci:** auto-release datasets via release.yml and point downloads to database release ([fbca65a](https://github.com/NNVC/NNVC-Patches/commit/fbca65a23535ba548b38b851d2be7c13d325a8e2))
-* initial lichess puzzle implementation (fallback point) ([c1feff5](https://github.com/NNVC/NNVC-Patches/commit/c1feff563967a5c73b8d789cbb3653d4f10ffc0e))
-* **lichess-puzzle:** add 5 download sizes and GitHub Action database auto-updater ([6693872](https://github.com/NNVC/NNVC-Patches/commit/6693872628ea9f1f0238fa7f9c473b52d1895b42))
-* **lichess-puzzle:** add download size selector, fix milestones and display active theme ([098b703](https://github.com/NNVC/NNVC-Patches/commit/098b70367716a056177d06cfc000528a730ad4e1))
-* **lichess-puzzle:** add support for thematic puzzle categories and category progress tracking ([542c278](https://github.com/NNVC/NNVC-Patches/commit/542c278d9487cdce3054048805f5e07624fd43e1))
-* **lichess-puzzle:** integrate gamified streak progress bar and premium UI elements into journey map activity ([7215f1a](https://github.com/NNVC/NNVC-Patches/commit/7215f1ac030103c9f0fc2ce176e7293674170e2c))
-* **lichess-puzzle:** migrate offline puzzle storage to persistent SQLite database ([bf85d05](https://github.com/NNVC/NNVC-Patches/commit/bf85d0546e4ca1306d3898262c8e9b2087a84081))
-* **lichess-puzzle:** refine standalone puzzle journey, board rendering, game sounds, and daily puzzle completions ([f1a1a8c](https://github.com/NNVC/NNVC-Patches/commit/f1a1a8c7986959ba84bcc0c4fd5588344f574d89))
-* **puzzles:** align LichessPuzzleJourney UI with premium Chess.com standards ([634ff66](https://github.com/NNVC/NNVC-Patches/commit/634ff6675d55ea0b3deb78c3dcc0bb6b4719a9f9))
+* initial puzzle implementation (fallback point) ([c1feff5](https://github.com/NNVC/NNVC-Patches/commit/c1feff563967a5c73b8d789cbb3653d4f10ffc0e))
+* **puzzle:** add 5 download sizes and GitHub Action database auto-updater ([6693872](https://github.com/NNVC/NNVC-Patches/commit/6693872628ea9f1f0238fa7f9c473b52d1895b42))
+* **puzzle:** add download size selector, fix milestones and display active theme ([098b703](https://github.com/NNVC/NNVC-Patches/commit/098b70367716a056177d06cfc000528a730ad4e1))
+* **puzzle:** add support for thematic puzzle categories and category progress tracking ([542c278](https://github.com/NNVC/NNVC-Patches/commit/542c278d9487cdce3054048805f5e07624fd43e1))
+* **puzzle:** integrate gamified streak progress bar and premium UI elements into journey map activity ([7215f1a](https://github.com/NNVC/NNVC-Patches/commit/7215f1ac030103c9f0fc2ce176e7293674170e2c))
+* **puzzle:** migrate offline puzzle storage to persistent SQLite database ([bf85d05](https://github.com/NNVC/NNVC-Patches/commit/bf85d0546e4ca1306d3898262c8e9b2087a84081))
+* **puzzle:** refine standalone puzzle journey, board rendering, game sounds, and daily puzzle completions ([f1a1a8c](https://github.com/NNVC/NNVC-Patches/commit/f1a1a8c7986959ba84bcc0c4fd5588344f574d89))
+* **puzzles:** align PuzzleJourney UI with premium Chess.com standards ([634ff66](https://github.com/NNVC/NNVC-Patches/commit/634ff6675d55ea0b3deb78c3dcc0bb6b4719a9f9))
 
 ## [1.3.1](https://github.com/NNVC/NNVC-Patches/compare/v1.3.0...v1.3.1) (2026-06-29)
 
