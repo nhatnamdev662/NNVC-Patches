@@ -1,3 +1,34 @@
+## [2.0.101](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.101) (2026-10-14)
+
+### 🛡️ Security & Anti-Crack
+* **Anti-Crack Level 2 (Keystore Coupling):**
+  - Branchless cryptographic coupling binding runtime APK signing certificate SHA-256 fingerprint to on-the-fly WebAssembly stream decryption.
+  - Eliminated naive `if (isTampered) exit()` branches. Tampered or re-signed APKs mathematically corrupt WASM magic bytes, failing WebAssembly instantiation.
+  - Eliminated hardcoded keys from DEX bytecode. Erroneous context or signature hooks return dummy all-zero keys, defeating MT Manager signature verification killers.
+  - Corrected Scheme v3 rotation history parsing to target active signer (`signatures.length - 1`).
+  - Added stream state preservation (`mark`/`reset`) in `CryptoStream.java`.
+  - Created official release Keystore `nnvc-release.jks` (RSA 4096-bit, 30-year validity).
+  - Provided `build_apk_signed.py` for one-command 4-byte `zipalign` and `apksigner` (v1/v2/v3).
+  - 189/189 automated test cases passed 100%.
+
+## [2.0.100](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.100) (2026-10-14)
+
+### 🐛 Bug Fixes & Developer Tools
+* **WebView Bridge R8 Rule:** Added `-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }` to preserve bridge methods across R8 obfuscation.
+* **Secret Developer Log Viewer:** Added hidden 5-tap gesture on settings menu footer to launch `NnvcLogViewerDialog` with 1000-line memory ring buffer and clipboard export.
+
+## [2.0.99](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.99) (2026-10-14)
+
+### 🛡️ Security
+* **Anti-Cache Version Bump:** Updated version to `2.0.99` to ensure clean patch download without stale cache.
+* **Full R8 Obfuscation & String Fogging:** Obfuscated all internal classes into package `a.*` and encrypted sensitive Web Worker JS / UCI constants with runtime XOR fogging.
+
+## [2.0.98](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.98) (2026-10-14)
+
+### 🚀 Rebranding & Codebase Cleanup
+* **Removal of Lichess Puzzles:** Completely removed Lichess Puzzle journey and restored 100% native Chess.com puzzles.
+* **NNVC Rebrand:** Migrated package names from `app.prathxm.chess` to `app.nnvc.chess` and app clone to `com.chess.nnvc`. Initialized new standalone GitHub repository `nhatnamdev662/NNVC-Patches`.
+
 ## [1.15.0](https://github.com/NNVC/NNVC-Patches/compare/v1.14.0...v1.15.0) (2026-09-28)
 
 ### ✨ New Features

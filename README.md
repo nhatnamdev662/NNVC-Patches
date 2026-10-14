@@ -39,7 +39,7 @@ Tương tác trực tiếp bằng cách bấm vào biểu tượng bàn cờ:
 ## 🩹 Danh Sách Bản Vá (Patches)
 
 <!-- PATCHES_START -->
-> **[v2.0.98](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.98)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;7 patches total
+> **[v2.0.101](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.101)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;7 patches total
 <details>
 <summary>📦 Chess.com&nbsp;&nbsp;•&nbsp;&nbsp;7 patches</summary>
 <br>
