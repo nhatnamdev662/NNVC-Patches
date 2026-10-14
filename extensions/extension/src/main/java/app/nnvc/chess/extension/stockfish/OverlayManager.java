@@ -109,11 +109,6 @@ public class OverlayManager {
                 botPill.setElevation(15f);
                 botPill.bringToFront();
             }
-            View logPill = decorView.findViewWithTag(FloatingLogPillView.VIEW_TAG);
-            if (logPill != null && logPill.getVisibility() == View.VISIBLE) {
-                logPill.setElevation(40f);
-                logPill.bringToFront();
-            }
         } catch (Throwable ignored) {}
     }
 

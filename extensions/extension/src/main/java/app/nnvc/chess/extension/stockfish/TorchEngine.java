@@ -52,32 +52,16 @@ public class TorchEngine {
     private volatile boolean isReady = false;
     private final AtomicBoolean isDownloading = new AtomicBoolean(false);
 
-    public static final java.util.List<String> DIAGNOSTIC_LOGS = new java.util.concurrent.CopyOnWriteArrayList<>();
-
     public static void log(String msg) {
-        String entry = new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date()) + " " + msg;
-        DIAGNOSTIC_LOGS.add(entry);
-        while (DIAGNOSTIC_LOGS.size() > 300) {
-            DIAGNOSTIC_LOGS.remove(0);
-        }
+        // No-op for security and zero overhead
     }
 
-    public static void clearLogs() {
-        DIAGNOSTIC_LOGS.clear();
-    }
+    private static final String FOG_TORCH_WORKER = "Kj0ufCgzLj80FD0yODA5LnxhfDIpMDBnVio9LnwuOT04JXxhfDo9MC85Z1YqPS58LSk5KTk4fGF8BwFnVjopMj8oNTMyfD4pOjo5LggzHjUyPS4lDyguNTI7dD4pOjo5LnV8J1Z8fHx8Kj0ufD4lKDkvfGF8MjkrfAk1MihkHS4uPSV0Pik6OjkudWdWfHx8fCo9LnwuOS8pMCh8YXx7e2dWfHx8fCo9Lnw/NCkyNw81Jjl8YXxvbmtqZGdWfHx8fDozLnx0Kj0ufDV8YXxsZ3w1fGB8PiUoOS9yMDkyOyg0Z3w1fHdhfD80KTI3DzUmOXV8J1Z8fHx8fHx8fC45LykwKHx3YXwPKC41MjtyOi4zMR80PS4fMzg5cj0sLDAldDIpMDBwfD4lKDkvci8pPj0uLj0ldDVwfDV8d3w/NCkyNw81Jjl1dWdWfHx8fCFWfHx8fC45KCkuMnwuOS8pMChnViFWOikyPyg1MzJ8NTIvKD0wMAs9LzEENC50Kz0vMR4pOjo5LnV8J1Z8fHx8Kj0ufBI9KDUqOQQUDnxhfC85MDpyBBEQFCgoLA45LSk5LyhnVnx8fHwqPS58NS8LPS8xCS4wfGF8OikyPyg1MzJ0KS4wdXwnfC45KCkuMnwPKC41Mjt0KS4wfCAgfHt7dXI1Mjg5JBM6dHsoMy4/NHIrPS8xe3V8fWFhfHFtZ3whZ1Z8fHx8OikyPyg1MzJ8Cz0vMR0rPS45BBQOdHV8J1Z8fHx8fHx8fCg0NS9yLjk9OCUPKD0oOXxhfGxnfCg0NS9yLjkvLDMyLzl8YXwyKTAwZ3woNDUvci45LywzMi85CDkkKHxhfHt7Z3woNDUvci45LywzMi85CCUsOXxhfHt7Z1Z8fHx8fHx8fCg0NS9yLyg9KCkvfGF8bGd8KDQ1L3IvKD0oKS8IOSQofGF8e3tnfCg0NS9yAz0vJTI/fGF8KC4pOWd8KDQ1L3IDNDk9ODkuL3xhfCchZ1Z8fHx8fHx8fCg0NS9yAzI9KDUqOXxhfBI9KDUqOQQUDnxjfDI5K3wSPSg1KjkEFA50dXxmfDIpMDBnfCg0NS9yAzUvCz0vMXxhfDo9MC85Z1Z8fHx8IVZ8fHx8Cz0vMR0rPS45BBQOciwuMygzKCUsOXIzLDkyfGF8OikyPyg1MzJ0MTkoNDM4cHwpLjBwfD0vJTI/dXwnVnx8fHx8fHx8KDQ1L3IDKS4wfGF8DyguNTI7dCkuMHwgIHx7e3VnfCg0NS9yAz0vJTI/fGF8PS8lMj98fWFhfDo9MC85Z1Z8fHx8fHx8fCg0NS9yAzUvCz0vMXxhfDUvCz0vMQkuMHQoNDUvcgMpLjB1Z1Z8fHx8fHx8fDU6fHQoNDUvcgM1Lws9LzF1fCd8KDQ1L3IuOT04JQ8oPSg5fGF8bWd8LjkoKS4yZ3whVnx8fHx8fHx8NTp8dCg0NS9yAzI9KDUqOXV8KDQ1L3IDMj0oNSo5cjMsOTJ0MTkoNDM4cHwpLjBwfD0vJTI/dWdWfHx8fCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5ci85Mjh8YXw6KTI/KDUzMnQ+MzgldXwnVnx8fHx8fHx8NTp8dH0oNDUvcgM1Lws9LzF8enp8KDQ1L3IDMj0oNSo5dXwuOSgpLjJ8KDQ1L3IDMj0oNSo5ci85Mjh0PjM4JXVnVnx8fHx8fHx8Kj0ufC85MDoENC58YXwoNDUvZ1Z8fHx8fHx8fCo9Lnw6NTI1LzR8YXw6KTI/KDUzMnR1fCdWfHx8fHx8fHx8fHx8LzkwOgQ0LnIvKD0oKS98YXxubGxnfC85MDoENC5yLyg9KCkvCDkkKHxhfHsTF3tnfC85MDoENC5yLjk9OCUPKD0oOXxhfGhnVnx8fHx8fHx8fHx8fDU6fHQvOTA6BDQuci45LywzMi85CCUsOXxhYWF8ez0uLj0lPik6Ojkue3V8J1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfCs9LzEeKTo6OS5yLzA1Pzl0bHVnVnx8fHx8fHx8fHx8fCF8OTAvOXw1Onx0LzkwOgQ0LnIuOS8sMzIvOQglLDl8YWFhfHs+MDM+e3x6enwoJSw5Mzp8HjAzPnxhYWF8ezopMj8oNTMye3V8J1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfDI5K3weMDM+dAcrPS8xHik6OjkuAXB8J3woJSw5Znx7PSwsMDU/PSg1MzJzKz0vMXt8IXVnVnx8fHx8fHx8fHx8fCF8OTAvOXwnVnx8fHx8fHx8fHx8fHx8fHwvOTA6BDQuci45LywzMi85CDkkKHxhfD4pOjo5LggzHjUyPS4lDyguNTI7dCs9LzEeKTo6OS51Z1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfC85MDoENC5yLjkvLDMyLzkIOSQoZ1Z8fHx8fHx8fHx8fHwhVnx8fHx8fHx8fHx8fDU6fHQoJSw5Mzp8LzkwOgQ0LnIzMi45PTglLyg9KDk/ND0yOzl8YWFhfHs6KTI/KDUzMnt1fC85MDoENC5yMzIuOT04JS8oPSg5PzQ9Mjs5dHVnVnx8fHx8fHx8fHx8fDU6fHQoJSw5Mzp8LzkwOgQ0LnIzMjAzPTh8YWFhfHs6KTI/KDUzMnt1fC85MDoENC5yMzIwMz04dHVnVnx8fHx8fHx8IWdWfHx8fHx8fHw1Onx0KDQ1L3IDPS8lMj91fC85KAg1MTkzKSh0OjUyNS80cHxsdWd8OTAvOXw6NTI1LzR0dWdWfHx8fCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5ci85KA45LSk5LygUOT04OS58YXw6KTI/KDUzMnQ0cHwqdXwnfDU6fHR9KDQ1L3IDNS8LPS8xfHp6fCg0NS9yAzI9KDUqOXV8KDQ1L3IDMj0oNSo5ci85KA45LSk5LygUOT04OS50NHB8KnVnfCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5cjs5KA45LywzMi85FDk9ODkufGF8OikyPyg1MzJ0Mj0xOXV8J3wuOSgpLjJ8DyguNTI7dDI9MTl1cigzEDMrOS4fPS85dHV8YWFhfHs/MzIoOTIocSglLDl7fGN8ez0sLDA1Pz0oNTMycys9LzF7fGZ8MikwMGd8IWdWfHx8fAs9LzEdKz0uOQQUDnIsLjMoMyglLDlyOzkoHTAwDjkvLDMyLzkUOT04OS4vfGF8OikyPyg1MzJ0dXwnfC45KCkuMnx7PzMyKDkyKHEoJSw5Znw9LCwwNT89KDUzMnMrPS8xe3x3fA8oLjUyO3I6LjMxHzQ9Lh8zODl0bW9wfG1sdWd8IWdWfHx8fC85MDpyBBEQFCgoLA45LSk5Lyh8YXwLPS8xHSs9LjkEFA5nViFWLzkwOnIzMjE5Ly89Ozl8YXw6KTI/KDUzMnQ5dXwnVnx8fHw1Onx0OXI4PSg9fHp6fDlyOD0oPXIDAzUyNSgDKDMuPzQDA3V8J1Z8fHx8fHx8fCguJXwnVnx8fHx8fHx8fHx8fDUyLyg9MDALPS8xBDQudDlyOD0oPXIrPS8xdWdWfHx8fHx8fHx8fHx8LzkwOnIRMzgpMDl8YXwvOTA6chEzOCkwOXwgIHwnIWdWfHx8fHx8fHx8fHx8LzkwOnIRMzgpMDlyKz0vMR41Mj0uJXxhfDlyOD0oPXIrPS8xZ1Z8fHx8fHx8fHx8fHwvOTA6chEzOCkwOXIzMh0+My4ofGF8OikyPyg1MzJ0KzQ9KHV8J3wvOTA6ciwzLygROS8vPTs5dHsDAwgTDh8UAxkODhMOAwNme3x3fHQrND0ofCAgfHs9PjMuKHt1dWd8IWdWfHx8fHx8fHx8fHx8dDI5K3waKTI/KDUzMnQ5cjg9KD1yNi91dXR1Z1Z8fHx8fHx8fHx8fHwoMy4/NBQ9MjgwOS58YXwvOTA6cjMy"
+            + "MTkvLz07OWdWfHx8fHx8fHx8fHx8Ljk9OCV8YXwoLik5Z1Z8fHx8fHx8fHx8fHwrNDUwOXx0LSk5KTk4cjA5MjsoNHx6enwoJSw5Mzp8KDMuPzQUPTI4MDkufGFhYXx7OikyPyg1MzJ7dXwnVnx8fHx8fHx8fHx8fHx8fHwoMy4/NBQ9MjgwOS5yPz0wMHQvOTA6cHwnfDg9KD1mfC0pOSk5OHIvNDU6KHR1fCF1Z1Z8fHx8fHx8fHx8fHwhVnx8fHx8fHx8fHx8fC85MDpyLDMvKBE5Ly89Ozl0ewMDCBMOHxQDDhkdGAUDA3t1Z1Z8fHx8fHx8fCF8Pz0oPzR8dDkuLnV8J1Z8fHx8fHx8fHx8fHwvOTA6ciwzLygROS8vPTs5dHsDAwgTDh8UAxkODhMOAwNme3x3fA8oLjUyO3Q5Li51dWdWfHx8fHx8fHwhVnx8fHwhfDkwLzl8NTp8dC45PTglfHp6fCglLDkzOnwoMy4/NBQ9MjgwOS58YWFhfHs6KTI/KDUzMnt1fCdWfHx8fHx8fHwoMy4/NBQ9MjgwOS5yPz0wMHQvOTA6cHw5dWdWfHx8fCF8OTAvOXwnVnx8fHx8fHx8LSk5KTk4ciwpLzR0OXI4PSg9dWdWfHx8fCFWIWdW";
 
-    public static List<String> getRawLogs() {
-        return new ArrayList<>(DIAGNOSTIC_LOGS);
-    }
+    private static final String FOG_TORCH_HTML = "YH0YEx8IBQwZfDQoMTBiYDQoMTBiYDQ5PThiYDE5KD18PzQ9Li85KGF7KSg6cWR7YmBzNDk9OGJgPjM4JWJgLz8uNSwoYlZ0OikyPyg1MzJ0dXwnVnx8fHwrNTI4MytyHSk4NTMfMzIoOSQofGF8KTI4OTo1Mjk4Z1Z8fHx8KzUyODMrcis5Pjc1KB0pODUzHzMyKDkkKHxhfCkyODk6NTI5OGdWfHx8fCs1MjgzK3IdKTg1M3xhfCkyODk6NTI5OGdWfHx8fDU6fHQrNTI4MytyLyw5OT80DyUyKDQ5LzUvdXwrNTI4MytyLyw5OT80DyUyKDQ5LzUvci8sOT03fGF8OikyPyg1MzJ0dSchZ1Z8fHx8DC4zMTUvOXI9MDB0B1Z8fHx8fHx8fDo5KD80dHt5CBMOHxQDFBMPCHkoMy4/NHI2L3t1cig0OTJ0LnxhYnwucig5JCh0dXVwVnx8fHx8fHx8OjkoPzR0e3kIEw4fFAMUEw8IeSgzLj80cis9LzF7dXIoNDkydC58YWJ8LnI9Li49JR4pOjo5LnR1dVZ8fHx8AXVyKDQ5MnR0BzYvCDkkKHB8Kz0vMR4pOjo5LgF1fGFifCdWfHx8fHx8fHw/MzIvKHwrMy43OS4fMzg5fGF8PSgzPnR7eQsTDhcZDgMfExgZeXt1Z1Z8fHx8fHx8fD8zMi8ofD4wMz58YXwyOSt8HjAzPnQHKzMuNzkuHzM4OQFwfCd8KCUsOWZ8ez0sLDA1Pz0oNTMyczY9Kj0vPy41LCh7fCF1Z1Z8fHx8fHx8fD8zMi8ofCszLjc5LnxhfDI5K3wLMy43OS50CQ4Qcj8uOT0oORM+Njk/KAkOEHQ+MDM+dXVnVnx8fHx8fHx8KzUyODMrcgMoMy4/NAszLjc5LnxhfCszLjc5LmdWfHx8fHx8fHwrMy43OS5yMzIxOS8vPTs5fGF8OikyPyg1MzJ0OXV8J1Z8fHx8fHx8fHx8fHw/MzIvKHw4PSg9fGF8OXI4PSg9Z1Z8fHx8fHx8fHx8fHw1Onx0OD0oPXxhYWF8ewMDCBMOHxQDDhkdGAUDA3t1fCdWfHx8fHx8fHx8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80Djk9OCV0dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8CS85GDk/MD0uPSg1KjkMMy81KDUzMh8zMTE9Mjh8Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXweMD0/NxkwM3wqPTApOXxvbmxse3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAs0NSg5GTAzfCo9MCk5fG9ubGx7dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8FD0yODA5HzMyKDUyKT0oNTMyL3wqPTApOXwoLik5e3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fBQ9MjgwOR8zMig1Mik9KDUzMi8YOSwoNHwqPTApOXxoe3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAkvOS4fMzAzLnwqPTApOXwrNDUoOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXweMygfND0oDC41My41KDUmOQwwPSU5LhEzKjl8Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwdMDAzKx4zPS44GSo5MigvCzUoNDMpKA8sOTk/NHwqPTApOXwoLik5e3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fA85Lio5HzMxMT0yOApufCo9MCk5fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8Dyw5OT80Cm98Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwfMD0vLzU6NT89KDUzMgpvfCo9MCk5fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8CR8VAx80OS8vZWpsfCo9MCk5fDo9MC85e3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAkvOQ49KDUyOw49Mjs5L3wqPTApOXwoLik5e3VnVnx8fHx8fHx8fHx8fCF8OTAvOXw1Onx0KCUsOTM6fDg9KD18YWFhfHsvKC41Mjt7fHp6fDg9KD1yLyg9LigvCzUoNHR7AwMIEw4fFAMZDg4TDgMDZnt1dXwnVnx8fHx8fHx8fHx8fHx8fHw1Onx0KzUyODMrcggzLj80Hi41ODs5dXwrNTI4MytyCDMuPzQeLjU4OzlyMzIIMy4/NBkuLjMudDg9KD1yLyk+LyguNTI7dG1qdXVnVnx8fHx8fHx8fHx8fCF8OTAvOXw1Onx0KCUsOTM6fDg9KD18YWFhfHsvKC41Mjt7fHp6fDg9KD1yLyg9LigvCzUoNHR7Ni8zMnx7dXV8J1Z8fHx8fHx8fHx8fHx8fHx8PzMyLyh8Ni8zMgw9JTAzPTh8YXw4PSg9ci8pPi8oLjUyO3RpdXIoLjUxdHVnVnx8fHx8fHx8fHx8fHx8fHw/MzIvKHwuOS0VOHxhfHQrNTI4MytyAy45LRU4DSk5KTl8enp8KzUyODMrcgMuOS0VOA0pOSk5cjA5MjsoNHxifGx1fGN8KzUyODMrcgMuOS0VOA0pOSk5ci80NToodHV8Znx0KzUyODMrcgM9Pyg1KjkOOS0VOHwgIHxsdWdWfHx8fHx8fHx8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80DjkvKTAodDYvMzIMPSUwMz04cHwuOS0VOHVnVnx8fHx8fHx8fHx8fCFWfHx8fHx8fHwhZ1Z8fHx8fHx8fCszLjc5LnIzMjkuLjMufGF8OikyPyg1MzJ0OS4udXwnVnx8fHx8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80GS4uMy50DyguNTI7dDkuLnIxOS8vPTs5fCAgfDkuLnV1Z1Z8fHx8fHx8fCFnVnx8fHx8fHx8KzUyODMrcgMuOS0VOA0pOSk5fGF8BwFnVnx8fHx8fHx8KzUyODMrci85MjgIMy4/NAwzLzUoNTMyfGF8OikyPyg1MzJ0LDMvHzE4cHwpLzkuHzMwMy5wfDg5LCg0cHwuOS0VOHV8J1Z8fHx8fHx8fHx8fHw1Onx0fSszLjc5LnV8LjkoKS4yZ1Z8fHx8fHx8fHx8fHwrNTI4MytyAz0/KDUqOQ45LRU4fGF8LjktFThnVnx8fHx8fHx8fHx8fDU6fHR9KzUyODMrcgMuOS0VOA0pOSk5dXwrNTI4MytyAy45LRU4DSk5KTl8YXwHAWdWfHx8fHx8fHx8fHx8KzUyODMrcgMuOS0VOA0pOSk5ciwpLzR0LjktFTh1Z1Z8fHx8fHx8fHx8fHw1Onx0"
+            + "KS85Lh8zMDMudXwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAkvOS4fMzAzLnwqPTApOXx7fHd8KS85Lh8zMDMudWdWfHx8fHx8fHx8fHx8PzMyLyh8OHxhfDg5LCg0fCAgfG5nVnx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8FD0yODA5HzMyKDUyKT0oNTMyLxg5LCg0fCo9MCk5fHt8d3w4dWdWfHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dCwzLx8xOHVnVnx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7OjkoPzR8PTI9MCUvNS97dWdWfHx8fHx8fHwhZ1Z8fHx8fHx8fCs1MjgzK3I/PTI/OTAIMy4/NB0yPTAlLzUvfGF8OikyPyg1MzJ0dXwnVnx8fHx8fHx8fHx8fCs1MjgzK3IDPT8oNSo5DjktFTh8YXxxbWdWfHx8fHx8fHx8fHx8KzUyODMrcgMuOS0VOA0pOSk5fGF8BwFnVnx8fHx8fHx8fHx8fDU6fHQrMy43OS51fCszLjc5LnIsMy8oETkvLz07OXR7LygzLHt1Z1Z8fHx8fHx8fCFnVnx8fHx8fHx8KzUyODMrci85MjgIMy4/NBEzKjl8YXw6KTI/KDUzMnQxMyo5Lw8oLnB8KS85Lh8zMDMucHw4OSwoNHB8LjktFTh1fCdWfHx8fHx8fHx8fHx8KzUyODMrci85MjgIMy4/NAwzLzUoNTMydHssMy81KDUzMnwvKD0uKCwzL3wxMyo5L3x7fHd8MTMqOS8PKC5wfCkvOS4fMzAzLnB8ODksKDRwfC45LRU4dWdWfHx8fHx8fHwhZ1Z8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXQnfAMDNTI1KAMoMy4/NAMDZnwoLik5cHw2L2Z8Ni8IOSQocHwrPS8xZnwrPS8xHik6OjkufCFwfAcrPS8xHik6OjkuAXVnVnx8fHwhdXI/PSg/NHQ5Li58YWJ8J1Z8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80GS4uMy50DyguNTI7dDkuLnV1Z1Z8fHx8IXVnViF1dHVnVmBzLz8uNSwoYmBzPjM4JWJgczQoMTBi";
 
-    public static String getFormattedLogs() {
-        if (DIAGNOSTIC_LOGS.isEmpty()) return "Chưa có log nào được ghi nhận.";
-        StringBuilder sb = new StringBuilder();
-        for (String l : DIAGNOSTIC_LOGS) {
-            sb.append(l).append("\n");
-        }
-        return sb.toString();
-    }
 
     public interface TorchClassificationCallback {
         void onClassification(String classificationName, String playedMoveLan, String bestMoveLan, String speechText, String rawJson);
@@ -292,81 +276,9 @@ public class TorchEngine {
                 }
             });
 
-            String html = "<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><script>\n" +
-                    "(function() {\n" +
-                    "    window.AudioContext = undefined;\n" +
-                    "    window.webkitAudioContext = undefined;\n" +
-                    "    window.Audio = undefined;\n" +
-                    "    if (window.speechSynthesis) window.speechSynthesis.speak = function(){};\n" +
-                    "    console.log('[Torch] Starting bootstrap...');\n" +
-                    "    Promise.all([\n" +
-                    "        fetch('" + TORCH_HOST + "torch.js').then(r => r.text()),\n" +
-                    "        fetch('" + TORCH_HOST + "torch.wasm').then(r => r.arrayBuffer())\n" +
-                    "    ]).then(([jsText, wasmBuffer]) => {\n" +
-                    "        console.log('[Torch] Assets loaded. WASM size: ' + wasmBuffer.byteLength);\n" +
-                    "        const workerCode = atob('" + getWorkerScriptBase64() + "');\n" +
-                    "        const blob = new Blob([workerCode], { type: 'application/javascript' });\n" +
-                    "        const worker = new Worker(URL.createObjectURL(blob));\n" +
-                    "        window._torchWorker = worker;\n" +
-                    "        worker.onmessage = function(e) {\n" +
-                    "            const data = e.data;\n" +
-                    "            if (data === '__TORCH_READY__') {\n" +
-                    "                console.log('[Torch] Worker is READY!');\n" +
-                    "                if (window.TorchBridge) window.TorchBridge.onTorchReady();\n" +
-                    "                worker.postMessage('setoption name UseDeclarativePositionCommand value true');\n" +
-                    "                worker.postMessage('setoption name BlackElo value 3200');\n" +
-                    "                worker.postMessage('setoption name WhiteElo value 3200');\n" +
-                    "                worker.postMessage('setoption name HandleContinuations value true');\n" +
-                    "                worker.postMessage('setoption name HandleContinuationsDepth value 4');\n" +
-                    "                worker.postMessage('setoption name UserColor value white');\n" +
-                    "                worker.postMessage('setoption name BotChatPrioritizePlayerMove value true');\n" +
-                    "                worker.postMessage('setoption name AllowBoardEventsWithoutSpeech value true');\n" +
-                    "                worker.postMessage('setoption name ServeCommandV2 value true');\n" +
-                    "                worker.postMessage('setoption name SpeechV3 value true');\n" +
-                    "                worker.postMessage('setoption name ClassificationV3 value true');\n" +
-                    "                worker.postMessage('setoption name UCI_Chess960 value false');\n" +
-                    "                worker.postMessage('setoption name UseRatingRanges value true');\n" +
-                    "            } else if (typeof data === 'string' && data.startsWith('__TORCH_ERROR__:')) {\n" +
-                    "                console.error('[Torch] ' + data);\n" +
-                    "                if (window.TorchBridge) window.TorchBridge.onTorchError(data.substring(16));\n" +
-                    "            } else if (typeof data === 'string' && data.startsWith('json ')) {\n" +
-                    "                const jsonPayload = data.substring(5).trim();\n" +
-                    "                const reqId = (window._reqIdQueue && window._reqIdQueue.length > 0) ? window._reqIdQueue.shift() : (window._activeReqId || 0);\n" +
-                    "                if (window.TorchBridge) window.TorchBridge.onTorchResult(jsonPayload, reqId);\n" +
-                    "            }\n" +
-                    "        };\n" +
-                    "        worker.onerror = function(err) {\n" +
-                    "            console.error('[Torch Worker Error] ' + (err.message || err));\n" +
-                    "            if (window.TorchBridge) window.TorchBridge.onTorchError(String(err.message || err));\n" +
-                    "        };\n" +
-                    "        window._reqIdQueue = [];\n" +
-                    "        window.sendTorchPosition = function(posCmd, userColor, depth, reqId) {\n" +
-                    "            if (!worker) return;\n" +
-                    "            window._activeReqId = reqId;\n" +
-                    "            if (!window._reqIdQueue) window._reqIdQueue = [];\n" +
-                    "            window._reqIdQueue.push(reqId);\n" +
-                    "            if (userColor) worker.postMessage('setoption name UserColor value ' + userColor);\n" +
-                    "            const d = depth || 2;\n" +
-                    "            worker.postMessage('setoption name HandleContinuationsDepth value ' + d);\n" +
-                    "            worker.postMessage(posCmd);\n" +
-                    "            worker.postMessage('fetch analysis');\n" +
-                    "        };\n" +
-                    "        window.cancelTorchAnalysis = function() {\n" +
-                    "            window._activeReqId = -1;\n" +
-                    "            window._reqIdQueue = [];\n" +
-                    "            if (worker) worker.postMessage('stop');\n" +
-                    "        };\n" +
-                    "        window.sendTorchMove = function(movesStr, userColor, depth, reqId) {\n" +
-                    "            window.sendTorchPosition('position startpos moves ' + movesStr, userColor, depth, reqId);\n" +
-                    "        };\n" +
-                    "        worker.postMessage({ __init_torch__: true, js: jsText, wasm: wasmBuffer }, [wasmBuffer]);\n" +
-                    "    }).catch(err => {\n" +
-                    "        console.error('[Torch Fetch Error] ' + err);\n" +
-                    "        if (window.TorchBridge) window.TorchBridge.onTorchError(String(err));\n" +
-                    "    });\n" +
-                    "})();\n" +
-                    "</script></body></html>";
-
+            String template = StringFog.decrypt(FOG_TORCH_HTML, (byte) 0x5C);
+            String html = template.replace("%TORCH_HOST%", TORCH_HOST)
+                                  .replace("%WORKER_CODE%", getWorkerScriptBase64());
             webView.loadDataWithBaseURL(TORCH_HOST, html, "text/html", "UTF-8", null);
 
         } catch (Throwable t) {
@@ -600,82 +512,7 @@ public class TorchEngine {
     }
 
     private static String getWorkerScriptBase64() {
-        String script = "var torchHandler = null;\n" +
-                "var ready = false;\n" +
-                "var queued = [];\n" +
-                "function bufferToBinaryString(buffer) {\n" +
-                "    var bytes = new Uint8Array(buffer);\n" +
-                "    var result = '';\n" +
-                "    var chunkSize = 32768;\n" +
-                "    for (var i = 0; i < bytes.length; i += chunkSize) {\n" +
-                "        result += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));\n" +
-                "    }\n" +
-                "    return result;\n" +
-                "}\n" +
-                "function installWasmXhr(wasmBuffer) {\n" +
-                "    var NativeXHR = self.XMLHttpRequest;\n" +
-                "    var isWasmUrl = function(url) { return String(url || '').indexOf('torch.wasm') !== -1; };\n" +
-                "    function WasmAwareXHR() {\n" +
-                "        this.readyState = 0; this.response = null; this.responseText = ''; this.responseType = '';\n" +
-                "        this.status = 0; this.statusText = ''; this._async = true; this._headers = {};\n" +
-                "        this._native = NativeXHR ? new NativeXHR() : null; this._isWasm = false;\n" +
-                "    }\n" +
-                "    WasmAwareXHR.prototype.open = function(method, url, async) {\n" +
-                "        this._url = String(url || ''); this._async = async !== false;\n" +
-                "        this._isWasm = isWasmUrl(this._url);\n" +
-                "        if (this._isWasm) { this.readyState = 1; return; }\n" +
-                "        if (this._native) this._native.open(method, url, async);\n" +
-                "    };\n" +
-                "    WasmAwareXHR.prototype.send = function(body) {\n" +
-                "        if (!this._isWasm && this._native) return this._native.send(body);\n" +
-                "        var selfXhr = this;\n" +
-                "        var finish = function() {\n" +
-                "            selfXhr.status = 200; selfXhr.statusText = 'OK'; selfXhr.readyState = 4;\n" +
-                "            if (selfXhr.responseType === 'arraybuffer') {\n" +
-                "                selfXhr.response = wasmBuffer.slice(0);\n" +
-                "            } else if (selfXhr.responseType === 'blob' && typeof Blob === 'function') {\n" +
-                "                selfXhr.response = new Blob([wasmBuffer], { type: 'application/wasm' });\n" +
-                "            } else {\n" +
-                "                selfXhr.responseText = bufferToBinaryString(wasmBuffer);\n" +
-                "                selfXhr.response = selfXhr.responseText;\n" +
-                "            }\n" +
-                "            if (typeof selfXhr.onreadystatechange === 'function') selfXhr.onreadystatechange();\n" +
-                "            if (typeof selfXhr.onload === 'function') selfXhr.onload();\n" +
-                "        };\n" +
-                "        if (this._async) setTimeout(finish, 0); else finish();\n" +
-                "    };\n" +
-                "    WasmAwareXHR.prototype.setRequestHeader = function(h, v) { if (!this._isWasm && this._native) this._native.setRequestHeader(h, v); };\n" +
-                "    WasmAwareXHR.prototype.getResponseHeader = function(name) { return String(name).toLowerCase() === 'content-type' ? 'application/wasm' : null; };\n" +
-                "    WasmAwareXHR.prototype.getAllResponseHeaders = function() { return 'content-type: application/wasm' + String.fromCharCode(13, 10); };\n" +
-                "    self.XMLHttpRequest = WasmAwareXHR;\n" +
-                "}\n" +
-                "self.onmessage = function(e) {\n" +
-                "    if (e.data && e.data.__init_torch__) {\n" +
-                "        try {\n" +
-                "            console.log('[Worker] Injected wasmBuffer, installing XHR...');\n" +
-                "            installWasmXhr(e.data.wasm);\n" +
-                "            self.Module = self.Module || {};\n" +
-                "            self.Module.wasmBinary = e.data.wasm;\n" +
-                "            self.Module.onAbort = function(what) { self.postMessage('__TORCH_ERROR__:' + (what || 'abort')); };\n" +
-                "            console.log('[Worker] Compiling & executing torch.js...');\n" +
-                "            (new Function(e.data.js))();\n" +
-                "            torchHandler = self.onmessage;\n" +
-                "            ready = true;\n" +
-                "            console.log('[Worker] Torch Engine initialized! Flushing queue (' + queued.length + ')...');\n" +
-                "            while (queued.length && typeof torchHandler === 'function') {\n" +
-                "                torchHandler.call(self, { data: queued.shift() });\n" +
-                "            }\n" +
-                "            self.postMessage('__TORCH_READY__');\n" +
-                "        } catch (err) {\n" +
-                "            console.error('[Worker Crash] ' + (err.stack || err));\n" +
-                "            self.postMessage('__TORCH_ERROR__:' + String(err));\n" +
-                "        }\n" +
-                "    } else if (ready && typeof torchHandler === 'function') {\n" +
-                "        torchHandler.call(self, e);\n" +
-                "    } else {\n" +
-                "        queued.push(e.data);\n" +
-                "    }\n" +
-                "};\n";
+        String script = StringFog.decrypt(FOG_TORCH_WORKER, (byte) 0x5C);
         return android.util.Base64.encodeToString(script.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
     }
 }
