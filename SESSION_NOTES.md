@@ -2,7 +2,7 @@
 
 ## 1. Thông Tin Tác Giả & Thiết Bị
 - **Tác giả**: Nhat Nam (`@nncutett` trên Telegram)
-- **Repository độc lập**: `https://github.com/nhatnamdev662/Prathxm-Patches`
+- **Repository độc lập**: `https://github.com/nhatnamdev662/NNVC-Patches`
 - **Tài khoản Git/GitHub**: `nhatnamdev662` (`nhatnamdev662@users.noreply.github.com`)
 
 - **Bản APK mục tiêu**: `Chess.com v4.10.20-googleplay` (versionCode: `280085`), lưu tại `E:\chess mobile\apk\chess_4.10.20.apk`
@@ -24,7 +24,7 @@
      - Màn hình Báo lỗi Crash (`CrashActivity.java`)
      - `README.md`, `patches-list.json`, `CustomTitlesPatch.kt`.
 4. **Đẩy Lên Kho Lưu Trữ Độc Lập**:
-   - Đã khởi tạo và push thành công toàn bộ source code độc lập lên `https://github.com/nhatnamdev662/Prathxm-Patches`.
+   - Đã khởi tạo và push thành công toàn bộ source code độc lập lên `https://github.com/nhatnamdev662/NNVC-Patches`.
    - Đã gửi lệnh tự động thêm nguồn patch vào **Morphe Manager** trên điện thoại qua ADB.
 5. **Khắc Phục Phiên Bản Mục Tiêu 4.10.20 Trong Morphe Manager**:
    - Biên dịch lại toàn bộ Java Extension thành DEX hoàn chỉnh kèm `I18n` và liên hệ Telegram `@nncutett`.
@@ -118,7 +118,7 @@
 25. **Khôi Phục Mũi Tên Hiểm Họa Gốc Native Chess.com (v2.0.42)**:
     - **Yêu cầu người dùng**: Để mũi tên hiểm họa như cũ.
     - **Thực hiện**:
-      - Khôi phục nguyên bản [ArrowInjector.java](file:///e:/chess%20mobile/project/extensions/extension/src/main/java/app/prathxm/chess/extension/stockfish/ArrowInjector.java), [OverlayManager.java](file:///e:/chess%20mobile/project/extensions/extension/src/main/java/app/prathxm/chess/extension/stockfish/OverlayManager.java), [ArrowOverlayView.java](file:///e:/chess%20mobile/project/extensions/extension/src/main/java/app/prathxm/chess/extension/stockfish/ArrowOverlayView.java) và [StockfishExtension.java](file:///e:/chess%20mobile/project/extensions/extension/src/main/java/app/prathxm/chess/extension/stockfish/StockfishExtension.java).
+      - Khôi phục nguyên bản [ArrowInjector.java](file:///e:/chess%20mobile/project/extensions/extension/src/main/java/app/nnvc/chess/extension/stockfish/ArrowInjector.java), [OverlayManager.java](file:///e:/chess%20mobile/project/extensions/extension/src/main/java/app/nnvc/chess/extension/stockfish/OverlayManager.java), [ArrowOverlayView.java](file:///e:/chess%20mobile/project/extensions/extension/src/main/java/app/nnvc/chess/extension/stockfish/ArrowOverlayView.java) và [StockfishExtension.java](file:///e:/chess%20mobile/project/extensions/extension/src/main/java/app/nnvc/chess/extension/stockfish/StockfishExtension.java).
       - Mũi tên hiểm họa (Threat Arrow) tiếp tục sử dụng vector `HintArrow` màu đỏ gốc của Chess.com tiêm qua `ArrowInjector.injectThreatArrow`.
       - Mũi tên gợi ý Stockfish (Tier 1..5) và huy hiệu phân loại tiếp tục hiển thị trên `ArrowOverlayView` bằng Canvas cyberpunk như cũ.
 
@@ -515,7 +515,7 @@
 
 ## 3. Trạng Thái Hiện Tại & Checklist Kiểm Thử
 - **Phiên bản mới nhất**: `v2.0.77` (versionCode `20077`).
-- **File tải bundle**: `https://github.com/nhatnamdev662/Prathxm-Patches/releases/download/v2.0.77/patches-2.0.77.mpp`
+- **File tải bundle**: `https://github.com/nhatnamdev662/NNVC-Patches/releases/download/v2.0.77/patches-2.0.77.mpp`
 - **File bundle cục bộ**: `E:\chess mobile\project\mpp_archive\patches-2.0.77.mpp` (227,456,536 bytes) và `C:\Users\MAY1\AppData\Local\Temp\patches-2.0.77.mpp`.
 - **Checklist Kiểm Thử**:
   - [x] Đã biên dịch sạch Java Extension và đóng gói thành công `patches-2.0.77.mpp` (227,456,536 bytes).

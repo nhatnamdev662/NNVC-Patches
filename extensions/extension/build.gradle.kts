@@ -3,7 +3,7 @@ extension {
 }
 
 android {
-    namespace = "app.prathxm.chess.extension"
+    namespace = "app.nnvc.chess.extension"
     buildFeatures {
         buildConfig = true
     }

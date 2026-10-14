@@ -1,0 +1,26 @@
+/*
+ * Copyright 2026 NNVC
+ * https://github.com/NNVC/NNVC-Patches
+ */
+
+package app.nnvc.chess.patches.shared
+
+import app.morphe.patcher.patch.ApkFileType
+import app.morphe.patcher.patch.AppTarget
+import app.morphe.patcher.patch.Compatibility
+
+object Constants {
+    val COMPATIBILITY_CHESS = Compatibility(
+        name = "Chess.com",
+        packageName = "com.chess",
+        apkFileType = ApkFileType.APKM,
+        appIconColor = 0x81B64C, // Chess.com green
+        signatures = setOf("aa8c9ff93efbdc4226a113e49fc9645b2c02092a314305da2d76be6cdf8abfc3"),
+        targets = listOf(
+            AppTarget(version = "4.10.0"),
+            AppTarget(version = "4.10.0-googleplay"),
+            AppTarget(version = "4.10.20"),
+            AppTarget(version = "4.10.20-googleplay")
+        )
+    )
+}

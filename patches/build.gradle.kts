@@ -1,13 +1,13 @@
 import java.io.File
 import java.util.Properties
 
-group = "app.prathxm.chess"
+group = "app.nnvc.chess"
 
 patches {
     about {
         name = "NNVC"
         description = "Bản mod tùy chỉnh Chess.com — Stockfish 19 NNUE, gỡ quảng cáo, mở khóa bot, song ngữ Anh - Việt"
-        source = "https://github.com/nhatnamdev662/Prathxm-Patches.git"
+        source = "https://github.com/nhatnamdev662/NNVC-Patches.git"
         author = "NNVC"
         contact = "t.me/nncutett"
         website = "https://t.me/nncutett"

@@ -1,13 +1,14 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" />
-  <img src="https://img.shields.io/badge/Engine-Stockfish_19-4A90D9?style=for-the-badge&logo=chess.com&logoColor=white" />
+  <img src="https://img.shields.io/badge/Engine-Stockfish_18_%26_Komodo_3.3-4A90D9?style=for-the-badge&logo=chess.com&logoColor=white" />
   <img src="https://img.shields.io/badge/Telegram-@nncutett-229ED9?style=for-the-badge&logo=telegram&logoColor=white" />
 </p>
 
-<h1 align="center">♟️ NNVC</h1>
+<h1 align="center">♟️ NNVC Patches</h1>
 
 <p align="center">
-  Bản mod tùy chỉnh dành cho <b>Chess.com</b> trên Android của <b>NNVC</b>. Hỗ trợ phân tích ngoại tuyến với Stockfish 19 NNUE, gỡ quảng cáo, mở khóa bot, song ngữ Anh - Việt và bài tập Lichess.
+  Bản mod nâng cấp toàn diện dành cho <b>Chess.com Android</b> bởi <b>NNVC (@nncutett)</b>.<br>
+  Tích hợp động cơ phân tích ngoại tuyến Stockfish 18 & Komodo 3.3, đánh giá nước đi Game Review chuẩn xác, gỡ bỏ quảng cáo, mở khóa bot và tùy chọn danh hiệu FIDE.
 </p>
 
 <p align="center">
@@ -16,33 +17,31 @@
 
 ---
 
-## 📖 About & Features
+## 📖 Tính Năng Nổi Bật (Key Features)
 
-
-
-### 🌟 Key Features
-- **Local Stockfish 18 & Offline Reviews**: Centipawn evaluation, Win/Draw/Loss tracking, move classification (Brilliant, Great, etc.), ELO estimation, and configurable bot strengths.
-- **Offline Lichess Puzzles**: Complete puzzle journey map featuring millions of offline puzzles, streaking, and thematic practice.
-- **Ad-Free UI & Unlocked Bots**: Banners, interstitial ads, and video promotions are removed. All Versus Bots are fully unlocked.
-- **Panic Mode**: Toggle all overlays instantly.
-
----
-
-## 🎮 Gestures & Panic Mode
-
-Access features by interacting with the Chess.com logo on the main screen:
-- **Tap & Hold** → Opens the settings menu.
-- **Double-Tap** → Toggles **Panic Mode** (instantly hides/shows all overlays).
+- **Local Stockfish 18 & Komodo 3.3 Offline Engine**: Động cơ WebAssembly chạy trực tiếp 100% ngoại tuyến trên thiết bị, đo lường Centipawn, thanh Eval Bar thời gian thực, tính năng Premove & Threat Arrows, và phân loại nước đi (Brilliant, Great, Best, Inaccuracy, Mistake, Blunder).
+- **Gỡ Bỏ Hoàn Toàn Quảng Cáo (Ad-Free)**: Loại bỏ triệt để toàn bộ quảng cáo biểu ngữ (banner) và quảng cáo xen kẽ (interstitial).
+- **Mở Khóa Toàn Bộ Bot (Unlock All Bots)**: Trải nghiệm thi đấu không giới hạn với tất cả các nhân vật Bot của Chess.com.
+- **Tùy Chọn Danh Hiệu FIDE (Custom Titles)**: Tự do chọn huy hiệu danh hiệu cá nhân FIDE (GM, IM, FM, CM, NM, WGM...) hiển thị sang trọng, đồng bộ.
+- **Không Giới Hạn Huấn Luyện Viên (Unlimited Play Coach)**: Không giới hạn lượt đấu có hướng dẫn viên phân tích.
+- **Panic Mode**: Chạm hai lần vào logo bàn cờ để ẩn/hiện tức thì toàn bộ giao diện hỗ trợ.
 
 ---
 
+## 🎮 Thao Tác Nhanh (Gestures & Panic Mode)
 
-## 🩹 Patches
+Tương tác trực tiếp bằng cách bấm vào biểu tượng bàn cờ:
+- **Nhấn & Giữ (Long Press)** → Mở bảng cài đặt nâng cao NNVC Settings.
+- **Nhấn Đúp (Double-Tap)** → Bật/tắt chế độ **Panic Mode** (ẩn ngay lập tức các mũi tên và thanh đánh giá).
+
+---
+
+## 🩹 Danh Sách Bản Vá (Patches)
 
 <!-- PATCHES_START -->
-> **[v1.15.0](https://github.com/PrathxmOp/Prathxm-Patches/releases/tag/v1.15.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;8 patches total
+> **[v2.0.98](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.98)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;7 patches total
 <details>
-<summary>📦 Chess.com&nbsp;&nbsp;•&nbsp;&nbsp;8 patches</summary>
+<summary>📦 Chess.com&nbsp;&nbsp;•&nbsp;&nbsp;7 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -50,16 +49,15 @@ Access features by interacting with the Chess.com logo on the main screen:
 | 4.10.0 | 4.10.0-googleplay | 4.10.20 | 4.10.20-googleplay |
 | :---: | :---: | :---: | :---: |
 
-| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
-|----------|----------------|-----------|
-| [Ad-Free](#ad-free) | Removes advertisements |  |
-| [Clone Chess.com](#clone-chess-com) | Changes the package name to com.chess.prathxm, allowing the patched app to be installed side-by-side with the original Chess.com app. |  |
-| [Custom Titles](#custom-titles) | Fetches and applies custom titles for users from a remote database. DM PrathxmOp to get yours for fun lol! |  |
-| [Global Crash Handler](#global-crash-handler) | Catches uncaught exceptions and displays a custom crash screen with details to report issues. |  |
-| [Lichess Puzzles](#lichess-puzzles) | Loads daily puzzles from Lichess and bypasses Chess.com puzzle premium limits. |  |
-| [Local Stockfish Analysis](#local-stockfish-analysis) | Enables local Stockfish engine for post-game review & analysis. |  |
-| [Unlimited Play Coach](#unlimited-play-coach) | Removes the one-free-game-per-day limit on Play Coach. |  |
-| [Unlock All Bots](#unlock-all-bots) | Unlocks all premium and restricted bots in the Versus Bots feature. |  |
+| 💊&nbsp;Patch | 📜&nbsp;Description |
+|----------|----------------|
+| [Ad-Free](#ad-free) | Loại bỏ quảng cáo banner và quảng cáo xen kẽ. |
+| [Clone Chess.com](#clone-chess-com) | Đổi package name thành `com.chess.nnvc` để cài đặt song song với app gốc. |
+| [Custom Titles](#custom-titles) | Tùy biến danh hiệu FIDE cá nhân (GM, IM, FM...). |
+| [Global Crash Handler](#global-crash-handler) | Bắt lỗi ngoại lệ và hiển thị màn hình báo cáo chi tiết khi xảy ra lỗi. |
+| [Local Stockfish Analysis](#local-stockfish-analysis) | Tích hợp engine phân tích Stockfish 18 & Komodo 3.3 ngoại tuyến trực tiếp trên bàn cờ. |
+| [Unlimited Play Coach](#unlimited-play-coach) | Mở khóa không giới hạn lượt chơi với huấn luyện viên. |
+| [Unlock All Bots](#unlock-all-bots) | Mở khóa toàn bộ bot độc quyền trên Chess.com. |
 
 </details>
 
@@ -69,32 +67,26 @@ Access features by interacting with the Chess.com logo on the main screen:
 
 ## 🛠️ Cài Đặt (Installation)
 
-### Cách 1 · Morphe Manager <sup>Khuyên dùng</sup>
+### Cài đặt qua Morphe Manager (Khuyên dùng)
 
-1. Cài đặt [**Morphe Manager**](https://morphe.software) trên điện thoại Android của bạn.
-2. Thêm kho nguồn patch này vào Morphe:
+1. Cài đặt [**Morphe Manager**](https://morphe.software) trên điện thoại Android.
+2. Thêm nguồn patch chính thức:
    <p align="center">
-     <a href="https://morphe.software/add-source?github=nhatnamdev662/Prathxm-Patches"><b>➕ Thêm Nguồn Vào Morphe Manager</b></a>
+     <a href="https://morphe.software/add-source?github=nhatnamdev662/NNVC-Patches"><b>➕ Thêm Nguồn Vào Morphe Manager</b></a>
    </p>
-   Hoặc thêm thủ công `https://github.com/nhatnamdev662/Prathxm-Patches` tại mục **Patch Sources** trong Morphe Manager.
-3. Chọn **Chess.com**, chọn các patch cần dùng và nhấn **Patch**.
+   Hoặc thêm thủ công URL: `https://github.com/nhatnamdev662/NNVC-Patches` tại mục **Patch Sources** trong Morphe Manager.
+3. Chọn file APK **Chess.com** (phiên bản `4.10.20`), tích chọn các bản vá mong muốn và nhấn **Patch**.
 
 ---
 
 ## 💬 Liên Hệ & Hỗ Trợ (Community & Support)
 
-Mọi thắc mắc, phản hồi hoặc cần hỗ trợ:
 - [**Telegram: @nncutett (NNVC)**](https://t.me/nncutett)
-- [**GitHub Discussions**](https://github.com/nhatnamdev662/Prathxm-Patches/discussions)
-
-## 📜 Attribution & Credits
-
-This project includes implementations, fixes, and features derived from and ported from:
-- [**VenusIsJaded/Prathxm-Patches**](https://github.com/VenusIsJaded/Prathxm-Patches) (GPL-3.0) — Special thanks for opening book data integration, Lichess puzzle sound fixes, win-probability review math improvements, and coroutine flow bridge enhancements.
+- [**GitHub Repository**](https://github.com/nhatnamdev662/NNVC-Patches)
 
 ---
 
-## ⚠️ Disclaimer & License
+## ⚠️ Tuyên Bố Miễn Trừ Trách Nhiệm & Giấy Phép (Disclaimer & License)
 
-- **Disclaimer**: For educational and personal use only. Usage may violate the terms of service. The author is not responsible for any account bans.
-- **License**: Licensed under the [GNU General Public License v3.0](LICENSE).
+- **Disclaimer**: Dự án phục vụ mục đích nghiên cứu, học tập và trải nghiệm cá nhân. Tác giả không chịu trách nhiệm đối với bất kỳ hành vi lạm dụng hay khóa tài khoản nào.
+- **License**: Phát hành theo giấy phép [GNU General Public License v3.0](LICENSE).
