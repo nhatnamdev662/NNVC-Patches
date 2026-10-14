@@ -145,6 +145,7 @@ lichess_offline_puzzles_all.csv.gz
 
 # Build and temporary python scripts
 build_*.py
+!build_apk_signed.py
 build.py
 check_*.py
 inspect_*.py

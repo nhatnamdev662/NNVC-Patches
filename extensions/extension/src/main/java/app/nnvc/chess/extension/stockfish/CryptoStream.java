@@ -55,4 +55,18 @@ public class CryptoStream extends FilterInputStream {
         }
         return skipped;
     }
+
+    private long markPosition = 0L;
+
+    @Override
+    public synchronized void mark(int readlimit) {
+        super.mark(readlimit);
+        markPosition = position;
+    }
+
+    @Override
+    public synchronized void reset() throws IOException {
+        super.reset();
+        position = markPosition;
+    }
 }

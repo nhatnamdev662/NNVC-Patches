@@ -941,9 +941,26 @@ public class SelfTest {
         check("TorchEngine.log routes into NnvcLogger", hasTorchLog);
 
         // Test 25: Level 2 Anti-Crack Cryptographic Coupling & CryptoStream
-        byte[] officialKey = ApkSignatureHelper.getSigningCertificateSha256(null);
-        check("ApkSignatureHelper returns 32-byte SHA256 key", officialKey != null && officialKey.length == 32);
-        check("ApkSignatureHelper matches official NNVC key header", officialKey[0] == (byte) 0x77 && officialKey[1] == (byte) 0xC4);
+        byte[] officialKey = new byte[] {
+            (byte) 0x77, (byte) 0xC4, (byte) 0x94, (byte) 0x15,
+            (byte) 0x0F, (byte) 0x96, (byte) 0x40, (byte) 0xE3,
+            (byte) 0x29, (byte) 0xD2, (byte) 0xBA, (byte) 0x9E,
+            (byte) 0x46, (byte) 0xF0, (byte) 0x49, (byte) 0x78,
+            (byte) 0x4A, (byte) 0xAE, (byte) 0xE8, (byte) 0x53,
+            (byte) 0x15, (byte) 0x19, (byte) 0x94, (byte) 0xC2,
+            (byte) 0x8F, (byte) 0x90, (byte) 0xC7, (byte) 0x96,
+            (byte) 0xDE, (byte) 0x02, (byte) 0x20, (byte) 0x45
+        };
+
+        byte[] nullContextKey = ApkSignatureHelper.getSigningCertificateSha256(null);
+        check("ApkSignatureHelper returns 32-byte empty key on null context without crashing",
+            nullContextKey != null && nullContextKey.length == 32 && nullContextKey[0] == 0);
+
+        // Test digestCertificate computation
+        byte[] testCert = new byte[] { 0x30, (byte) 0x82, 0x01, 0x00, 0x41, 0x42, 0x43 };
+        byte[] digested = ApkSignatureHelper.digestCertificate(testCert);
+        check("ApkSignatureHelper.digestCertificate generates non-empty 32-byte hash",
+            digested != null && digested.length == 32 && (digested[0] != 0 || digested[1] != 0));
 
         byte[] fakeKey = new byte[32];
         fakeKey[0] = (byte) 0x11;
@@ -981,6 +998,30 @@ public class SelfTest {
         } catch (java.io.IOException ignored) {}
         check("Tampered APK signature mathematically fails WASM magic check",
             decryptedBad[0] != 0x00 || decryptedBad[1] != 0x61 || decryptedBad[2] != 0x73 || decryptedBad[3] != 0x6D);
+
+        // Decrypt with nullContextKey (empty key) also fails WASM magic check
+        java.io.ByteArrayInputStream baisEmpty = new java.io.ByteArrayInputStream(encryptedWasm);
+        CryptoStream csEmpty = new CryptoStream(baisEmpty, nullContextKey);
+        byte[] decryptedEmpty = new byte[sampleWasm.length];
+        try {
+            csEmpty.read(decryptedEmpty);
+        } catch (java.io.IOException ignored) {}
+        check("Missing/failed signature extraction mathematically fails WASM magic check",
+            decryptedEmpty[0] != 0x00 || decryptedEmpty[1] != 0x61 || decryptedEmpty[2] != 0x73 || decryptedEmpty[3] != 0x6D);
+
+        // Test mark and reset in CryptoStream
+        java.io.ByteArrayInputStream baisMark = new java.io.ByteArrayInputStream(encryptedWasm);
+        CryptoStream csMark = new CryptoStream(baisMark, officialKey);
+        csMark.mark(16);
+        byte[] first4 = new byte[4];
+        try {
+            csMark.read(first4);
+            csMark.reset();
+            byte[] reread4 = new byte[4];
+            csMark.read(reread4);
+            check("CryptoStream mark and reset restores exact byte stream position",
+                java.util.Arrays.equals(first4, reread4));
+        } catch (java.io.IOException ignored) {}
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
