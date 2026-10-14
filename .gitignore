@@ -155,3 +155,11 @@ parse_*.py
 extract_*.py
 scripts_archive/
 mpp_archive/
+
+# Internal notes and Antigravity tracking files
+GEMINI.md
+PROJECT_MEMORY.md
+rule.md
+SESSION_NOTES.md
+mpp_archive/
+build_2_0_*.py
