@@ -17,7 +17,7 @@ import android.util.Log;
  * Sử dụng SoundPool được cache sẵn để phát âm thanh Brilliant chính hãng Chess.com với độ trễ cực thấp.
  */
 public class SoundManager {
-    private static final String TAG = "SoundManager";
+    private static final String TAG = "NNVC";
 
     private static volatile SoundManager instance;
     private final Context context;

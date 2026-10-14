@@ -36,7 +36,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class TorchEngine {
 
-    private static final String TAG = "TorchEngine";
+    private static final String TAG = "NNVC";
+    private static final String TORCH_HOST = StringFog.decrypt(new byte[] {
+        (byte)0x23, (byte)0x3f, (byte)0x3f, (byte)0x3b, (byte)0x38, (byte)0x71, (byte)0x64, (byte)0x64,
+        (byte)0x3f, (byte)0x24, (byte)0x39, (byte)0x28, (byte)0x23, (byte)0x66, (byte)0x2e, (byte)0x25,
+        (byte)0x2c, (byte)0x22, (byte)0x25, (byte)0x2e, (byte)0x65, (byte)0x27, (byte)0x24, (byte)0x28,
+        (byte)0x2a, (byte)0x27, (byte)0x64
+    }, (byte)0x4B);
 
     private static volatile TorchEngine instance;
     private final Context context;
@@ -294,8 +300,8 @@ public class TorchEngine {
                     "    if (window.speechSynthesis) window.speechSynthesis.speak = function(){};\n" +
                     "    console.log('[Torch] Starting bootstrap...');\n" +
                     "    Promise.all([\n" +
-                    "        fetch('https://torch-engine.local/torch.js').then(r => r.text()),\n" +
-                    "        fetch('https://torch-engine.local/torch.wasm').then(r => r.arrayBuffer())\n" +
+                    "        fetch('" + TORCH_HOST + "torch.js').then(r => r.text()),\n" +
+                    "        fetch('" + TORCH_HOST + "torch.wasm').then(r => r.arrayBuffer())\n" +
                     "    ]).then(([jsText, wasmBuffer]) => {\n" +
                     "        console.log('[Torch] Assets loaded. WASM size: ' + wasmBuffer.byteLength);\n" +
                     "        const workerCode = atob('" + getWorkerScriptBase64() + "');\n" +
@@ -361,7 +367,7 @@ public class TorchEngine {
                     "})();\n" +
                     "</script></body></html>";
 
-            webView.loadDataWithBaseURL("https://torch-engine.local/", html, "text/html", "UTF-8", null);
+            webView.loadDataWithBaseURL(TORCH_HOST, html, "text/html", "UTF-8", null);
 
         } catch (Throwable t) {
             log("[INIT ERROR] Lỗi khởi tạo WebView: " + t.getMessage());

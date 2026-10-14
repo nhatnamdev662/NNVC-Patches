@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class OverlayManager {
-    private static final String TAG = "OverlayManager";
+    private static final String TAG = "NNVC";
 
     public static class BoardMetrics {
         public final int boardX;

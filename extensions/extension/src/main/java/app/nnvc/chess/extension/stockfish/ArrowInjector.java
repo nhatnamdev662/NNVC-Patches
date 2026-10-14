@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ArrowInjector {
-    private static final String TAG = "ArrowInjector";
+    private static final String TAG = "NNVC";
 
     public static final List<Object> lastEngineArrows = new ArrayList<>();
     

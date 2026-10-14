@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  */
 public class EloScanner {
 
-    private static final String TAG = "EloScanner";
+    private static final String TAG = "NNVC";
 
     public static class EloPair {
         public final int whiteElo;

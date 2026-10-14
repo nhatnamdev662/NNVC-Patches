@@ -15,7 +15,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 
 public class CrashHandler implements Thread.UncaughtExceptionHandler {
-    private static final String TAG = "CrashHandler";
+    private static final String TAG = "NNVC";
     private static Context context;
     private final Thread.UncaughtExceptionHandler defaultHandler;
 

@@ -19,7 +19,7 @@ import java.util.List;
 @SuppressWarnings("unused")
 public class StockfishProcess {
 
-    private static final String TAG = "StockfishProcess";
+    private static final String TAG = "NNVC";
 
     public static final float MATE_SCORE = 99.0f;
     private static final int READY_TIMEOUT_MS = 10_000;

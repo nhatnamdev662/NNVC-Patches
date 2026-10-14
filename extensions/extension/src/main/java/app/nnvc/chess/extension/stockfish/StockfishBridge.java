@@ -18,7 +18,7 @@ import java.util.Map;
 @SuppressWarnings("unused")
 public class StockfishBridge {
 
-    private static final String TAG = "StockfishBridge";
+    private static final String TAG = "NNVC";
 
     private static final StockfishProcess engine = new StockfishProcess();
     private static volatile boolean initialised = false;

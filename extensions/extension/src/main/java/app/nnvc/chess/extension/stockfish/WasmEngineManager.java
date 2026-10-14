@@ -43,8 +43,17 @@ import java.util.zip.ZipFile;
  */
 public class WasmEngineManager {
 
-    private static final String TAG = "WasmEngineManager";
-    private static final String HOST = "https://nnvc-engine.local/";
+    private static final String TAG = "NNVC";
+    private static final String HOST = StringFog.decrypt(new byte[] {
+        (byte)0x23, (byte)0x3f, (byte)0x3f, (byte)0x3b, (byte)0x38, (byte)0x71, (byte)0x64, (byte)0x64,
+        (byte)0x25, (byte)0x25, (byte)0x3d, (byte)0x28, (byte)0x66, (byte)0x2e, (byte)0x25, (byte)0x2c,
+        (byte)0x22, (byte)0x25, (byte)0x2e, (byte)0x65, (byte)0x27, (byte)0x24, (byte)0x28, (byte)0x2a,
+        (byte)0x27, (byte)0x64
+    }, (byte)0x4B);
+
+    private static String getOrigin() {
+        return HOST.endsWith("/") ? HOST.substring(0, HOST.length() - 1) : HOST;
+    }
 
     private static volatile WasmEngineManager instance;
 
@@ -747,10 +756,10 @@ public class WasmEngineManager {
                 "        _injectedWasm = e.data.wasm;\n" +
                 "        _injectedBook = e.data.book || null;\n" +
                 "        self.location = {\n" +
-                "            origin: 'https://nnvc-engine.local',\n" +
+                "            origin: '" + getOrigin() + "',\n" +
                 "            pathname: '/komodo.js',\n" +
-                "            hash: '#https://nnvc-engine.local/dragon3.3.wasm',\n" +
-                "            href: 'https://nnvc-engine.local/komodo.js#https://nnvc-engine.local/dragon3.3.wasm'\n" +
+                "            hash: '#" + HOST + "dragon3.3.wasm',\n" +
+                "            href: '" + HOST + "komodo.js#" + HOST + "dragon3.3.wasm'\n" +
                 "        };\n" +
                 "        self.onmessage = null;\n" +
                 "        try {\n" +
@@ -927,10 +936,10 @@ public class WasmEngineManager {
                 "    if (e.data && e.data.__init__) {\n" +
                 "        _injectedWasm = e.data.wasm;\n" +
                 "        self.location = {\n" +
-                "            origin: 'https://nnvc-engine.local',\n" +
+                "            origin: '" + getOrigin() + "',\n" +
                 "            pathname: '/stockfish-18-lite-single.js',\n" +
-                "            hash: '#https://nnvc-engine.local/stockfish-18-lite-single.wasm',\n" +
-                "            href: 'https://nnvc-engine.local/stockfish-18-lite-single.js#https://nnvc-engine.local/stockfish-18-lite-single.wasm'\n" +
+                "            hash: '#" + HOST + "stockfish-18-lite-single.wasm',\n" +
+                "            href: '" + HOST + "stockfish-18-lite-single.js#" + HOST + "stockfish-18-lite-single.wasm'\n" +
                 "        };\n" +
                 "        try {\n" +
                 "            var module = { exports: {} };\n" +

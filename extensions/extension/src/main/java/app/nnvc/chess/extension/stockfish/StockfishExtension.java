@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @SuppressWarnings({"unused", "JavaReflectionMemberAccess"})
 public class StockfishExtension {
 
-    private static final String TAG = "StockfishExt";
+    private static final String TAG = "NNVC";
 
     private static final ExecutorService executor =
             Executors.newSingleThreadExecutor(r -> {

@@ -22,7 +22,7 @@ import android.widget.TextView;
  */
 public class FloatingLogPillView extends FrameLayout {
 
-    private static final String TAG = "FloatingLogPillView";
+    private static final String TAG = "NNVC";
     public static final String VIEW_TAG = "nnvc_floating_log_pill";
 
     private float dX, dY;

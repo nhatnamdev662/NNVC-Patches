@@ -29,7 +29,7 @@ import android.widget.TextView;
  */
 public class EngineStatusHUD {
 
-    private static final String TAG = "EngineStatusHUD";
+    private static final String TAG = "NNVC";
     private static final String HUD_TAG = "nnvc_engine_loading_hud";
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static Runnable autoDismissRunnable = null;

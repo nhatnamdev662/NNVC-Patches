@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MoveClassifier {
-    private static final String TAG = "MoveClassifier";
+    private static final String TAG = "NNVC";
 
     private static final List<String> fenHistory = new ArrayList<>();
     private static final Map<String, Float> fenToEvalMap = new ConcurrentHashMap<>();

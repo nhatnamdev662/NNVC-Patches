@@ -36,7 +36,7 @@ import java.util.List;
  */
 public class NnvcLogViewerDialog {
 
-    private static final String TAG = "NnvcLogViewerDialog";
+    private static final String TAG = "NNVC";
 
     public static void show(final Activity activity) {
         if (activity == null || activity.isFinishing()) return;

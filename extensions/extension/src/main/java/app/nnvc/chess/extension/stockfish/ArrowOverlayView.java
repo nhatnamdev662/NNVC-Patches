@@ -1255,7 +1255,7 @@ public class ArrowOverlayView extends View {
                 }
             }
         } catch (Throwable t) {
-            Log.w("ArrowOverlayView", "Failed to load drawable " + resName + ": " + t.getMessage());
+            Log.w("NNVC", "Failed to load drawable " + resName + ": " + t.getMessage());
         }
         return null;
     }

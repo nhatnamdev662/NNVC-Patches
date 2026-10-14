@@ -49,11 +49,7 @@ public class CrashActivity extends Activity {
             appVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
         } catch (Exception ignored) {}
 
-        String patchVersion = "1.9.7"; // Fallback
-        try {
-            Class<?> buildConfigClass = Class.forName("app.nnvc.chess.extension.BuildConfig");
-            patchVersion = (String) buildConfigClass.getField("PATCH_VERSION").get(null);
-        } catch (Exception ignored) {}
+        String patchVersion = app.nnvc.chess.extension.BuildConfig.PATCH_VERSION;
 
         String deviceModel = Build.MODEL;
         String androidVersion = Build.VERSION.RELEASE;

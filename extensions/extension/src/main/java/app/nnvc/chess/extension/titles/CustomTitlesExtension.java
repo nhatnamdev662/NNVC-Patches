@@ -7,7 +7,7 @@ import app.nnvc.chess.extension.stockfish.StockfishExtension;
 import app.nnvc.chess.extension.stockfish.StockfishSettings;
 
 public class CustomTitlesExtension {
-    private static final String TAG = "CustomTitlesExt";
+    private static final String TAG = "NNVC";
 
     private static void logE(String msg) {
         try {
