@@ -655,7 +655,7 @@ public class WasmEngineManager {
             webView.loadDataWithBaseURL(HOST, html, "text/html", "UTF-8", null);
 
         } catch (Throwable t) {
-            NnvcLogger.e(TAG, "Failed to initialize WasmEngineManager: " + t.getMessage(), t);
+            NnvcLogger.e(TAG, "Failed to initialize wasm manager: " + t.getMessage(), t);
         }
     }
 
@@ -819,7 +819,7 @@ public class WasmEngineManager {
 
     // ── Javascript Bridge ─────────────────────────────────────────────────────
 
-    private class WasmEngineJsBridge {
+    public class WasmEngineJsBridge {
         @JavascriptInterface
         public void onEngineWorkerReady(String kind, String engineKey) {
             NnvcLogger.i(TAG, "[WASM BRIDGE] Worker READY: kind=" + kind + ", engine=" + engineKey);

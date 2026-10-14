@@ -43,6 +43,9 @@ public class TorchEngine {
         (byte)0x2c, (byte)0x22, (byte)0x25, (byte)0x2e, (byte)0x65, (byte)0x27, (byte)0x24, (byte)0x28,
         (byte)0x2a, (byte)0x27, (byte)0x64
     }, (byte)0x4B);
+    private static final String FN_SEND_TORCH = StringFog.decrypt(new byte[] {
+        (byte)0x38, (byte)0x2e, (byte)0x25, (byte)0x2f, (byte)0x1f, (byte)0x24, (byte)0x39, (byte)0x28, (byte)0x23, (byte)0x1b, (byte)0x24, (byte)0x38, (byte)0x22, (byte)0x3f, (byte)0x22, (byte)0x24, (byte)0x25
+    }, (byte)0x4B);
 
     private static volatile TorchEngine instance;
     private final Context context;
@@ -53,7 +56,7 @@ public class TorchEngine {
     private final AtomicBoolean isDownloading = new AtomicBoolean(false);
 
     public static void log(String msg) {
-        // No-op for security and zero overhead
+        NnvcLogger.i("TorchEngine", msg);
     }
 
     private static final String FOG_TORCH_WORKER = "Kj0ufCgzLj80FD0yODA5LnxhfDIpMDBnVio9LnwuOT04JXxhfDo9MC85Z1YqPS58LSk5KTk4fGF8BwFnVjopMj8oNTMyfD4pOjo5LggzHjUyPS4lDyguNTI7dD4pOjo5LnV8J1Z8fHx8Kj0ufD4lKDkvfGF8MjkrfAk1MihkHS4uPSV0Pik6OjkudWdWfHx8fCo9LnwuOS8pMCh8YXx7e2dWfHx8fCo9Lnw/NCkyNw81Jjl8YXxvbmtqZGdWfHx8fDozLnx0Kj0ufDV8YXxsZ3w1fGB8PiUoOS9yMDkyOyg0Z3w1fHdhfD80KTI3DzUmOXV8J1Z8fHx8fHx8fC45LykwKHx3YXwPKC41MjtyOi4zMR80PS4fMzg5cj0sLDAldDIpMDBwfD4lKDkvci8pPj0uLj0ldDVwfDV8d3w/NCkyNw81Jjl1dWdWfHx8fCFWfHx8fC45KCkuMnwuOS8pMChnViFWOikyPyg1MzJ8NTIvKD0wMAs9LzEENC50Kz0vMR4pOjo5LnV8J1Z8fHx8Kj0ufBI9KDUqOQQUDnxhfC85MDpyBBEQFCgoLA45LSk5LyhnVnx8fHwqPS58NS8LPS8xCS4wfGF8OikyPyg1MzJ0KS4wdXwnfC45KCkuMnwPKC41Mjt0KS4wfCAgfHt7dXI1Mjg5JBM6dHsoMy4/NHIrPS8xe3V8fWFhfHFtZ3whZ1Z8fHx8OikyPyg1MzJ8Cz0vMR0rPS45BBQOdHV8J1Z8fHx8fHx8fCg0NS9yLjk9OCUPKD0oOXxhfGxnfCg0NS9yLjkvLDMyLzl8YXwyKTAwZ3woNDUvci45LywzMi85CDkkKHxhfHt7Z3woNDUvci45LywzMi85CCUsOXxhfHt7Z1Z8fHx8fHx8fCg0NS9yLyg9KCkvfGF8bGd8KDQ1L3IvKD0oKS8IOSQofGF8e3tnfCg0NS9yAz0vJTI/fGF8KC4pOWd8KDQ1L3IDNDk9ODkuL3xhfCchZ1Z8fHx8fHx8fCg0NS9yAzI9KDUqOXxhfBI9KDUqOQQUDnxjfDI5K3wSPSg1KjkEFA50dXxmfDIpMDBnfCg0NS9yAzUvCz0vMXxhfDo9MC85Z1Z8fHx8IVZ8fHx8Cz0vMR0rPS45BBQOciwuMygzKCUsOXIzLDkyfGF8OikyPyg1MzJ0MTkoNDM4cHwpLjBwfD0vJTI/dXwnVnx8fHx8fHx8KDQ1L3IDKS4wfGF8DyguNTI7dCkuMHwgIHx7e3VnfCg0NS9yAz0vJTI/fGF8PS8lMj98fWFhfDo9MC85Z1Z8fHx8fHx8fCg0NS9yAzUvCz0vMXxhfDUvCz0vMQkuMHQoNDUvcgMpLjB1Z1Z8fHx8fHx8fDU6fHQoNDUvcgM1Lws9LzF1fCd8KDQ1L3IuOT04JQ8oPSg5fGF8bWd8LjkoKS4yZ3whVnx8fHx8fHx8NTp8dCg0NS9yAzI9KDUqOXV8KDQ1L3IDMj0oNSo5cjMsOTJ0MTkoNDM4cHwpLjBwfD0vJTI/dWdWfHx8fCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5ci85Mjh8YXw6KTI/KDUzMnQ+MzgldXwnVnx8fHx8fHx8NTp8dH0oNDUvcgM1Lws9LzF8enp8KDQ1L3IDMj0oNSo5dXwuOSgpLjJ8KDQ1L3IDMj0oNSo5ci85Mjh0PjM4JXVnVnx8fHx8fHx8Kj0ufC85MDoENC58YXwoNDUvZ1Z8fHx8fHx8fCo9Lnw6NTI1LzR8YXw6KTI/KDUzMnR1fCdWfHx8fHx8fHx8fHx8LzkwOgQ0LnIvKD0oKS98YXxubGxnfC85MDoENC5yLyg9KCkvCDkkKHxhfHsTF3tnfC85MDoENC5yLjk9OCUPKD0oOXxhfGhnVnx8fHx8fHx8fHx8fDU6fHQvOTA6BDQuci45LywzMi85CCUsOXxhYWF8ez0uLj0lPik6Ojkue3V8J1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfCs9LzEeKTo6OS5yLzA1Pzl0bHVnVnx8fHx8fHx8fHx8fCF8OTAvOXw1Onx0LzkwOgQ0LnIuOS8sMzIvOQglLDl8YWFhfHs+MDM+e3x6enwoJSw5Mzp8HjAzPnxhYWF8ezopMj8oNTMye3V8J1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfDI5K3weMDM+dAcrPS8xHik6OjkuAXB8J3woJSw5Znx7PSwsMDU/PSg1MzJzKz0vMXt8IXVnVnx8fHx8fHx8fHx8fCF8OTAvOXwnVnx8fHx8fHx8fHx8fHx8fHwvOTA6BDQuci45LywzMi85CDkkKHxhfD4pOjo5LggzHjUyPS4lDyguNTI7dCs9LzEeKTo6OS51Z1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfC85MDoENC5yLjkvLDMyLzkIOSQoZ1Z8fHx8fHx8fHx8fHwhVnx8fHx8fHx8fHx8fDU6fHQoJSw5Mzp8LzkwOgQ0LnIzMi45PTglLyg9KDk/ND0yOzl8YWFhfHs6KTI/KDUzMnt1fC85MDoENC5yMzIuOT04JS8oPSg5PzQ9Mjs5dHVnVnx8fHx8fHx8fHx8fDU6fHQoJSw5Mzp8LzkwOgQ0LnIzMjAzPTh8YWFhfHs6KTI/KDUzMnt1fC85MDoENC5yMzIwMz04dHVnVnx8fHx8fHx8IWdWfHx8fHx8fHw1Onx0KDQ1L3IDPS8lMj91fC85KAg1MTkzKSh0OjUyNS80cHxsdWd8OTAvOXw6NTI1LzR0dWdWfHx8fCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5ci85KA45LSk5LygUOT04OS58YXw6KTI/KDUzMnQ0cHwqdXwnfDU6fHR9KDQ1L3IDNS8LPS8xfHp6fCg0NS9yAzI9KDUqOXV8KDQ1L3IDMj0oNSo5ci85KA45LSk5LygUOT04OS50NHB8KnVnfCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5cjs5KA45LywzMi85FDk9ODkufGF8OikyPyg1MzJ0Mj0xOXV8J3wuOSgpLjJ8DyguNTI7dDI9MTl1cigzEDMrOS4fPS85dHV8YWFhfHs/MzIoOTIocSglLDl7fGN8ez0sLDA1Pz0oNTMycys9LzF7fGZ8MikwMGd8IWdWfHx8fAs9LzEdKz0uOQQUDnIsLjMoMyglLDlyOzkoHTAwDjkvLDMyLzkUOT04OS4vfGF8OikyPyg1MzJ0dXwnfC45KCkuMnx7PzMyKDkyKHEoJSw5Znw9LCwwNT89KDUzMnMrPS8xe3x3fA8oLjUyO3I6LjMxHzQ9Lh8zODl0bW9wfG1sdWd8IWdWfHx8fC85MDpyBBEQFCgoLA45LSk5Lyh8YXwLPS8xHSs9LjkEFA5nViFWLzkwOnIzMjE5Ly89Ozl8YXw6KTI/KDUzMnQ5dXwnVnx8fHw1Onx0OXI4PSg9fHp6fDlyOD0oPXIDAzUyNSgDKDMuPzQDA3V8J1Z8fHx8fHx8fCguJXwnVnx8fHx8fHx8fHx8fDUyLyg9MDALPS8xBDQudDlyOD0oPXIrPS8xdWdWfHx8fHx8fHx8fHx8LzkwOnIRMzgpMDl8YXwvOTA6chEzOCkwOXwgIHwnIWdWfHx8fHx8fHx8fHx8LzkwOnIRMzgpMDlyKz0vMR41Mj0uJXxhfDlyOD0oPXIrPS8xZ1Z8fHx8fHx8fHx8fHwvOTA6chEzOCkwOXIzMh0+My4ofGF8OikyPyg1MzJ0KzQ9KHV8J3wvOTA6ciwzLygROS8vPTs5dHsDAwgTDh8UAxkODhMOAwNme3x3fHQrND0ofCAgfHs9PjMuKHt1dWd8IWdWfHx8fHx8fHx8fHx8dDI5K3waKTI/KDUzMnQ5cjg9KD1yNi91dXR1Z1Z8fHx8fHx8fHx8fHwoMy4/NBQ9MjgwOS58YXwvOTA6cjMy"
@@ -330,7 +333,7 @@ public class TorchEngine {
         mainHandler.post(() -> {
             try {
                 String safeCmd = cmd.replace("'", "\\'");
-                String js = "if (window.sendTorchPosition) window.sendTorchPosition('" + safeCmd + "', '" + color + "', " + targetDepth + ", " + reqId + ");";
+                String js = "if (window['" + FN_SEND_TORCH + "']) window['" + FN_SEND_TORCH + "']('" + safeCmd + "', '" + color + "', " + targetDepth + ", " + reqId + ");";
                 webView.evaluateJavascript(js, null);
             } catch (Throwable t) {
                 log("[EVAL JS ERROR] " + t.getMessage());
@@ -371,7 +374,7 @@ public class TorchEngine {
         });
     }
 
-    private class TorchJsBridge {
+    public class TorchJsBridge {
         @JavascriptInterface
         public void onTorchReady() {
             isReady = true;

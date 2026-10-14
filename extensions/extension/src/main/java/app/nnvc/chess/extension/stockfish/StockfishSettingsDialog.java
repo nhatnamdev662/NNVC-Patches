@@ -1014,6 +1014,25 @@ public class StockfishSettingsDialog {
         patchTv.setTextColor(COLOR_TEXT_MUTED);
         patchTv.setTextSize(10.5f);
         patchTv.setGravity(Gravity.CENTER);
+        int patchPad = (int) (6 * density);
+        patchTv.setPadding(patchPad, patchPad, patchPad, patchPad);
+
+        final int[] tapCount = { 0 };
+        final long[] lastTapTime = { 0L };
+        patchTv.setOnClickListener(v -> {
+            long now = System.currentTimeMillis();
+            if (now - lastTapTime[0] > 1800) {
+                tapCount[0] = 0;
+            }
+            lastTapTime[0] = now;
+            tapCount[0]++;
+            HapticHelper.pop(activity, v);
+            if (tapCount[0] >= 5) {
+                tapCount[0] = 0;
+                Toast.makeText(activity, "🔓 NNVC Secret Debug Log", Toast.LENGTH_SHORT).show();
+                NnvcLogViewerDialog.show(activity);
+            }
+        });
         footerLayout.addView(patchTv);
 
         windowRoot.addView(footerLayout);

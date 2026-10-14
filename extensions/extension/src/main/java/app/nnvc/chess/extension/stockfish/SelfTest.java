@@ -926,6 +926,19 @@ public class SelfTest {
         check("I18n engine_stockfish returns Stockfish 18", "Stockfish 18".equals(I18n.get(null, "engine_stockfish")));
         check("I18n engine_komodo returns Komodo 3.3", "Komodo 3.3".equals(I18n.get(null, "engine_komodo")));
         check("I18n custom_title returns Danh Hiệu Người Dùng", "Danh Hiệu Người Dùng".equals(I18n.get(null, "custom_title")));
+        // Test 24: NnvcLogger memory buffer and TorchEngine logging integration
+        NnvcLogger.clear();
+        NnvcLogger.i("TEST_TAG", "SelfTest log entry");
+        TorchEngine.log("TorchEngine diagnostic entry");
+        java.util.List<String> logs = NnvcLogger.getRecentLogs();
+        boolean hasTestLog = false;
+        boolean hasTorchLog = false;
+        for (String l : logs) {
+            if (l.contains("TEST_TAG") && l.contains("SelfTest log entry")) hasTestLog = true;
+            if (l.contains("TorchEngine") && l.contains("TorchEngine diagnostic entry")) hasTorchLog = true;
+        }
+        check("NnvcLogger records INFO log correctly", hasTestLog);
+        check("TorchEngine.log routes into NnvcLogger", hasTorchLog);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

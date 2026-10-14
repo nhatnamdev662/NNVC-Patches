@@ -315,7 +315,7 @@ public class StockfishExtension {
                         try {
                             TorchEngine.getInstance(ctx);
                         } catch (Throwable te) {
-                            NnvcLogger.e(TAG, "Failed to start TorchEngine early: " + te.getMessage(), te);
+                            NnvcLogger.e(TAG, "Failed to start torch engine early: " + te.getMessage(), te);
                         }
                         boolean ok = StockfishBridge.init(ctx);
                         engineReady = ok;
