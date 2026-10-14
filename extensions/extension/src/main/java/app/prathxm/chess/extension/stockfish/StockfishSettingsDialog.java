@@ -43,6 +43,9 @@ public class StockfishSettingsDialog {
     private static final int COLOR_TEXT_SECONDARY = 0xD0EBF0FF; // Muted White / Ice Blue
     private static final int COLOR_TEXT_MUTED     = 0x88A0B4D2; // Dim Subtitle
     private static final int COLOR_GREEN_READY    = 0xFF30D158; // Active Ready
+    public static final int COLOR_CHESS_TITLE_BG   = 0xFF7C2929; // Chuẩn bgChesstitle Design System Chess.com (Crimson Burgundy)
+    public static final int COLOR_CHESS_TITLE_STROKE = 0xFF9E3838; // Viền đỏ thẫm tinh tế
+    public static final int COLOR_CHESS_TITLE_ACCENT = 0xFFFA412D; // red300 accent
     private static final int COLOR_DANGER_RED     = 0xFFFF453A; // Danger / Red
 
     public static void showSettingsMenu(Activity activity) {
@@ -854,9 +857,9 @@ public class StockfishSettingsDialog {
         titleSelectorBtn.setPadding((int) (14 * density), (int) (6 * density), (int) (14 * density), (int) (6 * density));
 
         GradientDrawable selectorBg = new GradientDrawable();
-        selectorBg.setColor(0xFFCC0000); // Đỏ cờ vua đặc trưng Chess.com
-        selectorBg.setCornerRadius(8 * density);
-        selectorBg.setStroke((int) (1.2f * density), 0xFFFF453A);
+        selectorBg.setColor(COLOR_CHESS_TITLE_BG); // 0xFF7C2929 (bgChesstitle)
+        selectorBg.setCornerRadius(6 * density);
+        selectorBg.setStroke((int) (1.2f * density), COLOR_CHESS_TITLE_STROKE);
         titleSelectorBtn.setBackground(selectorBg);
 
         titleSelectorBtn.setOnClickListener(v -> {
@@ -2126,7 +2129,7 @@ public class StockfishSettingsDialog {
         GradientDrawable pickerBg = new GradientDrawable();
         pickerBg.setColor(0xF50C0F16);
         pickerBg.setCornerRadius(18 * density);
-        pickerBg.setStroke((int) (1.4f * density), COLOR_ACCENT_BLUE);
+        pickerBg.setStroke((int) (1.4f * density), COLOR_CHESS_TITLE_STROKE);
         pickerDialog.getWindow().setBackgroundDrawable(pickerBg);
 
         LinearLayout root = new LinearLayout(activity);
@@ -2143,7 +2146,7 @@ public class StockfishSettingsDialog {
         root.addView(header);
 
         View div = new View(activity);
-        div.setBackgroundColor(0x330A84FF);
+        div.setBackgroundColor(0x447C2929);
         LinearLayout.LayoutParams divParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (1 * density));
         divParams.topMargin = (int) (10 * density);
         divParams.bottomMargin = (int) (10 * density);
@@ -2182,10 +2185,10 @@ public class StockfishSettingsDialog {
             row.setPadding((int) (10 * density), (int) (8 * density), (int) (10 * density), (int) (8 * density));
 
             GradientDrawable rowBg = new GradientDrawable();
-            rowBg.setColor(isSelected ? 0x260A84FF : 0x0AFFFFFF);
+            rowBg.setColor(isSelected ? 0x2A7C2929 : 0x0AFFFFFF);
             rowBg.setCornerRadius(10 * density);
             if (isSelected) {
-                rowBg.setStroke((int) (1.2f * density), COLOR_ACCENT_CYAN);
+                rowBg.setStroke((int) (1.2f * density), COLOR_CHESS_TITLE_STROKE);
             }
             row.setBackground(rowBg);
 
@@ -2193,7 +2196,7 @@ public class StockfishSettingsDialog {
             rowParams.bottomMargin = (int) (6 * density);
             row.setLayoutParams(rowParams);
 
-            // Red Title Badge (Chuẩn phong cách Chess.com)
+            // Red Title Badge (Chuẩn 100% Design System Chess.com: bgChesstitle 0xFF7C2929, corner radius 3dp)
             TextView badge = new TextView(activity);
             badge.setText(code);
             badge.setTextColor(0xFFFFFFFF);
@@ -2203,8 +2206,8 @@ public class StockfishSettingsDialog {
             badge.setPadding((int) (6 * density), (int) (2 * density), (int) (6 * density), (int) (2 * density));
 
             GradientDrawable badgeBg = new GradientDrawable();
-            badgeBg.setColor(0xFFCC0000); // Đỏ cờ vua đặc trưng Chess.com
-            badgeBg.setCornerRadius(4 * density);
+            badgeBg.setColor(COLOR_CHESS_TITLE_BG); // 0xFF7C2929 (bgChesstitle chuẩn Chess.com)
+            badgeBg.setCornerRadius(3 * density); // tokens.k.size3 (3dp)
             badge.setBackground(badgeBg);
             row.addView(badge);
 

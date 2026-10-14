@@ -915,6 +915,9 @@ public class SelfTest {
         Object titleObj = app.prathxm.chess.extension.titles.CustomTitlesExtension.getOverrideAsChessTitle("GM", "DEFAULT");
         check("getOverrideAsChessTitle returns non-null fallback or mapped title", titleObj != null);
 
+        // Test 22: COLOR_CHESS_TITLE_BG matches Chess.com Design System token bgChesstitle (0xFF7C2929)
+        check("COLOR_CHESS_TITLE_BG matches 0xFF7C2929", StockfishSettingsDialog.COLOR_CHESS_TITLE_BG == 0xFF7C2929);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
