@@ -102,5 +102,45 @@ public final class ApkSignatureHelper {
 
         return EMPTY_KEY.clone();
     }
+
+    /**
+     * Converts a byte array to lowercase hexadecimal string.
+     */
+    public static String toHexString(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) return "";
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format(java.util.Locale.US, "%02x", b & 0xFF));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Computes HMAC-SHA256 of payload bytes using key bytes.
+     */
+    public static byte[] computeHmacSha256(byte[] key, byte[] payload) {
+        if (key == null || payload == null) return EMPTY_KEY.clone();
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(key, "HmacSHA256");
+            mac.init(secretKey);
+            return mac.doFinal(payload);
+        } catch (Throwable ignored) {
+            return EMPTY_KEY.clone();
+        }
+    }
+
+    /**
+     * Constant-time comparison between two byte arrays to avoid timing side-channels.
+     */
+    public static boolean constantTimeEquals(byte[] a, byte[] b) {
+        if (a == null || b == null) return false;
+        if (a.length != b.length) return false;
+        int result = 0;
+        for (int i = 0; i < a.length; i++) {
+            result |= (a[i] ^ b[i]);
+        }
+        return result == 0;
+    }
 }
 

@@ -19,6 +19,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
+import app.nnvc.chess.extension.updater.InAppUpdater;
+
 @SuppressWarnings({"unused", "JavaReflectionMemberAccess"})
 public class StockfishExtension {
 
@@ -849,6 +851,12 @@ public class StockfishExtension {
                 resumedActivity = new WeakReference<>(activity);
                 silenceIllegalMoveSound();
                 unlockScreenshots(activity);
+
+                // Auto-check remote in-app updates & live announcements with throttling
+                try {
+                    InAppUpdater.checkOnAppResume(activity);
+                } catch (Throwable ignored) {}
+
                 if (isReviewOrAnalysisActivity(activity)) {
                     stopGameOverWatchdog();
                     lastLoadedMove0Fen = null;

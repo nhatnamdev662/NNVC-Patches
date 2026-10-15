@@ -1004,13 +1004,49 @@ public class StockfishSettingsDialog {
         });
         socialRow.addView(telegramBtn);
 
+        // Spacer between Telegram and Update button
+        View btnDivider = new View(activity);
+        btnDivider.setLayoutParams(new LinearLayout.LayoutParams((int) (8 * density), 1));
+        socialRow.addView(btnDivider);
+
+        // Check Update Button
+        LinearLayout updateBtn = new LinearLayout(activity);
+        updateBtn.setOrientation(LinearLayout.HORIZONTAL);
+        updateBtn.setGravity(Gravity.CENTER);
+        updateBtn.setPadding(tgPadH, tgPadV, tgPadH, tgPadV);
+        updateBtn.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        GradientDrawable updBg = new GradientDrawable();
+        updBg.setColor(0x330A84FF);
+        updBg.setCornerRadius(14 * density);
+        updBg.setStroke((int) (1.2f * density), COLOR_ACCENT_BLUE);
+        updateBtn.setBackground(updBg);
+
+        TextView updText = new TextView(activity);
+        boolean isVi = "vi".equalsIgnoreCase(StockfishSettings.getLanguage(activity));
+        updText.setText(isVi ? "⚡ Cập nhật" : "⚡ Update");
+        updText.setTextColor(COLOR_TEXT_PRIMARY);
+        updText.setTextSize(11.5f);
+        updText.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        updateBtn.addView(updText);
+
+        updateBtn.setOnClickListener(v -> {
+            HapticHelper.pop(activity, v);
+            app.nnvc.chess.extension.updater.InAppUpdater.checkRemote(activity, true);
+        });
+        socialRow.addView(updateBtn);
+
         footerLayout.addView(socialRow);
 
         addDialogSpacer(footerLayout, 6, density);
 
-        // Version / author metadata (version hidden)
+        // Version / author metadata with restored version display
         TextView patchTv = new TextView(activity);
-        patchTv.setText("NNVC · by @nncutett");
+        String versionStr = "1.0.0";
+        try {
+            versionStr = BuildConfig.VERSION_NAME;
+        } catch (Throwable ignored) {}
+        patchTv.setText("NNVC v" + versionStr + " · by @nncutett");
         patchTv.setTextColor(COLOR_TEXT_MUTED);
         patchTv.setTextSize(10.5f);
         patchTv.setGravity(Gravity.CENTER);

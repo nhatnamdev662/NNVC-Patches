@@ -442,6 +442,26 @@ public class StockfishSettings {
     public static void setCustomTitleUser(Context context, String username) {
         getPrefs(context).edit().putString(KEY_CUSTOM_TITLE_USER, username != null ? username.trim() : "").apply();
     }
+
+    // ── Update & Announcement Settings ───────────────────────────────────────
+    private static final String KEY_LAST_UPDATE_CHECK_MS = "nnvc_last_update_check_ms";
+    private static final String KEY_DISMISSED_ANNOUNCEMENT_ID = "nnvc_dismissed_announcement_id";
+
+    public static long getLastUpdateCheckTime(Context context) {
+        return getPrefs(context).getLong(KEY_LAST_UPDATE_CHECK_MS, 0L);
+    }
+
+    public static void setLastUpdateCheckTime(Context context, long timeMs) {
+        getPrefs(context).edit().putLong(KEY_LAST_UPDATE_CHECK_MS, timeMs).apply();
+    }
+
+    public static String getDismissedAnnouncementId(Context context) {
+        return getPrefs(context).getString(KEY_DISMISSED_ANNOUNCEMENT_ID, "");
+    }
+
+    public static void setDismissedAnnouncementId(Context context, String id) {
+        getPrefs(context).edit().putString(KEY_DISMISSED_ANNOUNCEMENT_ID, id != null ? id : "").apply();
+    }
 }
 
 

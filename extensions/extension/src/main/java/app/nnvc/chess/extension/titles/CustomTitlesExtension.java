@@ -5,6 +5,14 @@ import android.content.SharedPreferences;
 import android.util.Log;
 import app.nnvc.chess.extension.stockfish.StockfishExtension;
 import app.nnvc.chess.extension.stockfish.StockfishSettings;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CustomTitlesExtension {
     private static final String TAG = "NNVC";
@@ -21,15 +29,56 @@ public class CustomTitlesExtension {
         } catch (Throwable ignored) {}
     }
 
+    // ── Static Caches for Ultra-Fast UI Frame Performance (0ms lag) ──
+    private static final Map<String, Object> PALETTE_TITLE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, String> CODE_TO_ENUM_NAME = new HashMap<>();
+    private static final Map<Class<?>, Field> USERNAME_FIELD_CACHE = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, Field> CHESS_TITLE_FIELD_CACHE = new ConcurrentHashMap<>();
+
+    private static volatile String cachedUsername = null;
+    private static volatile long lastUsernameCheckTime = 0;
+
+    static {
+        CODE_TO_ENUM_NAME.put("GM", "GRANDMASTER");
+        CODE_TO_ENUM_NAME.put("WGM", "WOMAN_GRANDMASTER");
+        CODE_TO_ENUM_NAME.put("IM", "INTERNATIONAL_MASTER");
+        CODE_TO_ENUM_NAME.put("WIM", "WOMAN_INTERNATIONAL_MASTER");
+        CODE_TO_ENUM_NAME.put("FM", "FIDE_MASTER");
+        CODE_TO_ENUM_NAME.put("WFM", "WOMAN_FIDE_MASTER");
+        CODE_TO_ENUM_NAME.put("NM", "NATIONAL_MASTER");
+        CODE_TO_ENUM_NAME.put("CM", "FIDE_CANDIDATE_MASTER");
+        CODE_TO_ENUM_NAME.put("WCM", "FIDE_WOMAN_CANDIDATE_MASTER");
+        CODE_TO_ENUM_NAME.put("WNM", "WOMAN_NATIONAL_MASTER");
+        CODE_TO_ENUM_NAME.put("M", "MASTER");
+    }
+
     // Khởi tạo hoàn toàn local, không tải file mạng, áp dụng tức thời 0ms
     public static void init() {
-        // No network fetch needed - 100% real-time local
+        // Pre-warm palette title cache on app startup if classes are ready
+        try {
+            Class<?> chessTitleClass = Class.forName("com.chess.palette.compose.component.ChessTitle");
+            Method valueOfMethod = chessTitleClass.getMethod("valueOf", String.class);
+            for (Map.Entry<String, String> entry : CODE_TO_ENUM_NAME.entrySet()) {
+                try {
+                    Object val = valueOfMethod.invoke(null, entry.getValue());
+                    if (val != null) {
+                        PALETTE_TITLE_CACHE.put(entry.getKey(), val);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
     }
 
     /**
      * Tự động nhận diện username của tài khoản người dùng đang đăng nhập trên máy.
+     * Có bộ đệm 3000ms tránh nghẽn I/O SharedPreferences trên main thread của Compose.
      */
     public static String getCurrentAppUsername(Context context) {
+        long now = System.currentTimeMillis();
+        if (now - lastUsernameCheckTime < 3000 && cachedUsername != null) {
+            return cachedUsername;
+        }
+
         if (context == null) {
             try {
                 context = StockfishExtension.getContext();
@@ -38,13 +87,16 @@ public class CustomTitlesExtension {
             }
         }
         if (context == null) {
-            return null;
+            return cachedUsername;
         }
+
         // 1. Kiểm tra cấu hình người dùng nhập thủ công trong settings
         try {
             String manualUser = StockfishSettings.getCustomTitleUser(context);
             if (manualUser != null && !manualUser.trim().isEmpty()) {
-                return manualUser.trim();
+                cachedUsername = manualUser.trim();
+                lastUsernameCheckTime = now;
+                return cachedUsername;
             }
         } catch (Throwable ignored) {}
 
@@ -53,7 +105,9 @@ public class CustomTitlesExtension {
             SharedPreferences sp = context.getSharedPreferences("com.chess.app.session_preferences", Context.MODE_PRIVATE);
             String u = sp.getString("pref_username", null);
             if (u != null && !u.trim().isEmpty()) {
-                return u.trim();
+                cachedUsername = u.trim();
+                lastUsernameCheckTime = now;
+                return cachedUsername;
             }
         } catch (Throwable ignored) {}
 
@@ -62,11 +116,13 @@ public class CustomTitlesExtension {
             SharedPreferences sp = context.getSharedPreferences("com.chess.app.login_credentials", Context.MODE_PRIVATE);
             String u = sp.getString("pref_username_or_email", null);
             if (u != null && !u.trim().isEmpty()) {
-                return u.trim();
+                cachedUsername = u.trim();
+                lastUsernameCheckTime = now;
+                return cachedUsername;
             }
         } catch (Throwable ignored) {}
 
-        return null;
+        return cachedUsername;
     }
 
     /**
@@ -142,13 +198,13 @@ public class CustomTitlesExtension {
             } catch (Throwable t) {
                 instance = chessTitleClass.getField("INSTANCE").get(null);
             }
-            java.lang.reflect.Method fromCode = companionClass.getMethod("fromCode", String.class);
+            Method fromCode = companionClass.getMethod("fromCode", String.class);
             Object overrideObj = fromCode.invoke(instance, upper);
             return overrideObj != null ? overrideObj : defaultTitleObj;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             try {
                 Class<?> chessTitleClass = Class.forName("com.chess.entities.ChessTitle");
-                java.lang.reflect.Method valueOf = chessTitleClass.getMethod("valueOf", String.class);
+                Method valueOf = chessTitleClass.getMethod("valueOf", String.class);
                 return valueOf.invoke(null, upper);
             } catch (Throwable ex) {
                 return defaultTitleObj;
@@ -156,39 +212,56 @@ public class CustomTitlesExtension {
         }
     }
 
+    /**
+     * Chuyển mã danh hiệu (GM, IM...) sang enum Palette ChessTitle tương ứng.
+     * Tối ưu hóa cực hạn: O(1) cache lookup, không reflection lặp, không cấp phát bộ nhớ.
+     */
     public static Object getOverrideAsPaletteChessTitle(String titleCode, Object defaultTitleObj) {
         if (titleCode == null || titleCode.trim().isEmpty()) {
             return defaultTitleObj;
         }
         String upper = titleCode.trim().toUpperCase();
+
+        // 1. Fast path: Lấy trực tiếp từ cache đã tối ưu hóa
+        Object cached = PALETTE_TITLE_CACHE.get(upper);
+        if (cached != null) {
+            return cached;
+        }
+
         try {
             Class<?> chessTitleClass = Class.forName("com.chess.palette.compose.component.ChessTitle");
-            // 1. Enum.valueOf()
-            try {
-                java.lang.reflect.Method valueOfMethod = chessTitleClass.getMethod("valueOf", String.class);
-                Object val = valueOfMethod.invoke(null, upper);
-                if (val != null) {
-                    return val;
-                }
-            } catch (Throwable ignored) {}
 
-            // 2. Scan values() by name
-            java.lang.reflect.Method valuesMethod = chessTitleClass.getMethod("values");
+            // 2. Map từ Code ("GM") sang Tên enum chuẩn ("GRANDMASTER")
+            String enumName = CODE_TO_ENUM_NAME.get(upper);
+            if (enumName != null) {
+                try {
+                    Method valueOfMethod = chessTitleClass.getMethod("valueOf", String.class);
+                    Object val = valueOfMethod.invoke(null, enumName);
+                    if (val != null) {
+                        PALETTE_TITLE_CACHE.put(upper, val);
+                        return val;
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            // 3. Quét values() một lần duy nhất nếu enum chưa có trong map
+            Method valuesMethod = chessTitleClass.getMethod("values");
             Object[] values = (Object[]) valuesMethod.invoke(null);
             if (values != null) {
                 for (Object title : values) {
                     if (title != null && title.toString().equalsIgnoreCase(upper)) {
+                        PALETTE_TITLE_CACHE.put(upper, title);
                         return title;
                     }
                 }
-                // 3. Scan values() by field 'code'
-                for (java.lang.reflect.Field f : chessTitleClass.getDeclaredFields()) {
-                    if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) && f.getType() == String.class) {
+                for (Field f : chessTitleClass.getDeclaredFields()) {
+                    if (!Modifier.isStatic(f.getModifiers()) && f.getType() == String.class) {
                         f.setAccessible(true);
                         for (Object title : values) {
                             if (title != null) {
                                 String code = (String) f.get(title);
                                 if (upper.equalsIgnoreCase(code)) {
+                                    PALETTE_TITLE_CACHE.put(upper, title);
                                     return title;
                                 }
                             }
@@ -204,44 +277,70 @@ public class CustomTitlesExtension {
         }
     }
 
+    /**
+     * Trích xuất username từ UI State object với hiệu năng cao, tránh gọi toString() liên tục.
+     */
     public static String extractUsername(Object obj) {
         if (obj == null) return null;
-        String str = obj.toString();
-        int index = str.indexOf("username=");
-        if (index != -1) {
-            int start = index + "username=".length();
-            int endComma = str.indexOf(",", start);
-            int endParen = str.indexOf(")", start);
-            int end = -1;
-            if (endComma != -1 && endParen != -1) {
-                end = Math.min(endComma, endParen);
-            } else if (endComma != -1) {
-                end = endComma;
-            } else if (endParen != -1) {
-                end = endParen;
-            }
-            if (end != -1) {
-                String username = str.substring(start, end).trim();
-                if (!"null".equalsIgnoreCase(username) && !username.isEmpty()) {
-                    return username;
+        Class<?> clazz = obj.getClass();
+
+        // 1. Thử lấy từ cache Field đã phát hiện trước đó
+        Field cachedField = USERNAME_FIELD_CACHE.get(clazz);
+        if (cachedField != null) {
+            try {
+                Object u = cachedField.get(obj);
+                if (u instanceof String && !((String) u).trim().isEmpty()) {
+                    return ((String) u).trim();
                 }
-            }
+            } catch (Throwable ignored) {}
         }
 
+        // 2. Thử trực tiếp các trường phổ biến: "username", "a" (UsernameUiState.a), "b" (UserProfileHeader.b)
+        for (String fieldName : new String[]{"username", "a", "b"}) {
+            try {
+                Field f = clazz.getDeclaredField(fieldName);
+                if (f.getType() == String.class) {
+                    f.setAccessible(true);
+                    Object u = f.get(obj);
+                    if (u instanceof String && !((String) u).trim().isEmpty()) {
+                        USERNAME_FIELD_CACHE.put(clazz, f);
+                        return ((String) u).trim();
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        // 3. Thử qua getter method
         try {
-            java.lang.reflect.Method getUsernameMethod = obj.getClass().getMethod("getUsername");
+            Method getUsernameMethod = clazz.getMethod("getUsername");
             Object u = getUsernameMethod.invoke(obj);
             if (u instanceof String && !((String) u).trim().isEmpty()) {
                 return ((String) u).trim();
             }
         } catch (Throwable ignored) {}
 
+        // 4. Fallback cuối cùng: toString parsing
         try {
-            java.lang.reflect.Field f = obj.getClass().getDeclaredField("username");
-            f.setAccessible(true);
-            Object u = f.get(obj);
-            if (u instanceof String && !((String) u).trim().isEmpty()) {
-                return ((String) u).trim();
+            String str = obj.toString();
+            int index = str.indexOf("username=");
+            if (index != -1) {
+                int start = index + "username=".length();
+                int endComma = str.indexOf(",", start);
+                int endParen = str.indexOf(")", start);
+                int end = -1;
+                if (endComma != -1 && endParen != -1) {
+                    end = Math.min(endComma, endParen);
+                } else if (endComma != -1) {
+                    end = endComma;
+                } else if (endParen != -1) {
+                    end = endParen;
+                }
+                if (end != -1) {
+                    String username = str.substring(start, end).trim();
+                    if (!"null".equalsIgnoreCase(username) && !username.isEmpty()) {
+                        return username;
+                    }
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -255,31 +354,34 @@ public class CustomTitlesExtension {
         String defaultTitle = null;
         try {
             String username = extractUsername(modelObj);
-            
-            java.lang.reflect.Field chessTitleField = null;
-            for (String fieldName : new String[]{"chess_title", "chessTitle"}) {
-                try {
-                    chessTitleField = modelObj.getClass().getDeclaredField(fieldName);
-                    break;
-                } catch (NoSuchFieldException e) {
-                    // Ignore
-                }
-            }
-            
+
+            Class<?> clazz = modelObj.getClass();
+            Field chessTitleField = CHESS_TITLE_FIELD_CACHE.get(clazz);
             if (chessTitleField == null) {
-                for (java.lang.reflect.Field f : modelObj.getClass().getDeclaredFields()) {
-                    if (f.getType() == String.class && (f.getName().contains("title") || f.getName().contains("Title"))) {
-                        chessTitleField = f;
+                for (String fieldName : new String[]{"chess_title", "chessTitle"}) {
+                    try {
+                        chessTitleField = clazz.getDeclaredField(fieldName);
                         break;
+                    } catch (NoSuchFieldException ignored) {}
+                }
+                if (chessTitleField == null) {
+                    for (Field f : clazz.getDeclaredFields()) {
+                        if (f.getType() == String.class && (f.getName().contains("title") || f.getName().contains("Title"))) {
+                            chessTitleField = f;
+                            break;
+                        }
                     }
                 }
+                if (chessTitleField != null) {
+                    chessTitleField.setAccessible(true);
+                    CHESS_TITLE_FIELD_CACHE.put(clazz, chessTitleField);
+                }
             }
-            
+
             if (chessTitleField != null) {
-                chessTitleField.setAccessible(true);
                 defaultTitle = (String) chessTitleField.get(modelObj);
             }
-            
+
             return getResolvedTitle(StockfishExtension.getContext(), username, modelObj, defaultTitle);
         } catch (Throwable e) {
             logE("overrideModelChessTitle failed: " + e.getMessage());
@@ -294,27 +396,44 @@ public class CustomTitlesExtension {
         Object defaultTitleObj = null;
         try {
             String username = extractUsername(uiStateObj);
-            
-            java.lang.reflect.Field chessTitleField = null;
-            try {
-                chessTitleField = uiStateObj.getClass().getDeclaredField("chessTitle");
-            } catch (NoSuchFieldException e) {
-                for (java.lang.reflect.Field f : uiStateObj.getClass().getDeclaredFields()) {
-                    if (f.getType().getName().contains("palette") && f.getType().getName().contains("ChessTitle")) {
-                        chessTitleField = f;
-                        break;
+
+            Class<?> clazz = uiStateObj.getClass();
+            Field chessTitleField = CHESS_TITLE_FIELD_CACHE.get(clazz);
+            if (chessTitleField == null) {
+                try {
+                    chessTitleField = clazz.getDeclaredField("chessTitle");
+                } catch (NoSuchFieldException e) {
+                    for (String fn : new String[]{"f", "chessTitle"}) {
+                        try {
+                            Field f = clazz.getDeclaredField(fn);
+                            if (f.getType().getName().contains("ChessTitle")) {
+                                chessTitleField = f;
+                                break;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                    if (chessTitleField == null) {
+                        for (Field f : clazz.getDeclaredFields()) {
+                            if (f.getType().getName().contains("palette") && f.getType().getName().contains("ChessTitle")) {
+                                chessTitleField = f;
+                                break;
+                            }
+                        }
                     }
                 }
+                if (chessTitleField != null) {
+                    chessTitleField.setAccessible(true);
+                    CHESS_TITLE_FIELD_CACHE.put(clazz, chessTitleField);
+                }
             }
-            
+
             if (chessTitleField != null) {
-                chessTitleField.setAccessible(true);
                 defaultTitleObj = chessTitleField.get(uiStateObj);
             }
-            
+
             String defaultTitleCode = defaultTitleObj != null ? defaultTitleObj.toString() : null;
             String resolvedTitle = getResolvedTitle(StockfishExtension.getContext(), username, uiStateObj, defaultTitleCode);
-            
+
             if (resolvedTitle != null) {
                 return getOverrideAsPaletteChessTitle(resolvedTitle, defaultTitleObj);
             }
@@ -326,177 +445,30 @@ public class CustomTitlesExtension {
     }
 
     /**
-     * Bổ sung thẻ banner danh hiệu [ 👑 Đại kiện tướng / Title Banner ] trong Trang cá nhân (User Profile).
-     * Tự động sinh UserLabelUi chuẩn gốc của Chess.com (Vương miện 👑, nền đỏ thẫm #O, tên danh hiệu đa ngôn ngữ).
-     * Tuyệt đối bảo toàn:
-     * - Trả về List không null (Collections.emptyList()) nếu không có labels, tuân thủ Kotlin non-null contract.
-     * - Nhận diện V6 Profile Header (uiModel.y() / field p / isV6ProfileHeader): bảo toàn labels gốc, không chèn V1 UserLabelUi.
-     * - Chỉ hiển thị cho chính người dùng (isCurrentUser == true), không can thiệp người khác.
+     * Bảo toàn 100% nhãn gốc của ProfileContentUiModel, tuyệt đối không can thiệp hay chèn
+     * UserLabelUi gây xung đột layout Jetpack Compose hoặc crash/văng màn hình trang cá nhân V6.
+     * Luôn trả về danh sách non-null theo đúng hợp đồng của Kotlin.
      */
-    public static java.util.List<?> overrideProfileLabels(Object uiModel) {
+    public static List<?> overrideProfileLabels(Object uiModel) {
         if (uiModel == null) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
-        java.util.List<?> originalLabels = null;
         try {
-            java.lang.reflect.Field labelsField = uiModel.getClass().getDeclaredField("e");
-            labelsField.setAccessible(true);
-            originalLabels = (java.util.List<?>) labelsField.get(uiModel);
-        } catch (Throwable t) {
-            try {
-                java.lang.reflect.Field labelsField = uiModel.getClass().getDeclaredField("labels");
+            Field labelsField = null;
+            for (String fieldName : new String[]{"e", "labels"}) {
+                try {
+                    labelsField = uiModel.getClass().getDeclaredField(fieldName);
+                    break;
+                } catch (Throwable ignored) {}
+            }
+            if (labelsField != null) {
                 labelsField.setAccessible(true);
-                originalLabels = (java.util.List<?>) labelsField.get(uiModel);
-            } catch (Throwable ignored) {}
-        }
-
-        java.util.List<?> fallbackLabels = (originalLabels != null) ? originalLabels : java.util.Collections.emptyList();
-
-        try {
-            // Guard V6 Profile Header: Check uiModel.y() / getIsV6ProfileHeader() / field 'p' / 'isV6ProfileHeader'
-            boolean isV6ProfileHeader = false;
-            try {
-                java.lang.reflect.Method yMethod = uiModel.getClass().getMethod("y");
-                Object yVal = yMethod.invoke(uiModel);
-                if (yVal instanceof Boolean && ((Boolean) yVal)) {
-                    isV6ProfileHeader = true;
-                }
-            } catch (Throwable ignored) {}
-
-            if (!isV6ProfileHeader) {
-                try {
-                    java.lang.reflect.Method m = uiModel.getClass().getMethod("getIsV6ProfileHeader");
-                    Object val = m.invoke(uiModel);
-                    if (val instanceof Boolean && ((Boolean) val)) {
-                        isV6ProfileHeader = true;
-                    }
-                } catch (Throwable ignored) {}
-            }
-
-            if (!isV6ProfileHeader) {
-                try {
-                    java.lang.reflect.Field pField = uiModel.getClass().getDeclaredField("p");
-                    pField.setAccessible(true);
-                    Object pVal = pField.get(uiModel);
-                    if (pVal instanceof Boolean && ((Boolean) pVal)) {
-                        isV6ProfileHeader = true;
-                    }
-                } catch (Throwable ignored) {}
-            }
-
-            if (!isV6ProfileHeader) {
-                try {
-                    java.lang.reflect.Field f = uiModel.getClass().getDeclaredField("isV6ProfileHeader");
-                    f.setAccessible(true);
-                    Object val = f.get(uiModel);
-                    if (val instanceof Boolean && ((Boolean) val)) {
-                        isV6ProfileHeader = true;
-                    }
-                } catch (Throwable ignored) {}
-            }
-
-            if (isV6ProfileHeader) {
-                return fallbackLabels;
-            }
-
-            Context context = StockfishExtension.getContext();
-            boolean enabled = (context != null) && StockfishSettings.isCustomTitleEnabled(context);
-            if (!enabled) {
-                return fallbackLabels;
-            }
-
-            // Kiểm tra xem có phải trang cá nhân của chính người dùng hay không
-            boolean isCurrentUser = false;
-            try {
-                java.lang.reflect.Method isCurrentUserMethod = uiModel.getClass().getMethod("w");
-                isCurrentUser = (Boolean) isCurrentUserMethod.invoke(uiModel);
-            } catch (Throwable t) {
-                try {
-                    java.lang.reflect.Field f = uiModel.getClass().getDeclaredField("m");
-                    f.setAccessible(true);
-                    isCurrentUser = (Boolean) f.get(uiModel);
-                } catch (Throwable ignored) {}
-            }
-
-            if (!isCurrentUser) {
-                try {
-                    java.lang.reflect.Method m = uiModel.getClass().getMethod("getIsCurrentUser");
-                    Object val = m.invoke(uiModel);
-                    if (val instanceof Boolean && ((Boolean) val)) {
-                        isCurrentUser = true;
-                    }
-                } catch (Throwable ignored) {}
-            }
-
-            if (!isCurrentUser) {
-                try {
-                    java.lang.reflect.Field f = uiModel.getClass().getDeclaredField("isCurrentUser");
-                    f.setAccessible(true);
-                    Object val = f.get(uiModel);
-                    if (val instanceof Boolean && ((Boolean) val)) {
-                        isCurrentUser = true;
-                    }
-                } catch (Throwable ignored) {}
-            }
-
-            if (!isCurrentUser) {
-                return fallbackLabels;
-            }
-
-            String titleCode = StockfishSettings.getCustomTitleCode(context);
-            if (titleCode == null || titleCode.trim().isEmpty()) {
-                return fallbackLabels;
-            }
-            titleCode = titleCode.trim().toUpperCase();
-
-            // Kiểm tra xem danh sách hiện tại đã có thẻ danh hiệu chưa (tránh trùng lặp)
-            if (originalLabels != null) {
-                for (Object labelUi : originalLabels) {
-                    if (labelUi != null && labelUi.toString().contains("TitledPlayer")) {
-                        return originalLabels;
-                    }
+                List<?> originalLabels = (List<?>) labelsField.get(uiModel);
+                if (originalLabels != null) {
+                    return originalLabels;
                 }
             }
-
-            // 1. Lấy enum com.chess.entities.ChessTitle tương ứng
-            Object chessTitleEnum = getOverrideAsChessTitle(titleCode, null);
-            if (chessTitleEnum == null) {
-                return fallbackLabels;
-            }
-
-            // 2. Khởi tạo đối tượng UserLabel.TitledPlayer
-            Class<?> titledPlayerClass = Class.forName("com.chess.net.v1.users.UserLabel$TitledPlayer");
-            Class<?> chessTitleClass = Class.forName("com.chess.entities.ChessTitle");
-            java.lang.reflect.Constructor<?> tpCtor = titledPlayerClass.getConstructor(chessTitleClass);
-            Object titledPlayer = tpCtor.newInstance(chessTitleEnum);
-
-            // 3. Gọi UserLabelUi.Companion.a(titledPlayer) để sinh UserLabelUi chuẩn gốc
-            Class<?> userLabelUiClass = Class.forName("com.chess.profile.f5");
-            java.lang.reflect.Field uiCompanionField = null;
-            try {
-                uiCompanionField = userLabelUiClass.getField("INSTANCE");
-            } catch (Throwable t) {
-                uiCompanionField = userLabelUiClass.getField("d");
-            }
-            Object uiCompanion = uiCompanionField.get(null);
-            java.lang.reflect.Method createMethod = uiCompanion.getClass().getMethod("a", Class.forName("com.chess.net.v1.users.UserLabel"));
-            Object userLabelUi = createMethod.invoke(uiCompanion, titledPlayer);
-
-            if (userLabelUi == null) {
-                return fallbackLabels;
-            }
-
-            // 4. Tạo danh sách mới với thẻ danh hiệu ở vị trí đầu tiên (Rank 3 trên Rank 4 Premium)
-            java.util.List<Object> newList = new java.util.ArrayList<>();
-            newList.add(userLabelUi);
-            if (originalLabels != null) {
-                newList.addAll(originalLabels);
-            }
-            return newList;
-        } catch (Throwable e) {
-            logE("overrideProfileLabels failed: " + e.getMessage(), e);
-            return fallbackLabels;
-        }
+        } catch (Throwable ignored) {}
+        return Collections.emptyList();
     }
 }
-

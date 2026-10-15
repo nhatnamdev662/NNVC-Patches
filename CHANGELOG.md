@@ -1,3 +1,31 @@
+## [1.0.0](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v1.0.0) (2026-10-15)
+
+### 🌟 Milestone Release: Profile V6 Crash & Freeze Fix, In-App Updater & Restored Version Display
+* **Profile V6 Crash & Kick-out Resolution:**
+  - Fixed kick-out / popBackStack when opening Chess.com V6 Profile: removed bytecode hook `CommentDataGetChessTitleFingerprint` (`n4.l()`) from `CustomTitlesPatch.kt`. V6 profiles render 3 modern cards ('7 ngày', 'Kiểu chủ đề đá', 'Silver') without `UserLabelUi`; injecting legacy V1 labels caused Compose runtime layout mismatch (`NoWhenBranchMatchedException`) and activity exit upon remote data updates.
+  - Made `overrideProfileLabels` in `CustomTitlesExtension.java` strictly preserve original labels with zero artificial label injection.
+* **Elimination of 1-2s Profile Freeze / Hang:**
+  - Added O(1) title enum cache `PALETTE_TITLE_CACHE` and `CODE_TO_ENUM_NAME` (mapping "GM" -> "GRANDMASTER", etc.) in `CustomTitlesExtension.java`, eliminating `NoSuchFieldException` and heavy reflection loops on every Compose recomposition frame.
+  - Added fast-path username extraction avoiding wasteful `toString()` allocations.
+  - Debounced `currentAppUsername` SharedPreferences queries by 3000ms.
+* **Restored Version Display & Settings Controls:**
+  - Restored clear version indicator in settings menu footer: `NNVC v1.0.0 · by @nncutett`.
+  - Maintained the secret 5-tap developer gesture on the footer to open the real-time debug log viewer.
+  - Added dedicated one-tap `⚡ Cập nhật` button in footer for instant update checks.
+* **In-App Updater & Live Announcement Client:**
+  - Remote config check via String-fogged endpoint (`api/version.json`), keeping backend URLs completely concealed from static bytecode inspection.
+  - Non-blocking Broadcast Announcement banner with ID-based dismissal memory in `SharedPreferences`.
+  - Non-dismissible Force Update lockout dialog that halts chess engines and intercepts back button navigation when `version_code < min_supported_version`.
+  - In-App Direct Downloader with live byte progress bar and automatic native `PackageInstaller` (`ACTION_VIEW` via `FileProvider`) trigger without launching external browsers. Downloads to `cache/images/` to adhere to provider paths with multiple authority checks and `StrictMode` fallback.
+  - Cryptographic validation: full SHA-256 integrity check and HMAC-SHA256 signature verification preventing poisoned update payloads.
+* **Cyber Web Admin Panel (Netlify Ready):**
+  - Standalone Cyber Frosted Glass web panel in `panel/`.
+  - PIN authentication protected (`662266`).
+  - Drag-and-drop APK with automatic SHA-256 computation in browser.
+  - Controls for changelog, force update toggle, and broadcast announcement messages with live JSON preview and export.
+* **100% Automated Test Suite:**
+  - 225/225 test cases passed in `SelfTest.java` (including Test 26 for updater/HMAC-SHA256 and Test 27 for CustomTitles V6 safety).
+
 ## [2.0.102](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.102) (2026-10-15)
 
 ### 🐛 Bug Fixes & Stability

@@ -36,13 +36,6 @@ object LeaderBoardUserGetChessTitleFingerprint : Fingerprint(
     returnType = "Ljava/lang/String;"
 )
 
-// Reused slot: ProfileContentUiModel labels [l()] in User Profile
-object CommentDataGetChessTitleFingerprint : Fingerprint(
-    definingClass = "Lcom/chess/profile/n4;",
-    name = "l",
-    parameters = listOf(),
-    returnType = "Ljava/util/List;"
-)
 
 object LiveUserInfoGetChessTitleFingerprint : Fingerprint(
     definingClass = "Lcom/chess/entities/LiveUserInfo;",
@@ -132,17 +125,6 @@ val customTitlesPatch = bytecodePatch(
             """
                 move-object v0, p0
                 invoke-static {v0}, Lapp/nnvc/chess/extension/titles/CustomTitlesExtension;->overrideModelChessTitle(Ljava/lang/Object;)Ljava/lang/String;
-                move-result-object v0
-                return-object v0
-            """
-        )
-
-        // Inject overrides into ProfileContentUiModel getLabels() [l()]
-        CommentDataGetChessTitleFingerprint.method.addInstructions(
-            0,
-            """
-                move-object v0, p0
-                invoke-static {v0}, Lapp/nnvc/chess/extension/titles/CustomTitlesExtension;->overrideProfileLabels(Ljava/lang/Object;)Ljava/util/List;
                 move-result-object v0
                 return-object v0
             """

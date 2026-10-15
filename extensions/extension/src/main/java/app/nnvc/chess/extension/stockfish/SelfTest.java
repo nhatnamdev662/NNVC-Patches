@@ -1055,6 +1055,145 @@ public class SelfTest {
                 java.util.Arrays.equals(first4, reread4));
         } catch (java.io.IOException ignored) {}
 
+        // === TEST 26: In-App Updater & Cryptographic Manifest Verification ===
+        System.out.println("Running Test 26: In-App Updater, Version Parsing & HMAC-SHA256 Verification...");
+
+        // 26a. JSON manifest parsing
+        String sampleJson = "{\n" +
+                "  \"version_code\": 10001,\n" +
+                "  \"version_name\": \"1.0.1\",\n" +
+                "  \"changelog\": \"- Fix minor UI bug\\n- Improve engine stability\",\n" +
+                "  \"download_url\": \"https://github.com/nhatnamdev662/NNVC-Patches/releases/download/v1.0.1/app.apk\",\n" +
+                "  \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n" +
+                "  \"hmac_sha256\": \"a1b2c3d4\",\n" +
+                "  \"force_update\": true,\n" +
+                "  \"min_supported_version\": 10000,\n" +
+                "  \"announcement\": {\n" +
+                "    \"enabled\": true,\n" +
+                "    \"id\": \"ann_001\",\n" +
+                "    \"title\": \"📢 Server Maintenance\",\n" +
+                "    \"message\": \"Maintenance will happen at midnight.\",\n" +
+                "    \"action_text\": \"Chi tiết\",\n" +
+                "    \"action_url\": \"https://t.me/nncutett\"\n" +
+                "  }\n" +
+                "}";
+
+        app.nnvc.chess.extension.updater.InAppUpdater.RemoteConfig cfg =
+                app.nnvc.chess.extension.updater.InAppUpdater.parseRemoteConfig(sampleJson);
+        check("RemoteConfig parses non-null from JSON", cfg != null);
+        check("RemoteConfig versionCode parsed correctly", cfg != null && cfg.versionCode == 10001);
+        check("RemoteConfig versionName parsed correctly", cfg != null && "1.0.1".equals(cfg.versionName));
+        check("RemoteConfig forceUpdate flag parsed correctly", cfg != null && cfg.forceUpdate);
+        check("RemoteConfig minSupportedVersion parsed correctly", cfg != null && cfg.minSupportedVersion == 10000);
+        check("RemoteConfig sha256 normalized lowercase", cfg != null && cfg.sha256.equals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
+        check("RemoteConfig announcement parsed enabled", cfg != null && cfg.hasAnnouncement);
+        check("RemoteConfig announcementId matches", cfg != null && "ann_001".equals(cfg.announcementId));
+        check("RemoteConfig announcementTitle matches", cfg != null && "📢 Server Maintenance".equals(cfg.announcementTitle));
+
+        // 26b. Version comparison logic
+        check("isNewVersionAvailable detects higher remote version",
+                app.nnvc.chess.extension.updater.InAppUpdater.isNewVersionAvailable(10000, 10001));
+        check("isNewVersionAvailable returns false for same version",
+                !app.nnvc.chess.extension.updater.InAppUpdater.isNewVersionAvailable(10000, 10000));
+        check("isNewVersionAvailable returns false for older version",
+                !app.nnvc.chess.extension.updater.InAppUpdater.isNewVersionAvailable(10001, 10000));
+
+        // 26c. Force update logic
+        check("isForceUpdateRequired returns true when force_update=true and remote > current",
+                app.nnvc.chess.extension.updater.InAppUpdater.isForceUpdateRequired(10000, cfg));
+        check("isForceUpdateRequired returns false when already on remote version",
+                !app.nnvc.chess.extension.updater.InAppUpdater.isForceUpdateRequired(10001, cfg));
+
+        app.nnvc.chess.extension.updater.InAppUpdater.RemoteConfig nonForceCfg =
+                new app.nnvc.chess.extension.updater.InAppUpdater.RemoteConfig(10002, "1.0.2", "", "", "", "", false, 10000, false, "", "", "", "", "");
+        check("isForceUpdateRequired returns false when force_update=false and current >= minSupportedVersion",
+                !app.nnvc.chess.extension.updater.InAppUpdater.isForceUpdateRequired(10000, nonForceCfg));
+
+        app.nnvc.chess.extension.updater.InAppUpdater.RemoteConfig minVerCfg =
+                new app.nnvc.chess.extension.updater.InAppUpdater.RemoteConfig(10005, "1.0.5", "", "", "", "", false, 10003, false, "", "", "", "", "");
+        check("isForceUpdateRequired triggers when current < minSupportedVersion even if force_update=false",
+                app.nnvc.chess.extension.updater.InAppUpdater.isForceUpdateRequired(10002, minVerCfg));
+
+        // 26d. File SHA-256 verification
+        try {
+            java.io.File tempFile = java.io.File.createTempFile("nnvc_test_update", ".bin");
+            tempFile.deleteOnExit();
+            byte[] testContent = "NNVC CHESS MOBILE v1.0.0 RELEASE".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempFile)) {
+                fos.write(testContent);
+            }
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] expectedHashBytes = md.digest(testContent);
+            String expectedHex = ApkSignatureHelper.toHexString(expectedHashBytes);
+
+            check("verifyFileSha256 passes for authentic file",
+                    app.nnvc.chess.extension.updater.InAppUpdater.verifyFileSha256(tempFile, expectedHex));
+            check("verifyFileSha256 passes case-insensitively",
+                    app.nnvc.chess.extension.updater.InAppUpdater.verifyFileSha256(tempFile, expectedHex.toUpperCase()));
+            check("verifyFileSha256 fails for corrupted expected hash",
+                    !app.nnvc.chess.extension.updater.InAppUpdater.verifyFileSha256(tempFile, "0000000000000000000000000000000000000000000000000000000000000000"));
+            tempFile.delete();
+        } catch (Throwable t) {
+            check("verifyFileSha256 execution exception: " + t.getMessage(), false);
+        }
+
+        // 26e. HMAC-SHA256 payload authentication
+        byte[] hmacKey = officialKey;
+        byte[] manifestPayload = "{\"version_code\":10000}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] correctHmac = ApkSignatureHelper.computeHmacSha256(hmacKey, manifestPayload);
+        String correctHmacHex = ApkSignatureHelper.toHexString(correctHmac);
+
+        check("verifyPayloadHmac succeeds with authentic key and payload",
+                app.nnvc.chess.extension.updater.InAppUpdater.verifyPayloadHmac(hmacKey, manifestPayload, correctHmacHex));
+        check("verifyPayloadHmac fails with forged key",
+                !app.nnvc.chess.extension.updater.InAppUpdater.verifyPayloadHmac(fakeKey, manifestPayload, correctHmacHex));
+        check("verifyPayloadHmac fails with tampered payload",
+                !app.nnvc.chess.extension.updater.InAppUpdater.verifyPayloadHmac(hmacKey, "{\"version_code\":99999}".getBytes(java.nio.charset.StandardCharsets.UTF_8), correctHmacHex));
+
+        // 26f. Endpoint String Fogging verification
+        String endpoint = app.nnvc.chess.extension.updater.InAppUpdater.getUpdateEndpoint();
+        check("getUpdateEndpoint decodes to valid https endpoint",
+                endpoint != null && endpoint.startsWith("https://") && endpoint.contains("version.json"));
+
+        // === TEST 27: CustomTitlesExtension Profile V6 Safety & Performance Hardening ===
+        System.out.println("Running Test 27: CustomTitlesExtension Profile V6 Safety & Performance Hardening...");
+
+        // 27a. overrideProfileLabels non-null and non-intervention contract
+        check("overrideProfileLabels(null) returns non-null empty list",
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(null) != null &&
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(null).isEmpty());
+
+        class MockProfileUiModelWithLabels {
+            public java.util.List<String> e = java.util.Arrays.asList("labelA", "labelB");
+        }
+        MockProfileUiModelWithLabels mockModel = new MockProfileUiModelWithLabels();
+        java.util.List<?> preservedLabels = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(mockModel);
+        check("overrideProfileLabels preserves original labels exactly without injecting fake UserLabelUi",
+                preservedLabels != null && preservedLabels.size() == 2 && "labelA".equals(preservedLabels.get(0)));
+
+        // 27b. extractUsername fast path
+        class MockUsernameState {
+            public String username = "trannnguyennhatnam";
+        }
+        check("extractUsername extracts from field 'username'",
+                "trannnguyennhatnam".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.extractUsername(new MockUsernameState())));
+
+        class MockObfuscatedUsernameState {
+            public String a = "player_abc";
+        }
+        check("extractUsername extracts from obfuscated field 'a'",
+                "player_abc".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.extractUsername(new MockObfuscatedUsernameState())));
+
+        // 27c. Null-safe fallbacks for overrideModelChessTitle and overridePaletteChessTitle
+        check("overrideModelChessTitle(null) returns null safely",
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideModelChessTitle(null) == null);
+        check("overridePaletteChessTitle(null) returns null safely",
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.overridePaletteChessTitle(null) == null);
+        check("getOverrideAsPaletteChessTitle(null, fallback) returns fallback safely",
+                "default".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsPaletteChessTitle(null, "default")));
+        check("getOverrideAsPaletteChessTitle(\"\", fallback) returns fallback safely",
+                "default".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsPaletteChessTitle("", "default")));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
