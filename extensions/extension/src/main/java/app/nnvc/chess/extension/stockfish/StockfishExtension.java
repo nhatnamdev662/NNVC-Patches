@@ -943,7 +943,7 @@ public class StockfishExtension {
         // Check immediately
         checkAndHandleGameOver(activity);
 
-        // 1. Layout listener on decorView
+        // 1. Layout listener on decorView with debounce to eliminate 60fps main thread overhead
         try {
             Window window = activity.getWindow();
             if (window != null) {
@@ -951,9 +951,14 @@ public class StockfishExtension {
                 if (decorView != null) {
                     currentDecorViewRef = new WeakReference<>(decorView);
                     globalLayoutListener = new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                        private long lastCheckTime = 0L;
                         @Override
                         public void onGlobalLayout() {
-                            checkAndHandleGameOver(activity);
+                            long now = android.os.SystemClock.uptimeMillis();
+                            if (now - lastCheckTime >= 500L) {
+                                lastCheckTime = now;
+                                checkAndHandleGameOver(activity);
+                            }
                         }
                     };
                     decorView.getViewTreeObserver().addOnGlobalLayoutListener(globalLayoutListener);

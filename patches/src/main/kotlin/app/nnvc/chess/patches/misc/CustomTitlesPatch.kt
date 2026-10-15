@@ -193,16 +193,5 @@ val customTitlesPatch = bytecodePatch(
                 return-object v0
             """
         )
-
-        // Hook 2: ProfileContentUiModel.l() -> overrideProfileLabels
-        CommentDataGetChessTitleFingerprint.method.addInstructions(
-            0,
-            """
-                move-object v0, p0
-                invoke-static {v0}, Lapp/nnvc/chess/extension/titles/CustomTitlesExtension;->overrideProfileLabels(Ljava/lang/Object;)Ljava/util/List;
-                move-result-object v0
-                return-object v0
-            """
-        )
     }
 }

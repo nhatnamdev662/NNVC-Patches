@@ -20,6 +20,7 @@ import java.security.MessageDigest;
 public final class ApkSignatureHelper {
 
     private static final byte[] EMPTY_KEY = new byte[32];
+    private static volatile byte[] cachedSigKey = null;
 
     private ApkSignatureHelper() {}
 
@@ -47,6 +48,9 @@ public final class ApkSignatureHelper {
     public static byte[] getSigningCertificateSha256(Context context) {
         if (context == null) {
             return EMPTY_KEY.clone();
+        }
+        if (cachedSigKey != null) {
+            return cachedSigKey.clone();
         }
         try {
             PackageManager pm = context.getPackageManager();
@@ -79,13 +83,20 @@ public final class ApkSignatureHelper {
             if (certBytes == null) {
                 @SuppressWarnings("deprecation")
                 PackageInfo packageInfo = pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES);
-                if (packageInfo != null && packageInfo.signatures != null && packageInfo.signatures.length > 0 && packageInfo.signatures[0] != null) {
-                    certBytes = packageInfo.signatures[0].toByteArray();
+                if (packageInfo != null && packageInfo.signatures != null && packageInfo.signatures.length > 0) {
+                    android.content.pm.Signature sig = packageInfo.signatures[packageInfo.signatures.length - 1];
+                    if (sig != null) {
+                        certBytes = sig.toByteArray();
+                    }
                 }
             }
 
             if (certBytes != null && certBytes.length > 0) {
-                return digestCertificate(certBytes);
+                byte[] key = digestCertificate(certBytes);
+                if (key != null && key.length == 32) {
+                    cachedSigKey = key;
+                    return key.clone();
+                }
             }
         } catch (Throwable ignored) {}
 

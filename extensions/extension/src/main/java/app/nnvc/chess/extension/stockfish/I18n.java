@@ -4,10 +4,20 @@ import android.content.Context;
 
 public class I18n {
 
+    private static volatile Boolean cachedIsVi = null;
+
+    public static void invalidateCache() {
+        cachedIsVi = null;
+    }
+
     public static boolean isVi(Context context) {
+        Boolean cached = cachedIsVi;
+        if (cached != null) return cached;
         if (context == null) return true;
         try {
-            return "vi".equalsIgnoreCase(StockfishSettings.getLanguage(context));
+            boolean vi = "vi".equalsIgnoreCase(StockfishSettings.getLanguage(context));
+            cachedIsVi = vi;
+            return vi;
         } catch (Throwable ignored) {
             return true;
         }

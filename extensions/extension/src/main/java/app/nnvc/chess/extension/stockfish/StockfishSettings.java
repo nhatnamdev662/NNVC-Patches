@@ -46,6 +46,7 @@ public class StockfishSettings {
 
     public static void setLanguage(Context context, String lang) {
         getPrefs(context).edit().putString(KEY_LANGUAGE, lang).apply();
+        I18n.invalidateCache();
     }
 
     /** Max selectable live-analysis depth (strictly locked to 12 as per NNVC Extension). */

@@ -198,7 +198,7 @@ public class CustomTitlesExtension {
                 }
             }
             return defaultTitleObj;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logE("getOverrideAsPaletteChessTitle failed: " + e.getMessage());
             return defaultTitleObj;
         }
@@ -252,6 +252,7 @@ public class CustomTitlesExtension {
         if (modelObj == null) {
             return null;
         }
+        String defaultTitle = null;
         try {
             String username = extractUsername(modelObj);
             
@@ -274,23 +275,23 @@ public class CustomTitlesExtension {
                 }
             }
             
-            String defaultTitle = null;
             if (chessTitleField != null) {
                 chessTitleField.setAccessible(true);
                 defaultTitle = (String) chessTitleField.get(modelObj);
             }
             
             return getResolvedTitle(StockfishExtension.getContext(), username, modelObj, defaultTitle);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logE("overrideModelChessTitle failed: " + e.getMessage());
+            return defaultTitle;
         }
-        return null;
     }
 
     public static Object overridePaletteChessTitle(Object uiStateObj) {
         if (uiStateObj == null) {
             return null;
         }
+        Object defaultTitleObj = null;
         try {
             String username = extractUsername(uiStateObj);
             
@@ -306,7 +307,6 @@ public class CustomTitlesExtension {
                 }
             }
             
-            Object defaultTitleObj = null;
             if (chessTitleField != null) {
                 chessTitleField.setAccessible(true);
                 defaultTitleObj = chessTitleField.get(uiStateObj);
@@ -319,20 +319,23 @@ public class CustomTitlesExtension {
                 return getOverrideAsPaletteChessTitle(resolvedTitle, defaultTitleObj);
             }
             return defaultTitleObj;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logE("overridePaletteChessTitle failed: " + e.getMessage());
+            return defaultTitleObj;
         }
-        return null;
     }
 
     /**
      * Bổ sung thẻ banner danh hiệu [ 👑 Đại kiện tướng / Title Banner ] trong Trang cá nhân (User Profile).
      * Tự động sinh UserLabelUi chuẩn gốc của Chess.com (Vương miện 👑, nền đỏ thẫm #O, tên danh hiệu đa ngôn ngữ).
-     * Tuyệt đối bảo toàn: Chỉ hiển thị cho chính người dùng (isCurrentUser == true), không can thiệp người khác.
+     * Tuyệt đối bảo toàn:
+     * - Trả về List không null (Collections.emptyList()) nếu không có labels, tuân thủ Kotlin non-null contract.
+     * - Nhận diện V6 Profile Header (uiModel.y() / field p / isV6ProfileHeader): bảo toàn labels gốc, không chèn V1 UserLabelUi.
+     * - Chỉ hiển thị cho chính người dùng (isCurrentUser == true), không can thiệp người khác.
      */
     public static java.util.List<?> overrideProfileLabels(Object uiModel) {
         if (uiModel == null) {
-            return null;
+            return java.util.Collections.emptyList();
         }
         java.util.List<?> originalLabels = null;
         try {
@@ -347,11 +350,59 @@ public class CustomTitlesExtension {
             } catch (Throwable ignored) {}
         }
 
+        java.util.List<?> fallbackLabels = (originalLabels != null) ? originalLabels : java.util.Collections.emptyList();
+
         try {
+            // Guard V6 Profile Header: Check uiModel.y() / getIsV6ProfileHeader() / field 'p' / 'isV6ProfileHeader'
+            boolean isV6ProfileHeader = false;
+            try {
+                java.lang.reflect.Method yMethod = uiModel.getClass().getMethod("y");
+                Object yVal = yMethod.invoke(uiModel);
+                if (yVal instanceof Boolean && ((Boolean) yVal)) {
+                    isV6ProfileHeader = true;
+                }
+            } catch (Throwable ignored) {}
+
+            if (!isV6ProfileHeader) {
+                try {
+                    java.lang.reflect.Method m = uiModel.getClass().getMethod("getIsV6ProfileHeader");
+                    Object val = m.invoke(uiModel);
+                    if (val instanceof Boolean && ((Boolean) val)) {
+                        isV6ProfileHeader = true;
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            if (!isV6ProfileHeader) {
+                try {
+                    java.lang.reflect.Field pField = uiModel.getClass().getDeclaredField("p");
+                    pField.setAccessible(true);
+                    Object pVal = pField.get(uiModel);
+                    if (pVal instanceof Boolean && ((Boolean) pVal)) {
+                        isV6ProfileHeader = true;
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            if (!isV6ProfileHeader) {
+                try {
+                    java.lang.reflect.Field f = uiModel.getClass().getDeclaredField("isV6ProfileHeader");
+                    f.setAccessible(true);
+                    Object val = f.get(uiModel);
+                    if (val instanceof Boolean && ((Boolean) val)) {
+                        isV6ProfileHeader = true;
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            if (isV6ProfileHeader) {
+                return fallbackLabels;
+            }
+
             Context context = StockfishExtension.getContext();
             boolean enabled = (context != null) && StockfishSettings.isCustomTitleEnabled(context);
             if (!enabled) {
-                return originalLabels;
+                return fallbackLabels;
             }
 
             // Kiểm tra xem có phải trang cá nhân của chính người dùng hay không
@@ -368,12 +419,33 @@ public class CustomTitlesExtension {
             }
 
             if (!isCurrentUser) {
-                return originalLabels;
+                try {
+                    java.lang.reflect.Method m = uiModel.getClass().getMethod("getIsCurrentUser");
+                    Object val = m.invoke(uiModel);
+                    if (val instanceof Boolean && ((Boolean) val)) {
+                        isCurrentUser = true;
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            if (!isCurrentUser) {
+                try {
+                    java.lang.reflect.Field f = uiModel.getClass().getDeclaredField("isCurrentUser");
+                    f.setAccessible(true);
+                    Object val = f.get(uiModel);
+                    if (val instanceof Boolean && ((Boolean) val)) {
+                        isCurrentUser = true;
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            if (!isCurrentUser) {
+                return fallbackLabels;
             }
 
             String titleCode = StockfishSettings.getCustomTitleCode(context);
             if (titleCode == null || titleCode.trim().isEmpty()) {
-                return originalLabels;
+                return fallbackLabels;
             }
             titleCode = titleCode.trim().toUpperCase();
 
@@ -389,7 +461,7 @@ public class CustomTitlesExtension {
             // 1. Lấy enum com.chess.entities.ChessTitle tương ứng
             Object chessTitleEnum = getOverrideAsChessTitle(titleCode, null);
             if (chessTitleEnum == null) {
-                return originalLabels;
+                return fallbackLabels;
             }
 
             // 2. Khởi tạo đối tượng UserLabel.TitledPlayer
@@ -411,7 +483,7 @@ public class CustomTitlesExtension {
             Object userLabelUi = createMethod.invoke(uiCompanion, titledPlayer);
 
             if (userLabelUi == null) {
-                return originalLabels;
+                return fallbackLabels;
             }
 
             // 4. Tạo danh sách mới với thẻ danh hiệu ở vị trí đầu tiên (Rank 3 trên Rank 4 Premium)
@@ -423,7 +495,7 @@ public class CustomTitlesExtension {
             return newList;
         } catch (Throwable e) {
             logE("overrideProfileLabels failed: " + e.getMessage(), e);
-            return originalLabels;
+            return fallbackLabels;
         }
     }
 }

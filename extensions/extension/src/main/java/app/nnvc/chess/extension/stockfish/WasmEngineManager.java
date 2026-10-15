@@ -856,7 +856,6 @@ public class WasmEngineManager {
             if (epoch != currentClassifyEpoch) {
                 return;
             }
-            classifyUciOutputQueue.offer(line);
             UciLineListener l = classifyLineListener;
             if (l != null) l.onLine(line);
 
@@ -870,7 +869,6 @@ public class WasmEngineManager {
                 UciLineListener l = playLineListener;
                 if (l != null) l.onLine(line);
             } else if ("classify".equals(kind)) {
-                classifyUciOutputQueue.offer(line);
                 UciLineListener l = classifyLineListener;
                 if (l != null) l.onLine(line);
             }

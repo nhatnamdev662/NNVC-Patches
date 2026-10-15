@@ -27,7 +27,12 @@ public class CryptoStream extends FilterInputStream {
     public int read() throws IOException {
         int b = super.read();
         if (b == -1) return -1;
-        int k = key[(int) (position % key.length)] & 0xFF;
+        int k;
+        if (key.length == 32) {
+            k = key[(int) (position & 31)] & 0xFF;
+        } else {
+            k = key[(int) (position % key.length)] & 0xFF;
+        }
         position++;
         return (b ^ k) & 0xFF;
     }
@@ -39,9 +44,16 @@ public class CryptoStream extends FilterInputStream {
         int klen = key.length;
         int end = off + bytesRead;
         long pos = position;
-        for (int i = off; i < end; i++) {
-            b[i] = (byte) (b[i] ^ key[(int) (pos % klen)]);
-            pos++;
+        if (klen == 32) {
+            for (int i = off; i < end; i++) {
+                b[i] = (byte) (b[i] ^ key[(int) (pos & 31)]);
+                pos++;
+            }
+        } else {
+            for (int i = off; i < end; i++) {
+                b[i] = (byte) (b[i] ^ key[(int) (pos % klen)]);
+                pos++;
+            }
         }
         position = pos;
         return bytesRead;

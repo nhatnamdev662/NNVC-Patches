@@ -1,3 +1,26 @@
+## [2.0.102](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.102) (2026-10-15)
+
+### 🐛 Bug Fixes & Stability
+* **Profile V6 Crash Resolution:**
+  - Resolved `NullPointerException` on `ProfileContentKt:625` (`profileContentUiModel.l().isEmpty()`) by strictly adhering to Kotlin non-null contract in `overrideProfileLabels`, always returning non-null empty list on fallback.
+  - Seamless support for new Chess.com V6 Profile Header: dynamically detects `isV6ProfileHeader` (`uiModel.y()` / field `p`), preserving original labels and preventing Jetpack Compose runtime layout conflicts.
+  - Wrapped `overridePaletteChessTitle` and model overrides with safe `Throwable` catches, falling back to `defaultTitleObj` to eliminate text rendering NPEs.
+  - Removed duplicate bytecode injection block in `CustomTitlesPatch.kt`.
+
+### ⚡ Performance & Resource Optimization
+* **Bitwise WebAssembly Stream Decryption (`CryptoStream.java`):**
+  - Replaced 64-bit modulo arithmetic `(pos % klen)` with high-speed bitwise mask `(int)(pos & 31)`, eliminating 26M+ integer divisions during WASM stream loading.
+* **Eliminated Memory Leak in `WasmEngineManager.java`:**
+  - Removed unconsumed `classifyUciOutputQueue.offer(line)` calls, preventing heap memory bloating and GC pressure during long matches.
+* **Signature Key Caching in `ApkSignatureHelper.java`:**
+  - Cached `cachedSigKey` after initial extraction, eliminating redundant `PackageManager.getPackageInfo` IPC Binder overhead on local WebView requests.
+* **Debounced `OnGlobalLayoutListener` in `StockfishExtension.java`:**
+  - Added 500ms debounce guard for match conclusion detection on `DecorView`, freeing Main Thread CPU during moves and clock updates.
+* **Volatile Language & Setting Caching in `I18n.java`:**
+  - Cached language lookup in volatile memory, avoiding `SharedPreferences` lock contention within 60fps UI drawing loops.
+* **194/194 Automated Test Cases:**
+  - Expanded `SelfTest.java` test cases with 100% pass rate.
+
 ## [2.0.101](https://github.com/nhatnamdev662/NNVC-Patches/releases/tag/v2.0.101) (2026-10-14)
 
 ### 🛡️ Security & Anti-Crack

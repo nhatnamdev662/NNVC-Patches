@@ -898,9 +898,41 @@ public class SelfTest {
         app.nnvc.chess.extension.titles.CustomTitlesExtension.init();
         check("CustomTitlesExtension init runs clean locally with zero network load", true);
 
-        // Test 19: overrideProfileLabels with null returns null safely
+        // Test 19: overrideProfileLabels with null returns non-null empty list (Kotlin Non-Null contract safe)
         java.util.List<?> nullRes = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(null);
-        check("overrideProfileLabels(null) returns null without exception", nullRes == null);
+        check("overrideProfileLabels(null) returns non-null empty list", nullRes != null && nullRes.isEmpty());
+
+        // Test 19b: overrideProfileLabels with V6 Profile Header returns original labels untouched
+        final java.util.List<String> mockV6Labels = java.util.Collections.emptyList();
+        Object mockV6UiModel = new Object() {
+            public boolean y() { return true; } // isV6ProfileHeader == true
+            public boolean w() { return true; } // isCurrentUser == true
+            public java.util.List<String> e = mockV6Labels;
+        };
+        java.util.List<?> v6Res = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(mockV6UiModel);
+        check("overrideProfileLabels on V6 profile header preserves original labels untouched", v6Res != null && v6Res.isEmpty());
+
+        // Test 19c: overrideProfileLabels with deobfuscated getIsV6ProfileHeader preserves labels
+        Object mockV6DeobfModel = new Object() {
+            public boolean getIsV6ProfileHeader() { return true; }
+            public boolean getIsCurrentUser() { return true; }
+            public java.util.List<String> labels = mockV6Labels;
+        };
+        java.util.List<?> v6DeobfRes = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(mockV6DeobfModel);
+        check("overrideProfileLabels with getIsV6ProfileHeader preserves labels", v6DeobfRes != null && v6DeobfRes.isEmpty());
+
+        // Test 19d: overrideProfileLabels with faulty model throws no exceptions and returns non-null list
+        Object mockFaultyModel = new Object() {
+            public boolean y() { throw new RuntimeException("Simulated crash"); }
+        };
+        java.util.List<?> faultyRes = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(mockFaultyModel);
+        check("overrideProfileLabels on faulty model returns non-null fallback list", faultyRes != null && faultyRes.isEmpty());
+
+        // Test 19e: overrideModelChessTitle null guard and fallback behavior
+        check("overrideModelChessTitle(null) returns null safely", app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideModelChessTitle(null) == null);
+
+        // Test 19f: overridePaletteChessTitle null guard
+        check("overridePaletteChessTitle(null) returns null safely", app.nnvc.chess.extension.titles.CustomTitlesExtension.overridePaletteChessTitle(null) == null);
 
         // Test 20: overrideProfileLabels with isCurrentUser=false returns original list untouched
         final java.util.List<String> mockOriginalLabels = java.util.Arrays.asList("badge1", "badge2");
