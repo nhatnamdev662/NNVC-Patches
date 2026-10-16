@@ -874,16 +874,16 @@ public class StockfishSettingsDialog {
         // 1. Chế độ hiển thị đe dọa (Threat Mode: both, enemy, player)
         final String[] curThreatMode = {StockfishSettings.getThreatMode(activity)};
         final String threatModeLabel = StockfishSettings.THREAT_MODE_ENEMY.equals(curThreatMode[0])
-                ? (I18n.isVi(activity) ? "Chỉ Đối Thủ (Đỏ)" : "Enemy Only (Red)")
+                ? (I18n.isVi(activity) ? "Chỉ Đối Thủ" : "Enemy Only")
                 : StockfishSettings.THREAT_MODE_PLAYER.equals(curThreatMode[0])
-                ? (I18n.isVi(activity) ? "Chỉ Phe Mình (Vàng)" : "Player Only (Amber)")
+                ? (I18n.isVi(activity) ? "Chỉ Phe Mình" : "Player Only")
                 : (I18n.isVi(activity) ? "Cả Hai Bên" : "Both Sides");
 
         final String threatModeDesc = StockfishSettings.THREAT_MODE_ENEMY.equals(curThreatMode[0])
                 ? (I18n.isVi(activity) ? "Chỉ cảnh báo quân cờ đối thủ đang uy hiếp bạn." : "Only warn when opponent pieces threaten yours.")
                 : StockfishSettings.THREAT_MODE_PLAYER.equals(curThreatMode[0])
                 ? (I18n.isVi(activity) ? "Chỉ hiển thị cơ hội tấn công của bạn." : "Only show your attack opportunities.")
-                : (I18n.isVi(activity) ? "Hiển thị đe dọa của đối thủ (đỏ) và bạn (vàng)." : "Show opponent threats (red) and yours (amber).");
+                : (I18n.isVi(activity) ? "Hiển thị đe dọa theo màu quân Trắng & Đen." : "Show threats by White & Black piece colors.");
 
         final CyberSelectRow[] threatModeRow = new CyberSelectRow[1];
         threatModeRow[0] = addCyberSelectRow(
@@ -897,12 +897,12 @@ public class StockfishSettingsDialog {
                     PickerOption[] modeOptions = new PickerOption[]{
                             new PickerOption(StockfishSettings.THREAT_MODE_BOTH,
                                     I18n.isVi(activity) ? "Cả Hai Bên" : "Both Sides",
-                                    I18n.isVi(activity) ? "Hiển thị đe dọa của đối thủ (đỏ) và bạn (vàng)." : "Show opponent threats (red) and yours (amber)."),
+                                    I18n.isVi(activity) ? "Hiển thị đe dọa theo màu quân Trắng & Đen." : "Show threats by White & Black piece colors."),
                             new PickerOption(StockfishSettings.THREAT_MODE_ENEMY,
-                                    I18n.isVi(activity) ? "Chỉ Đối Thủ (Đỏ)" : "Enemy Only (Red)",
+                                    I18n.isVi(activity) ? "Chỉ Đối Thủ" : "Enemy Only",
                                     I18n.isVi(activity) ? "Chỉ cảnh báo quân cờ đối thủ đang uy hiếp bạn." : "Only warn when opponent pieces threaten yours."),
                             new PickerOption(StockfishSettings.THREAT_MODE_PLAYER,
-                                    I18n.isVi(activity) ? "Chỉ Phe Mình (Vàng)" : "Player Only (Amber)",
+                                    I18n.isVi(activity) ? "Chỉ Phe Mình" : "Player Only",
                                     I18n.isVi(activity) ? "Chỉ hiển thị cơ hội tấn công của bạn." : "Only show your attack opportunities.")
                     };
 
@@ -914,50 +914,6 @@ public class StockfishSettingsDialog {
                                 StockfishSettings.setThreatMode(activity, curThreatMode[0]);
                                 threatModeRow[0].selectBtn.setText(opt.label + "  ▾");
                                 threatModeRow[0].subtitle.setText(opt.desc);
-                                if (StockfishSettings.isEngineEnabled(activity)) {
-                                    StockfishExtension.triggerPlayAnalysisOnly();
-                                }
-                            });
-                }
-        );
-
-        addCardSeparator(threatOptionsLayout, density);
-
-        // 2. Độ sâu đe dọa (Threat Depth: 1 hoặc 2)
-        final int[] curThreatDepth = {StockfishSettings.getThreatDepth(activity)};
-        final String threatDepthLabel = curThreatDepth[0] == 2
-                ? (I18n.isVi(activity) ? "Độ Sâu 2" : "Depth 2")
-                : (I18n.isVi(activity) ? "Độ Sâu 1" : "Depth 1");
-        final String threatDepthDesc = curThreatDepth[0] == 2
-                ? (I18n.isVi(activity) ? "Cảnh báo đòn bắt đôi và đe dọa chiếu hết." : "Warn for fork threats and checkmate threats.")
-                : (I18n.isVi(activity) ? "Đe dọa ăn quân trực tiếp 1 nước." : "Direct 1-ply capture threats.");
-
-        final CyberSelectRow[] threatDepthRow = new CyberSelectRow[1];
-        threatDepthRow[0] = addCyberSelectRow(
-                threatOptionsLayout,
-                I18n.get(activity, "threat_depth"),
-                threatDepthDesc,
-                threatDepthLabel,
-                density,
-                v -> {
-                    HapticHelper.pop(activity, v);
-                    PickerOption[] depthOptions = new PickerOption[]{
-                            new PickerOption("1",
-                                    I18n.isVi(activity) ? "Độ Sâu 1 (Trực tiếp)" : "Depth 1 (Direct)",
-                                    I18n.isVi(activity) ? "Đe dọa ăn quân trực tiếp 1 nước." : "Direct 1-ply capture threats."),
-                            new PickerOption("2",
-                                    I18n.isVi(activity) ? "Độ Sâu 2 (Phối hợp & Bắt đôi)" : "Depth 2 (Forks & Mates)",
-                                    I18n.isVi(activity) ? "Cảnh báo đòn bắt đôi và đe dọa chiếu hết." : "Warn for fork threats and checkmate threats.")
-                    };
-
-                    showCyberPickerDialog(activity, density,
-                            I18n.isVi(activity) ? "ĐỘ SÂU ĐE DỌA" : "THREAT DEPTH",
-                            depthOptions, String.valueOf(curThreatDepth[0]),
-                            opt -> {
-                                curThreatDepth[0] = Integer.parseInt(opt.id);
-                                StockfishSettings.setThreatDepth(activity, curThreatDepth[0]);
-                                threatDepthRow[0].selectBtn.setText(opt.label + "  ▾");
-                                threatDepthRow[0].subtitle.setText(opt.desc);
                                 if (StockfishSettings.isEngineEnabled(activity)) {
                                     StockfishExtension.triggerPlayAnalysisOnly();
                                 }

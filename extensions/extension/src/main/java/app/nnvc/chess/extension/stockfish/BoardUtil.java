@@ -470,18 +470,20 @@ public final class BoardUtil {
     public static class ThreatInfo {
         public final String from;
         public final String to;
-        public final String type; // "danger" (đỏ) hoặc "attack" (vàng)
-        public final int depth;   // 1 (trực tiếp) hoặc 2 (phối hợp)
+        public final String type; // "danger" hoặc "attack"
+        public final int depth;   // 1 (trực tiếp)
         public final char attackerPiece;
         public final char targetPiece;
         public final boolean isHanging;
         public final boolean isCheck;
         public final boolean isCheckmateThreat;
         public final int valueDiff;
+        public final boolean attackerIsWhite;
 
         public ThreatInfo(String from, String to, String type, int depth,
                           char attackerPiece, char targetPiece, boolean isHanging,
-                          boolean isCheck, boolean isCheckmateThreat, int valueDiff) {
+                          boolean isCheck, boolean isCheckmateThreat, int valueDiff,
+                          boolean attackerIsWhite) {
             this.from = from;
             this.to = to;
             this.type = type;
@@ -492,6 +494,13 @@ public final class BoardUtil {
             this.isCheck = isCheck;
             this.isCheckmateThreat = isCheckmateThreat;
             this.valueDiff = valueDiff;
+            this.attackerIsWhite = attackerIsWhite;
+        }
+
+        public ThreatInfo(String from, String to, String type, int depth,
+                          char attackerPiece, char targetPiece, boolean isHanging,
+                          boolean isCheck, boolean isCheckmateThreat, int valueDiff) {
+            this(from, to, type, depth, attackerPiece, targetPiece, isHanging, isCheck, isCheckmateThreat, valueDiff, Character.isUpperCase(attackerPiece));
         }
 
         public String getUci() {
@@ -500,21 +509,25 @@ public final class BoardUtil {
 
         @Override
         public String toString() {
-            return from + "->" + to + "(" + type + ",d" + depth + ",att=" + attackerPiece + ",tgt=" + targetPiece + (isHanging ? ",hang" : "") + (isCheck ? ",chk" : "") + ")";
+            return from + "->" + to + "(" + type + ",d" + depth + ",att=" + (attackerIsWhite ? "W" : "B") + attackerPiece + ",tgt=" + targetPiece + (isHanging ? ",hang" : "") + (isCheck ? ",chk" : "") + ")";
         }
     }
 
     /**
-     * Authentic port of _computeBoardThreats from NNVC Desktop Extension.
-     * Computes tactical threats (danger & attack) directly on board state in <0.2ms.
+     * Authentic tactical threats computation directly on board state in <0.2ms.
+     * Focuses 100% on Depth 1 direct threats (attacks on hanging pieces & checks),
+     * eliminating confusing empty-square fork arrows.
      *
      * @param fen          current board FEN
      * @param userIsWhite  true if user is playing White, false if Black
      * @param lastMove     UCI move that was just played (e.g. "e2e4")
      * @param threatMode   "both", "enemy", or "player"
-     * @param threatDepth  1 or 2
      * @return top 4 unique threats sorted by priority
      */
+    public static List<ThreatInfo> computeBoardThreats(String fen, boolean userIsWhite, String lastMove, String threatMode) {
+        return computeBoardThreats(fen, userIsWhite, lastMove, threatMode, 1);
+    }
+
     public static List<ThreatInfo> computeBoardThreats(String fen, boolean userIsWhite, String lastMove, String threatMode, int threatDepth) {
         List<ThreatInfo> threats = new ArrayList<>();
         if (fen == null || fen.trim().isEmpty()) return threats;
@@ -525,13 +538,12 @@ public final class BoardUtil {
         boolean oppColor = !userIsWhite;
 
         String mode = (threatMode != null) ? threatMode : "both";
-        int depthLimit = (threatDepth == 2) ? 2 : 1;
 
         if ("both".equalsIgnoreCase(mode) || "enemy".equalsIgnoreCase(mode)) {
-            scanSideThreats(b, oppColor, uColor, "danger", depthLimit, threats);
+            scanSideThreats(b, oppColor, uColor, "danger", threats);
         }
         if ("both".equalsIgnoreCase(mode) || "player".equalsIgnoreCase(mode)) {
-            scanSideThreats(b, uColor, oppColor, "attack", depthLimit, threats);
+            scanSideThreats(b, uColor, oppColor, "attack", threats);
         }
 
         // Sắp xếp ưu tiên đồng bộ 100% với NNVC Desktop Extension
@@ -567,7 +579,7 @@ public final class BoardUtil {
         return uniqueThreats;
     }
 
-    private static void scanSideThreats(char[] b, boolean activeColor, boolean targetColor, String type, int depthLimit, List<ThreatInfo> outThreats) {
+    private static void scanSideThreats(char[] b, boolean activeColor, boolean targetColor, String type, List<ThreatInfo> outThreats) {
         for (int sq = 0; sq < 64; sq++) {
             char p = b[sq];
             if (p == '.' || Character.isUpperCase(p) != activeColor) continue;
@@ -588,7 +600,7 @@ public final class BoardUtil {
                             int tsq = nr * 8 + nf;
                             char cap = b[tsq];
                             if (cap != '.' && Character.isUpperCase(cap) == targetColor) {
-                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, 1, activeColor, targetColor, outThreats);
+                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, activeColor, targetColor, outThreats);
                             }
                         }
                     }
@@ -604,7 +616,7 @@ public final class BoardUtil {
                         if (Math.abs(nr - r) <= 2 && Math.abs(nf - f) <= 2) {
                             char cap = b[tsq];
                             if (cap != '.' && Character.isUpperCase(cap) == targetColor) {
-                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, 1, activeColor, targetColor, outThreats);
+                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, activeColor, targetColor, outThreats);
                             }
                         }
                     }
@@ -621,7 +633,7 @@ public final class BoardUtil {
                         char cap = b[tsq];
                         if (cap != '.') {
                             if (Character.isUpperCase(cap) == targetColor) {
-                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, 1, activeColor, targetColor, outThreats);
+                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, activeColor, targetColor, outThreats);
                             }
                             break;
                         }
@@ -639,7 +651,7 @@ public final class BoardUtil {
                         char cap = b[tsq];
                         if (cap != '.') {
                             if (Character.isUpperCase(cap) == targetColor) {
-                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, 1, activeColor, targetColor, outThreats);
+                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, activeColor, targetColor, outThreats);
                             }
                             break;
                         }
@@ -656,23 +668,18 @@ public final class BoardUtil {
                             int tsq = nr * 8 + nf;
                             char cap = b[tsq];
                             if (cap != '.' && Character.isUpperCase(cap) == targetColor) {
-                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, 1, activeColor, targetColor, outThreats);
+                                checkAndAddThreat(b, sq, tsq, fromSq, squareName(tsq), p, cap, attackerVal, type, activeColor, targetColor, outThreats);
                             }
                         }
                     }
                 }
             }
         }
-
-        // Quét độ sâu 2 (Phối hợp 2 nước: Chiếu hết Mate in 1 hoặc Fork)
-        if (depthLimit == 2) {
-            scanDepth2Threats(b, activeColor, targetColor, type, outThreats);
-        }
     }
 
     private static void checkAndAddThreat(char[] b, int fromSq, int toSq, String fromStr, String toStr,
                                           char attacker, char target, int attackerVal,
-                                          String type, int depth, boolean activeColor, boolean targetColor,
+                                          String type, boolean activeColor, boolean targetColor,
                                           List<ThreatInfo> outThreats) {
         char[] cloned = b.clone();
         cloned[toSq] = cloned[fromSq];
@@ -684,80 +691,13 @@ public final class BoardUtil {
         boolean isHanging = !isTargetDefended;
         boolean isCheck = isKingInCheck(cloned, targetColor);
 
-        // Điều kiện đe dọa chuẩn Extension:
+        // Điều kiện đe dọa chuẩn:
         // isCheck || targetVal >= attackerVal || isHanging
         if (isCheck || targetVal >= attackerVal || isHanging) {
-            outThreats.add(new ThreatInfo(fromStr, toStr, type, depth,
+            outThreats.add(new ThreatInfo(fromStr, toStr, type, 1,
                     Character.toLowerCase(attacker), Character.toLowerCase(target),
-                    isHanging, isCheck, false, targetVal - attackerVal));
-        }
-    }
-
-    private static void scanDepth2Threats(char[] b, boolean activeColor, boolean targetColor, String type, List<ThreatInfo> outThreats) {
-        for (int sq = 0; sq < 64; sq++) {
-            char p = b[sq];
-            if (p == '.' || Character.isUpperCase(p) != activeColor) continue;
-            int r = sq / 8, f = sq % 8;
-            char lp = Character.toLowerCase(p);
-            String fromStr = squareName(sq);
-
-            List<Integer> candidateDests = new ArrayList<>();
-            if (lp == 'p') {
-                int dir = activeColor ? -1 : 1;
-                int nr = r + dir;
-                if (nr >= 0 && nr < 8 && b[nr * 8 + f] == '.') {
-                    candidateDests.add(nr * 8 + f);
-                }
-            } else if (lp == 'n') {
-                int[] knightOffsets = {-17, -15, -10, -6, 6, 10, 15, 17};
-                for (int off : knightOffsets) {
-                    int tsq = sq + off;
-                    if (tsq >= 0 && tsq < 64 && Math.abs(tsq / 8 - r) <= 2 && Math.abs(tsq % 8 - f) <= 2 && b[tsq] == '.') {
-                        candidateDests.add(tsq);
-                    }
-                }
-            } else if (lp == 'b' || lp == 'q' || lp == 'r') {
-                int[][] dirs = (lp == 'b') ? new int[][]{{-1,-1},{-1,1},{1,-1},{1,1}}
-                        : (lp == 'r') ? new int[][]{{-1,0},{1,0},{0,-1},{0,1}}
-                        : new int[][]{{-1,-1},{-1,1},{1,-1},{1,1},{-1,0},{1,0},{0,-1},{0,1}};
-                for (int[] dir : dirs) {
-                    for (int step = 1; step < 8; step++) {
-                        int nr = r + dir[0] * step, nf = f + dir[1] * step;
-                        if (nr < 0 || nr >= 8 || nf < 0 || nf >= 8) break;
-                        int tsq = nr * 8 + nf;
-                        if (b[tsq] == '.') {
-                            candidateDests.add(tsq);
-                        } else break;
-                    }
-                }
-            }
-
-            for (int destSq : candidateDests) {
-                char[] b1 = b.clone();
-                b1[destSq] = b1[sq];
-                b1[sq] = '.';
-                if (isKingInCheck(b1, activeColor)) continue;
-
-                int highAttacks = 0;
-                for (int oppSq = 0; oppSq < 64; oppSq++) {
-                    char oppPiece = b1[oppSq];
-                    if (oppPiece != '.' && Character.isUpperCase(oppPiece) == targetColor) {
-                        int tVal = pieceValue(oppPiece);
-                        if (tVal >= 3) {
-                            if (isSquareAttacked(b1, oppSq, activeColor)) {
-                                if (tVal >= pieceValue(p) || !isSquareAttacked(b1, oppSq, targetColor)) {
-                                    highAttacks++;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (highAttacks >= 2) {
-                    outThreats.add(new ThreatInfo(fromStr, squareName(destSq), type, 2,
-                            lp, 'q', true, false, false, 5));
-                }
-            }
+                    isHanging, isCheck, false, targetVal - attackerVal, activeColor));
         }
     }
 }
+

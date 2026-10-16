@@ -61,22 +61,27 @@ public class ArrowOverlayView extends View {
         public final boolean isThreat;
         public final boolean isPremove;
         public final String evalText;
-        public final String threatType; // "danger" (đỏ) hoặc "attack" (vàng)
-        public final int threatDepth;   // 1 (trực tiếp) hoặc 2 (phối hợp)
+        public final String threatType; // "danger" hoặc "attack"
+        public final int threatDepth;   // 1 (trực tiếp)
+        public final boolean threatAttackerIsWhite; // true: quân Trắng ra đòn, false: quân Đen ra đòn
 
         public ArrowData(String move, int tier, boolean isThreat) {
-            this(move, tier, isThreat, false, null, "danger", 1);
+            this(move, tier, isThreat, false, null, "danger", 1, false);
         }
 
         public ArrowData(String move, int tier, boolean isThreat, String evalText) {
-            this(move, tier, isThreat, false, evalText, "danger", 1);
+            this(move, tier, isThreat, false, evalText, "danger", 1, false);
         }
 
         public ArrowData(String move, int tier, boolean isThreat, boolean isPremove, String evalText) {
-            this(move, tier, isThreat, isPremove, evalText, "danger", 1);
+            this(move, tier, isThreat, isPremove, evalText, "danger", 1, false);
         }
 
         public ArrowData(String move, int tier, boolean isThreat, boolean isPremove, String evalText, String threatType, int threatDepth) {
+            this(move, tier, isThreat, isPremove, evalText, threatType, threatDepth, false);
+        }
+
+        public ArrowData(String move, int tier, boolean isThreat, boolean isPremove, String evalText, String threatType, int threatDepth, boolean threatAttackerIsWhite) {
             this.move = move;
             this.from = move.substring(0, 2);
             this.to = move.substring(2, 4);
@@ -86,6 +91,7 @@ public class ArrowOverlayView extends View {
             this.evalText = evalText;
             this.threatType = threatType != null ? threatType : "danger";
             this.threatDepth = threatDepth > 0 ? threatDepth : 1;
+            this.threatAttackerIsWhite = threatAttackerIsWhite;
         }
     }
 
@@ -450,12 +456,13 @@ public class ArrowOverlayView extends View {
     }
 
     /**
-     * Vẽ Mũi Tên Đe Dọa chuẩn 100% SVG của NNVC Desktop Extension:
-     * - Thân đường nét cyber thanh thoát (lineWidth = 0.052 * sqSize) kèm dải hào quang neon (glow = lineWidth + 3.2dp)
-     * - Đầu mũi tên hình tam giác sắc sảo, viền trắng 1.2dp
-     * - Độ hở xuất phát (startOffset = 0.22 * sqSize) và hở đích đến (endOffset = 0.18 * sqSize) giúp KHÔNG CHE LẤP QUÂN CỜ
-     * - Nước đi Mã (Knight) bẻ góc vuông (Elbow L-shape) chuẩn xác
-     * - Hỗ trợ nét đứt cho Độ sâu 2 và đòn tấn công
+     * Mũi tên Đe Dọa (Threat Arrow) - Màu Trắng / Đen theo màu quân cờ ra đòn:
+     * - Quân Trắng ra đòn: Lõi trắng tinh (0xFFFFFFFF), viền đen sắc nét (0xFF0F172A).
+     * - Quân Đen ra đòn: Lõi đen than chì (0xFF18181B), viền trắng sắc nét (0xFFFFFFFF).
+     * - Thân mũi tên đậm đà, rõ ràng (lineWidth = 0.075 * sqSize).
+     * - Viền tương phản sắc sảo (1.8dp) giúp nổi bật tuyệt đối trên cả ô sáng và ô tối.
+     * - Độ hở xuất phát (startOffset = 0.22 * sqSize) và hở đích đến (endOffset = 0.18 * sqSize) KHÔNG CHE LẤP QUÂN CỜ.
+     * - Nước đi Mã (Knight) bẻ góc vuông (Elbow L-shape) chuẩn xác.
      */
     private void drawThreatArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset, float extraEndOffset) {
         float[] fromCenter = getSquareCenter(arrow.from, flipped, sqSize);
@@ -474,42 +481,36 @@ public class ArrowOverlayView extends View {
         boolean isKnight = (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1);
 
         float headLen = sqSize * 0.22f;
-        float headWidth = sqSize * 0.17f;
-        float lineWidth = sqSize * 0.052f;
+        float headWidth = sqSize * 0.18f;
+        float lineWidth = sqSize * 0.075f;
         float startOffset = sqSize * 0.22f;
         float endOffset = sqSize * 0.18f + extraEndOffset;
 
-        boolean isDanger = "danger".equalsIgnoreCase(arrow.threatType);
-        int shaftColor = isDanger ? 0xFFEF4444 : 0xFFF59E0B;
-        int glowColor = isDanger ? Color.argb((int)(0.45f * 255), 239, 68, 68) : Color.argb((int)(0.45f * 255), 245, 158, 11);
-        float opacity = (arrow.threatDepth == 2) ? 0.78f : 0.92f;
+        boolean isWhiteAttacker = arrow.threatAttackerIsWhite;
+        int coreColor = isWhiteAttacker ? 0xFFFFFFFF : 0xFF18181B;
+        int strokeColor = isWhiteAttacker ? 0xFF0F172A : 0xFFFFFFFF;
+        int glowColor = isWhiteAttacker ? Color.argb(80, 0, 0, 0) : Color.argb(90, 255, 255, 255);
 
         glowPaint.setStyle(Paint.Style.STROKE);
         glowPaint.setColor(glowColor);
-        glowPaint.setStrokeWidth(lineWidth + 3.2f);
+        glowPaint.setStrokeWidth(lineWidth + 3.6f);
         glowPaint.setStrokeCap(Paint.Cap.ROUND);
         glowPaint.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint.setAlpha((int)(opacity * 0.45f * 255));
+        glowPaint.setPathEffect(null);
+        glowPaint.setAlpha(255);
 
         edgePaint.setStyle(Paint.Style.STROKE);
-        edgePaint.setColor(shaftColor);
+        edgePaint.setColor(coreColor);
         edgePaint.setStrokeWidth(lineWidth);
         edgePaint.setStrokeCap(Paint.Cap.ROUND);
         edgePaint.setStrokeJoin(Paint.Join.ROUND);
-        edgePaint.setAlpha((int)(opacity * 255));
-
-        if (arrow.threatDepth == 2) {
-            edgePaint.setPathEffect(new DashPathEffect(new float[]{sqSize * 0.10f, sqSize * 0.05f}, 0));
-        } else if (!isDanger) {
-            edgePaint.setPathEffect(new DashPathEffect(new float[]{sqSize * 0.08f, sqSize * 0.04f}, 0));
-        } else {
-            edgePaint.setPathEffect(null);
-        }
+        edgePaint.setPathEffect(null);
+        edgePaint.setAlpha(255);
 
         fillPaint.setStyle(Paint.Style.FILL);
         fillPaint.setShader(null);
-        fillPaint.setColor(shaftColor);
-        fillPaint.setAlpha((int)(opacity * 255));
+        fillPaint.setColor(coreColor);
+        fillPaint.setAlpha(255);
 
         if (isKnight) {
             float elbowX = (fileDelta == 2 && rankDelta == 1) ? x2 : x1;
@@ -547,9 +548,14 @@ public class ArrowOverlayView extends View {
             linePath.lineTo(elbowShiftX, elbowShiftY);
             linePath.lineTo(headBaseX, headBaseY);
 
+            // 1. Viền tương phản (Stroke / Outline)
+            glowPaint.setColor(strokeColor);
             canvas.drawPath(linePath, glowPaint);
+
+            // 2. Lõi mũi tên (Core)
             canvas.drawPath(linePath, edgePaint);
 
+            // 3. Đầu mũi tên tam giác
             Path headPath = new Path();
             headPath.moveTo(tipX, tipY);
             headPath.lineTo(leftPtX, leftPtY);
@@ -558,8 +564,8 @@ public class ArrowOverlayView extends View {
 
             canvas.drawPath(headPath, fillPaint);
 
-            edgePaint.setColor(Color.WHITE);
-            edgePaint.setStrokeWidth(1.2f);
+            edgePaint.setColor(strokeColor);
+            edgePaint.setStrokeWidth(1.8f);
             edgePaint.setPathEffect(null);
             canvas.drawPath(headPath, edgePaint);
 
@@ -582,9 +588,14 @@ public class ArrowOverlayView extends View {
             float rightPtX = headBaseX - px * (headWidth / 2.0f);
             float rightPtY = headBaseY - py * (headWidth / 2.0f);
 
+            // 1. Viền tương phản (Stroke / Outline)
+            glowPaint.setColor(strokeColor);
             canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, glowPaint);
+
+            // 2. Lõi mũi tên (Core)
             canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, edgePaint);
 
+            // 3. Đầu mũi tên tam giác
             Path headPath = new Path();
             headPath.moveTo(tipX, tipY);
             headPath.lineTo(leftPtX, leftPtY);
@@ -593,8 +604,8 @@ public class ArrowOverlayView extends View {
 
             canvas.drawPath(headPath, fillPaint);
 
-            edgePaint.setColor(Color.WHITE);
-            edgePaint.setStrokeWidth(1.2f);
+            edgePaint.setColor(strokeColor);
+            edgePaint.setStrokeWidth(1.8f);
             edgePaint.setPathEffect(null);
             canvas.drawPath(headPath, edgePaint);
         }

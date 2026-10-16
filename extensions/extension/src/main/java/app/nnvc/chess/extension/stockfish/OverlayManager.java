@@ -241,7 +241,7 @@ public class OverlayManager {
                         for (BoardUtil.ThreatInfo ti : threatList) {
                             String mv = ti.getUci();
                             if (mv != null && mv.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
-                                list.add(new ArrowOverlayView.ArrowData(mv, 1, true, false, null, ti.type, ti.depth));
+                                list.add(new ArrowOverlayView.ArrowData(mv, 1, true, false, null, ti.type, ti.depth, ti.attackerIsWhite));
                             }
                         }
                     }

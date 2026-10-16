@@ -668,15 +668,14 @@ public class StockfishExtension {
         boolean threatEnabled = !disableOverlays && StockfishSettings.isThreatArrowsEnabled(context);
         List<BoardUtil.ThreatInfo> threatListToInject = Collections.emptyList();
         if (threatEnabled) {
-            // MŨI TÊN ĐE DỌA CHUẨN EXTENSION (_computeBoardThreats):
+            // MŨI TÊN ĐE DỌA (THREAT ARROWS) - Màu Trắng / Đen theo màu quân cờ ra đòn:
             // 1. Phân tích trực tiếp bàn cờ bằng Board Logic tĩnh siêu tốc (<0.2ms).
-            // 2. Quét toàn diện các đòn đe dọa ăn quân (tấn công / nguy hiểm), quân bị treo, đòn chiếu.
-            // 3. Phân chia màu: Đỏ (#EF4444) cho quân địch đe dọa ta, Vàng (#F59E0B) cho quân ta đe dọa địch.
+            // 2. Quét toàn diện các đòn đe dọa ăn quân trực tiếp (quân bị treo, chênh lệch giá trị, đòn chiếu).
+            // 3. Phân chia màu: Trắng (viền đen) cho quân Trắng ra đòn, Đen (viền trắng) cho quân Đen ra đòn.
             boolean userIsWhiteSide = (userWhite != null) ? userWhite.booleanValue() : isWhiteTurn;
             String threatMode = StockfishSettings.getThreatMode(context);
-            int threatDepth = StockfishSettings.getThreatDepth(context);
             String lastMove = MoveClassifier.getLastDeduceUciMove();
-            threatListToInject = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, threatMode, threatDepth);
+            threatListToInject = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, threatMode);
         }
 
         boolean premoveEnabled = !disableOverlays && StockfishSettings.isPremoveArrowsEnabled(context);
