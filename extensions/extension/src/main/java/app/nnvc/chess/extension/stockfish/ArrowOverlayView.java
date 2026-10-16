@@ -305,14 +305,13 @@ public class ArrowOverlayView extends View {
             int n = arrows.size();
             float[] perpOffsets = new float[n];
             float[] targetOffsets = new float[n];
-            float[] extraEndOffsets = new float[n];
-            computeExtensionOffsets(sqSize, perpOffsets, targetOffsets, extraEndOffsets);
+            computeExtensionOffsets(sqSize, perpOffsets, targetOffsets);
 
-            // Pass 1: Mũi tên Đe Dọa (Threat Arrows - Sleek glowing cyber lines, không che lấp quân cờ hay nước đi chính)
+            // Pass 1: Mũi tên Đe Dọa (Threat Arrows - Màu đỏ cảnh báo khối solid nguyên bản, vẽ trước không đè Best Move)
             for (int i = 0; i < n; i++) {
                 ArrowData arrow = arrows.get(i);
                 if (arrow.isThreat) {
-                    drawThreatArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i], extraEndOffsets[i]);
+                    drawSingleArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i]);
                 }
             }
 
@@ -343,9 +342,9 @@ public class ArrowOverlayView extends View {
     /**
      * Authentic Port of NNVC Desktop Extension Multi-Lane Separation & Conflict Avoidance.
      * Computes symmetrical perpOffset and stepped targetOffset so concurrent arrows sharing
-     * the same path, opposite directions, or same destination NEVER overlap.
+     * the same path, opposite directions, collinear rays, or same destination NEVER overlap or touch.
      */
-    private void computeExtensionOffsets(float sqSize, float[] perpOffsets, float[] targetOffsets, float[] extraEndOffsets) {
+    private void computeExtensionOffsets(float sqSize, float[] perpOffsets, float[] targetOffsets) {
         int n = arrows.size();
         if (n == 0) return;
 
@@ -398,203 +397,44 @@ public class ArrowOverlayView extends View {
             if (pairGroup != null && pairGroup.size() > 1) {
                 int gIdx = lineEntryIndex.containsKey(pairKey) ? lineEntryIndex.get(pairKey) : 0;
                 lineEntryIndex.put(pairKey, gIdx + 1);
-                float step = Math.min(sqSize * 0.08f, (sqSize * 0.16f) / pairGroup.size());
+                float step = Math.min(sqSize * 0.12f, (sqSize * 0.24f) / pairGroup.size());
                 float mid = (pairGroup.size() - 1) / 2.0f;
                 po = (gIdx - mid) * step;
                 if (f.compareTo(t) > 0) po = -po;
             } else if (rayGroup != null && rayGroup.size() > 1) {
                 int rIdx = rayEntryIndex.containsKey(rayKey) ? rayEntryIndex.get(rayKey) : 0;
                 rayEntryIndex.put(rayKey, rIdx + 1);
-                float step = Math.min(sqSize * 0.045f, (sqSize * 0.12f) / rayGroup.size());
+                float step = Math.min(sqSize * 0.06f, (sqSize * 0.16f) / rayGroup.size());
                 float mid = (rayGroup.size() - 1) / 2.0f;
                 po = (rIdx - mid) * step;
             }
             perpOffsets[i] = po;
         }
 
-        // Tách làn đối xứng chuẩn Extension khi có xung đột giữa Mũi Tên Đe Dọa (Threat) và Mũi Tên Engine/Premove:
-        // Mũi tên Engine/Premove dạt sang làn trái (-0.14 * sqSize)
-        // Mũi tên Đe Dọa dạt sang làn phải (+0.14 * sqSize)
-        // Tạo khoảng cách thông thoáng 0.28 * sqSize, bảo đảm nhìn rõ cả 2 nước đi mà không bao giờ bị đè!
+        // Tách làn đối xứng toàn diện cho TẤT CẢ các cặp mũi tên có xung đột (Threat, Engine, Premove):
+        // 1. Trùng làn cùng hướng (Same Lane): dạt sang 2 làn đối xứng ±0.14 * sqSize
+        // 2. Đối đầu ngược hướng (Opposite Lane): dạt sang 2 làn đối xứng ±0.12 * sqSize
+        // 3. Trùng ô đích (Same Destination): dạt làn ±0.10 * sqSize và lùi bậc đầu mũi tên +0.15 * sqSize
         for (int i = 0; i < n; i++) {
             ArrowData cur = arrows.get(i);
-            for (int j = 0; j < n; j++) {
-                if (i == j) continue;
+            for (int j = i + 1; j < n; j++) {
                 ArrowData other = arrows.get(j);
-                if (cur.isThreat && !other.isThreat) {
-                    boolean sameLane = cur.from.equals(other.from) && cur.to.equals(other.to);
-                    boolean oppLane = cur.from.equals(other.to) && cur.to.equals(other.from);
-                    boolean sameTarget = cur.to.equals(other.to);
-                    if (sameLane) {
-                        perpOffsets[i] += (sqSize * 0.14f);
-                        break;
-                    } else if (oppLane) {
-                        perpOffsets[i] += (sqSize * 0.12f);
-                        break;
-                    } else if (sameTarget) {
-                        perpOffsets[i] += (sqSize * 0.09f);
-                        extraEndOffsets[i] += (sqSize * 0.10f);
-                        break;
-                    }
-                } else if (!cur.isThreat && other.isThreat) {
-                    boolean sameLane = cur.from.equals(other.from) && cur.to.equals(other.to);
-                    boolean oppLane = cur.from.equals(other.to) && cur.to.equals(other.from);
-                    boolean sameTarget = cur.to.equals(other.to);
-                    if (sameLane) {
-                        perpOffsets[i] -= (sqSize * 0.14f);
-                        break;
-                    } else if (oppLane) {
-                        perpOffsets[i] -= (sqSize * 0.12f);
-                        break;
-                    } else if (sameTarget) {
-                        perpOffsets[i] -= (sqSize * 0.09f);
-                        break;
-                    }
+                boolean sameLane = cur.from.equals(other.from) && cur.to.equals(other.to);
+                boolean oppLane = cur.from.equals(other.to) && cur.to.equals(other.from);
+                boolean sameTarget = cur.to.equals(other.to);
+
+                if (sameLane) {
+                    perpOffsets[i] += (sqSize * 0.14f);
+                    perpOffsets[j] -= (sqSize * 0.14f);
+                } else if (oppLane) {
+                    perpOffsets[i] += (sqSize * 0.12f);
+                    perpOffsets[j] -= (sqSize * 0.12f);
+                } else if (sameTarget) {
+                    perpOffsets[i] += (sqSize * 0.10f);
+                    perpOffsets[j] -= (sqSize * 0.10f);
+                    targetOffsets[j] += (sqSize * 0.15f);
                 }
             }
-        }
-    }
-
-    /**
-     * Mũi tên Đe Dọa (Threat Arrow) - Màu Đỏ Neon chuẩn SVG của NNVC Desktop Extension:
-     * - Thân đường nét cyber thanh thoát (lineWidth = 0.054 * sqSize) kèm dải hào quang neon (glow = lineWidth + 3.2dp)
-     * - Màu Đỏ Neon (#EF4444) cảnh báo đối thủ đang đe dọa ăn quân hoặc chiếu vua
-     * - Đầu mũi tên hình tam giác sắc sảo, viền trắng tương phản 1.2dp
-     * - Độ hở xuất phát (startOffset = 0.22 * sqSize) và hở đích đến (endOffset = 0.18 * sqSize) giúp KHÔNG CHE LẤP QUÂN CỜ
-     * - Nước đi Mã (Knight) bẻ góc vuông (Elbow L-shape) chuẩn xác
-     */
-    private void drawThreatArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset, float extraEndOffset) {
-        float[] fromCenter = getSquareCenter(arrow.from, flipped, sqSize);
-        float[] toCenter   = getSquareCenter(arrow.to,   flipped, sqSize);
-        if (fromCenter == null || toCenter == null) return;
-
-        float x1 = fromCenter[0], y1 = fromCenter[1];
-        float x2 = toCenter[0],   y2 = toCenter[1];
-
-        float dx = x2 - x1, dy = y2 - y1;
-        float dist = (float) Math.hypot(dx, dy);
-        if (dist < 2.0f) return;
-
-        int fileDelta = Math.abs(arrow.to.charAt(0) - arrow.from.charAt(0));
-        int rankDelta = Math.abs(arrow.to.charAt(1) - arrow.from.charAt(1));
-        boolean isKnight = (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1);
-
-        float headLen = sqSize * 0.22f;
-        float headWidth = sqSize * 0.17f;
-        float lineWidth = sqSize * 0.054f;
-        float startOffset = sqSize * 0.22f;
-        float endOffset = sqSize * 0.18f + extraEndOffset;
-
-        int shaftColor = 0xFFEF4444; // Đỏ Neon chuẩn Extension
-        int glowColor = Color.argb((int)(0.45f * 255), 239, 68, 68);
-
-        glowPaint.setStyle(Paint.Style.STROKE);
-        glowPaint.setColor(glowColor);
-        glowPaint.setStrokeWidth(lineWidth + 3.2f);
-        glowPaint.setStrokeCap(Paint.Cap.ROUND);
-        glowPaint.setStrokeJoin(Paint.Join.ROUND);
-        glowPaint.setPathEffect(null);
-        glowPaint.setAlpha((int)(0.45f * 255));
-
-        edgePaint.setStyle(Paint.Style.STROKE);
-        edgePaint.setColor(shaftColor);
-        edgePaint.setStrokeWidth(lineWidth);
-        edgePaint.setStrokeCap(Paint.Cap.ROUND);
-        edgePaint.setStrokeJoin(Paint.Join.ROUND);
-        edgePaint.setPathEffect(null);
-        edgePaint.setAlpha(255);
-
-        fillPaint.setStyle(Paint.Style.FILL);
-        fillPaint.setShader(null);
-        fillPaint.setColor(shaftColor);
-        fillPaint.setAlpha(255);
-
-        if (isKnight) {
-            float elbowX = (fileDelta == 2 && rankDelta == 1) ? x2 : x1;
-            float elbowY = (fileDelta == 2 && rankDelta == 1) ? y1 : y2;
-
-            float s1dx = elbowX - x1, s1dy = elbowY - y1;
-            float s1len = (float) Math.hypot(s1dx, s1dy);
-            if (s1len < 1e-3f) s1len = 1.0f;
-            float u1x = s1dx / s1len, u1y = s1dy / s1len;
-            float p1x = -u1y, p1y = u1x;
-
-            float s2dx = x2 - elbowX, s2dy = y2 - elbowY;
-            float s2len = (float) Math.hypot(s2dx, s2dy);
-            if (s2len < 1e-3f) s2len = 1.0f;
-            float u2x = s2dx / s2len, u2y = s2dy / s2len;
-            float p2x = -u2y, p2y = u2x;
-
-            float sx = x1 + u1x * startOffset + p1x * (perpOffset * 0.35f);
-            float sy = y1 + u1y * startOffset + p1y * (perpOffset * 0.35f);
-            float elbowShiftX = elbowX + p1x * perpOffset;
-            float elbowShiftY = elbowY + p1y * perpOffset;
-
-            float tipX = x2 + p2x * perpOffset - u2x * endOffset;
-            float tipY = y2 + p2y * perpOffset - u2y * endOffset;
-            float headBaseX = tipX - u2x * headLen;
-            float headBaseY = tipY - u2y * headLen;
-
-            float leftPtX = headBaseX + p2x * (headWidth / 2.0f);
-            float leftPtY = headBaseY + p2y * (headWidth / 2.0f);
-            float rightPtX = headBaseX - p2x * (headWidth / 2.0f);
-            float rightPtY = headBaseY - p2y * (headWidth / 2.0f);
-
-            Path linePath = new Path();
-            linePath.moveTo(sx, sy);
-            linePath.lineTo(elbowShiftX, elbowShiftY);
-            linePath.lineTo(headBaseX, headBaseY);
-
-            canvas.drawPath(linePath, glowPaint);
-            canvas.drawPath(linePath, edgePaint);
-
-            Path headPath = new Path();
-            headPath.moveTo(tipX, tipY);
-            headPath.lineTo(leftPtX, leftPtY);
-            headPath.lineTo(rightPtX, rightPtY);
-            headPath.close();
-
-            canvas.drawPath(headPath, fillPaint);
-
-            edgePaint.setColor(Color.WHITE);
-            edgePaint.setStrokeWidth(1.2f);
-            edgePaint.setPathEffect(null);
-            canvas.drawPath(headPath, edgePaint);
-
-        } else {
-            float ux = dx / dist;
-            float uy = dy / dist;
-            float px = -uy;
-            float py = ux;
-            float shiftX = px * perpOffset;
-            float shiftY = py * perpOffset;
-
-            float lineStartX = x1 + ux * startOffset + shiftX;
-            float lineStartY = y1 + uy * startOffset + shiftY;
-            float tipX = x2 - ux * endOffset + shiftX;
-            float tipY = y2 - uy * endOffset + shiftY;
-            float headBaseX = tipX - ux * headLen;
-            float headBaseY = tipY - uy * headLen;
-            float leftPtX = headBaseX + px * (headWidth / 2.0f);
-            float leftPtY = headBaseY + py * (headWidth / 2.0f);
-            float rightPtX = headBaseX - px * (headWidth / 2.0f);
-            float rightPtY = headBaseY - py * (headWidth / 2.0f);
-
-            canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, glowPaint);
-            canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, edgePaint);
-
-            Path headPath = new Path();
-            headPath.moveTo(tipX, tipY);
-            headPath.lineTo(leftPtX, leftPtY);
-            headPath.lineTo(rightPtX, rightPtY);
-            headPath.close();
-
-            canvas.drawPath(headPath, fillPaint);
-
-            edgePaint.setColor(Color.WHITE);
-            edgePaint.setStrokeWidth(1.2f);
-            edgePaint.setPathEffect(null);
-            canvas.drawPath(headPath, edgePaint);
         }
     }
 
