@@ -1272,45 +1272,33 @@ public class SelfTest {
         String threatTestFen = "4r1k1/5ppp/r7/8/2B5/8/4QPPP/6K1 w - - 0 1";
         boolean userIsWhite = true;
 
-        // 29a. computeBoardThreats with mode "both"
-        List<BoardUtil.ThreatInfo> bothThreats = BoardUtil.computeBoardThreats(threatTestFen, userIsWhite, "c4a6", "both");
-        check("Threats list is non-empty in active tactical position", !bothThreats.isEmpty());
-        check("Threats list never exceeds maximum 4 arrows", bothThreats.size() <= 4);
-
-        boolean hasDanger = false;
-        boolean hasAttack = false;
-        boolean foundThreatToA6 = false;
-        boolean foundWhiteAttacker = false;
-        boolean foundBlackAttacker = false;
-        for (BoardUtil.ThreatInfo t : bothThreats) {
-            if ("danger".equals(t.type)) hasDanger = true;
-            if ("attack".equals(t.type)) hasAttack = true;
-            if ("a6".equals(t.to) && "attack".equals(t.type)) foundThreatToA6 = true;
-            if (t.attackerIsWhite) foundWhiteAttacker = true;
-            if (!t.attackerIsWhite) foundBlackAttacker = true;
-        }
-        check("Threat mode 'both' identifies both danger and attack threats", hasDanger && hasAttack);
-        check("Threat calculation identifies hanging Rook on a6 as target", foundThreatToA6);
-        check("Threat calculation accurately tags attacker piece color (White & Black)", foundWhiteAttacker && foundBlackAttacker);
-
-        // 29b. computeBoardThreats with mode "enemy" (only danger threats)
+        // 29a. computeBoardThreats with default mode "enemy" (only opponent danger threats)
         List<BoardUtil.ThreatInfo> enemyThreats = BoardUtil.computeBoardThreats(threatTestFen, userIsWhite, null, "enemy");
+        check("Threats list is non-empty in active tactical position", !enemyThreats.isEmpty());
+        check("Threats list never exceeds maximum 4 arrows", enemyThreats.size() <= 4);
+
         boolean onlyDanger = true;
+        boolean foundRookThreat = false;
         for (BoardUtil.ThreatInfo t : enemyThreats) {
             if (!"danger".equals(t.type)) onlyDanger = false;
+            if ("e8".equals(t.from) && "e2".equals(t.to)) foundRookThreat = true;
         }
-        check("Threat mode 'enemy' returns only 'danger' threats", onlyDanger && !enemyThreats.isEmpty());
+        check("Threat mode returns only 'danger' threats from opponent", onlyDanger && !enemyThreats.isEmpty());
+        check("Threat calculation accurately identifies opponent Rook e8 attacking Queen e2", foundRookThreat);
 
-        // 29c. computeBoardThreats with mode "player" (only attack threats)
+        // 29b. computeBoardThreats with mode "player" (attack threats)
         List<BoardUtil.ThreatInfo> playerThreats = BoardUtil.computeBoardThreats(threatTestFen, userIsWhite, null, "player");
         boolean onlyAttack = true;
+        boolean foundThreatToA6 = false;
         for (BoardUtil.ThreatInfo t : playerThreats) {
             if (!"attack".equals(t.type)) onlyAttack = false;
+            if ("a6".equals(t.to)) foundThreatToA6 = true;
         }
         check("Threat mode 'player' returns only 'attack' threats", onlyAttack && !playerThreats.isEmpty());
+        check("Threat calculation identifies hanging Rook on a6 as target", foundThreatToA6);
 
-        // 29d. Empty/null FEN handling
-        List<BoardUtil.ThreatInfo> emptyThreats = BoardUtil.computeBoardThreats(null, true, null, "both");
+        // 29c. Empty/null FEN handling
+        List<BoardUtil.ThreatInfo> emptyThreats = BoardUtil.computeBoardThreats(null, true, null, "enemy");
         check("computeBoardThreats safely handles null FEN without crashing", emptyThreats != null && emptyThreats.isEmpty());
 
         // === SUMMARY ===

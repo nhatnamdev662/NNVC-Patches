@@ -537,13 +537,13 @@ public final class BoardUtil {
         boolean uColor = userIsWhite;
         boolean oppColor = !userIsWhite;
 
-        String mode = (threatMode != null) ? threatMode : "both";
+        String mode = (threatMode != null) ? threatMode : "enemy";
 
-        if ("both".equalsIgnoreCase(mode) || "enemy".equalsIgnoreCase(mode)) {
-            scanSideThreats(b, oppColor, uColor, "danger", threats);
-        }
-        if ("both".equalsIgnoreCase(mode) || "player".equalsIgnoreCase(mode)) {
+        if ("player".equalsIgnoreCase(mode)) {
             scanSideThreats(b, uColor, oppColor, "attack", threats);
+        } else {
+            // Mặc định & Chế độ đối thủ: Chỉ cảnh báo mối đe dọa từ quân cờ đối thủ (danger, màu đỏ neon)
+            scanSideThreats(b, oppColor, uColor, "danger", threats);
         }
 
         // Sắp xếp ưu tiên đồng bộ 100% với NNVC Desktop Extension

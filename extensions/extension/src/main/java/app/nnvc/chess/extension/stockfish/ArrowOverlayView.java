@@ -413,9 +413,9 @@ public class ArrowOverlayView extends View {
         }
 
         // Tách làn đối xứng chuẩn Extension khi có xung đột giữa Mũi Tên Đe Dọa (Threat) và Mũi Tên Engine/Premove:
-        // Mũi tên Engine/Premove dạt sang làn trái (-0.12 * sqSize)
-        // Mũi tên Đe Dọa dạt sang làn phải (+0.12 * sqSize)
-        // Tạo khoảng cách thông thoáng 0.24 * sqSize, bảo đảm nhìn rõ cả 2 nước đi mà không bị đè!
+        // Mũi tên Engine/Premove dạt sang làn trái (-0.14 * sqSize)
+        // Mũi tên Đe Dọa dạt sang làn phải (+0.14 * sqSize)
+        // Tạo khoảng cách thông thoáng 0.28 * sqSize, bảo đảm nhìn rõ cả 2 nước đi mà không bao giờ bị đè!
         for (int i = 0; i < n; i++) {
             ArrowData cur = arrows.get(i);
             for (int j = 0; j < n; j++) {
@@ -426,14 +426,14 @@ public class ArrowOverlayView extends View {
                     boolean oppLane = cur.from.equals(other.to) && cur.to.equals(other.from);
                     boolean sameTarget = cur.to.equals(other.to);
                     if (sameLane) {
-                        perpOffsets[i] += (sqSize * 0.12f);
+                        perpOffsets[i] += (sqSize * 0.14f);
                         break;
                     } else if (oppLane) {
-                        perpOffsets[i] += (sqSize * 0.10f);
+                        perpOffsets[i] += (sqSize * 0.12f);
                         break;
                     } else if (sameTarget) {
-                        perpOffsets[i] += (sqSize * 0.08f);
-                        extraEndOffsets[i] += (sqSize * 0.09f);
+                        perpOffsets[i] += (sqSize * 0.09f);
+                        extraEndOffsets[i] += (sqSize * 0.10f);
                         break;
                     }
                 } else if (!cur.isThreat && other.isThreat) {
@@ -441,13 +441,13 @@ public class ArrowOverlayView extends View {
                     boolean oppLane = cur.from.equals(other.to) && cur.to.equals(other.from);
                     boolean sameTarget = cur.to.equals(other.to);
                     if (sameLane) {
-                        perpOffsets[i] -= (sqSize * 0.12f);
+                        perpOffsets[i] -= (sqSize * 0.14f);
                         break;
                     } else if (oppLane) {
-                        perpOffsets[i] -= (sqSize * 0.10f);
+                        perpOffsets[i] -= (sqSize * 0.12f);
                         break;
                     } else if (sameTarget) {
-                        perpOffsets[i] -= (sqSize * 0.08f);
+                        perpOffsets[i] -= (sqSize * 0.09f);
                         break;
                     }
                 }
@@ -456,13 +456,12 @@ public class ArrowOverlayView extends View {
     }
 
     /**
-     * Mũi tên Đe Dọa (Threat Arrow) - Màu Trắng / Đen theo màu quân cờ ra đòn:
-     * - Quân Trắng ra đòn: Lõi trắng tinh (0xFFFFFFFF), viền đen sắc nét (0xFF0F172A).
-     * - Quân Đen ra đòn: Lõi đen than chì (0xFF18181B), viền trắng sắc nét (0xFFFFFFFF).
-     * - Thân mũi tên đậm đà, rõ ràng (lineWidth = 0.075 * sqSize).
-     * - Viền tương phản sắc sảo (1.8dp) giúp nổi bật tuyệt đối trên cả ô sáng và ô tối.
-     * - Độ hở xuất phát (startOffset = 0.22 * sqSize) và hở đích đến (endOffset = 0.18 * sqSize) KHÔNG CHE LẤP QUÂN CỜ.
-     * - Nước đi Mã (Knight) bẻ góc vuông (Elbow L-shape) chuẩn xác.
+     * Mũi tên Đe Dọa (Threat Arrow) - Màu Đỏ Neon chuẩn SVG của NNVC Desktop Extension:
+     * - Thân đường nét cyber thanh thoát (lineWidth = 0.054 * sqSize) kèm dải hào quang neon (glow = lineWidth + 3.2dp)
+     * - Màu Đỏ Neon (#EF4444) cảnh báo đối thủ đang đe dọa ăn quân hoặc chiếu vua
+     * - Đầu mũi tên hình tam giác sắc sảo, viền trắng tương phản 1.2dp
+     * - Độ hở xuất phát (startOffset = 0.22 * sqSize) và hở đích đến (endOffset = 0.18 * sqSize) giúp KHÔNG CHE LẤP QUÂN CỜ
+     * - Nước đi Mã (Knight) bẻ góc vuông (Elbow L-shape) chuẩn xác
      */
     private void drawThreatArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset, float extraEndOffset) {
         float[] fromCenter = getSquareCenter(arrow.from, flipped, sqSize);
@@ -481,26 +480,24 @@ public class ArrowOverlayView extends View {
         boolean isKnight = (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1);
 
         float headLen = sqSize * 0.22f;
-        float headWidth = sqSize * 0.18f;
-        float lineWidth = sqSize * 0.075f;
+        float headWidth = sqSize * 0.17f;
+        float lineWidth = sqSize * 0.054f;
         float startOffset = sqSize * 0.22f;
         float endOffset = sqSize * 0.18f + extraEndOffset;
 
-        boolean isWhiteAttacker = arrow.threatAttackerIsWhite;
-        int coreColor = isWhiteAttacker ? 0xFFFFFFFF : 0xFF18181B;
-        int strokeColor = isWhiteAttacker ? 0xFF0F172A : 0xFFFFFFFF;
-        int glowColor = isWhiteAttacker ? Color.argb(80, 0, 0, 0) : Color.argb(90, 255, 255, 255);
+        int shaftColor = 0xFFEF4444; // Đỏ Neon chuẩn Extension
+        int glowColor = Color.argb((int)(0.45f * 255), 239, 68, 68);
 
         glowPaint.setStyle(Paint.Style.STROKE);
         glowPaint.setColor(glowColor);
-        glowPaint.setStrokeWidth(lineWidth + 3.6f);
+        glowPaint.setStrokeWidth(lineWidth + 3.2f);
         glowPaint.setStrokeCap(Paint.Cap.ROUND);
         glowPaint.setStrokeJoin(Paint.Join.ROUND);
         glowPaint.setPathEffect(null);
-        glowPaint.setAlpha(255);
+        glowPaint.setAlpha((int)(0.45f * 255));
 
         edgePaint.setStyle(Paint.Style.STROKE);
-        edgePaint.setColor(coreColor);
+        edgePaint.setColor(shaftColor);
         edgePaint.setStrokeWidth(lineWidth);
         edgePaint.setStrokeCap(Paint.Cap.ROUND);
         edgePaint.setStrokeJoin(Paint.Join.ROUND);
@@ -509,7 +506,7 @@ public class ArrowOverlayView extends View {
 
         fillPaint.setStyle(Paint.Style.FILL);
         fillPaint.setShader(null);
-        fillPaint.setColor(coreColor);
+        fillPaint.setColor(shaftColor);
         fillPaint.setAlpha(255);
 
         if (isKnight) {
@@ -548,14 +545,9 @@ public class ArrowOverlayView extends View {
             linePath.lineTo(elbowShiftX, elbowShiftY);
             linePath.lineTo(headBaseX, headBaseY);
 
-            // 1. Viền tương phản (Stroke / Outline)
-            glowPaint.setColor(strokeColor);
             canvas.drawPath(linePath, glowPaint);
-
-            // 2. Lõi mũi tên (Core)
             canvas.drawPath(linePath, edgePaint);
 
-            // 3. Đầu mũi tên tam giác
             Path headPath = new Path();
             headPath.moveTo(tipX, tipY);
             headPath.lineTo(leftPtX, leftPtY);
@@ -564,8 +556,8 @@ public class ArrowOverlayView extends View {
 
             canvas.drawPath(headPath, fillPaint);
 
-            edgePaint.setColor(strokeColor);
-            edgePaint.setStrokeWidth(1.8f);
+            edgePaint.setColor(Color.WHITE);
+            edgePaint.setStrokeWidth(1.2f);
             edgePaint.setPathEffect(null);
             canvas.drawPath(headPath, edgePaint);
 
@@ -588,14 +580,9 @@ public class ArrowOverlayView extends View {
             float rightPtX = headBaseX - px * (headWidth / 2.0f);
             float rightPtY = headBaseY - py * (headWidth / 2.0f);
 
-            // 1. Viền tương phản (Stroke / Outline)
-            glowPaint.setColor(strokeColor);
             canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, glowPaint);
-
-            // 2. Lõi mũi tên (Core)
             canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, edgePaint);
 
-            // 3. Đầu mũi tên tam giác
             Path headPath = new Path();
             headPath.moveTo(tipX, tipY);
             headPath.lineTo(leftPtX, leftPtY);
@@ -604,8 +591,8 @@ public class ArrowOverlayView extends View {
 
             canvas.drawPath(headPath, fillPaint);
 
-            edgePaint.setColor(strokeColor);
-            edgePaint.setStrokeWidth(1.8f);
+            edgePaint.setColor(Color.WHITE);
+            edgePaint.setStrokeWidth(1.2f);
             edgePaint.setPathEffect(null);
             canvas.drawPath(headPath, edgePaint);
         }

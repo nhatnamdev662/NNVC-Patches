@@ -796,9 +796,7 @@ public class StockfishSettingsDialog {
         arrowsSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setArrowsVisible(activity, isChecked);
             StockfishExtension.resetArrowSignature();
-            if (!isChecked) {
-                OverlayManager.hideArrowOverlay(true);
-            } else {
+            if (StockfishSettings.isEngineEnabled(activity)) {
                 StockfishExtension.triggerPlayAnalysisOnly();
             }
         });
@@ -860,70 +858,13 @@ public class StockfishSettingsDialog {
 
         final CyberSwitchView threatSwitch = addCyberSwitchRow(arrowCard,
                 I18n.get(activity, "threat_arrow"),
-                I18n.get(activity, "threat_arrow_hint"),
+                I18n.isVi(activity) ? "Cảnh báo quân cờ đối thủ đang uy hiếp hoặc bắt quân bạn (Màu Đỏ)." : "Warn when opponent pieces threaten yours (Red).",
                 StockfishSettings.isThreatArrowsEnabled(activity),
                 density, activity);
 
-        final LinearLayout threatOptionsLayout = new LinearLayout(activity);
-        threatOptionsLayout.setOrientation(LinearLayout.VERTICAL);
-        threatOptionsLayout.setVisibility(StockfishSettings.isThreatArrowsEnabled(activity) ? View.VISIBLE : View.GONE);
-        arrowCard.addView(threatOptionsLayout);
-
-        addCardSeparator(threatOptionsLayout, density);
-
-        // 1. Chế độ hiển thị đe dọa (Threat Mode: both, enemy, player)
-        final String[] curThreatMode = {StockfishSettings.getThreatMode(activity)};
-        final String threatModeLabel = StockfishSettings.THREAT_MODE_ENEMY.equals(curThreatMode[0])
-                ? (I18n.isVi(activity) ? "Chỉ Đối Thủ" : "Enemy Only")
-                : StockfishSettings.THREAT_MODE_PLAYER.equals(curThreatMode[0])
-                ? (I18n.isVi(activity) ? "Chỉ Phe Mình" : "Player Only")
-                : (I18n.isVi(activity) ? "Cả Hai Bên" : "Both Sides");
-
-        final String threatModeDesc = StockfishSettings.THREAT_MODE_ENEMY.equals(curThreatMode[0])
-                ? (I18n.isVi(activity) ? "Chỉ cảnh báo quân cờ đối thủ đang uy hiếp bạn." : "Only warn when opponent pieces threaten yours.")
-                : StockfishSettings.THREAT_MODE_PLAYER.equals(curThreatMode[0])
-                ? (I18n.isVi(activity) ? "Chỉ hiển thị cơ hội tấn công của bạn." : "Only show your attack opportunities.")
-                : (I18n.isVi(activity) ? "Hiển thị đe dọa theo màu quân Trắng & Đen." : "Show threats by White & Black piece colors.");
-
-        final CyberSelectRow[] threatModeRow = new CyberSelectRow[1];
-        threatModeRow[0] = addCyberSelectRow(
-                threatOptionsLayout,
-                I18n.get(activity, "threat_mode"),
-                threatModeDesc,
-                threatModeLabel,
-                density,
-                v -> {
-                    HapticHelper.pop(activity, v);
-                    PickerOption[] modeOptions = new PickerOption[]{
-                            new PickerOption(StockfishSettings.THREAT_MODE_BOTH,
-                                    I18n.isVi(activity) ? "Cả Hai Bên" : "Both Sides",
-                                    I18n.isVi(activity) ? "Hiển thị đe dọa theo màu quân Trắng & Đen." : "Show threats by White & Black piece colors."),
-                            new PickerOption(StockfishSettings.THREAT_MODE_ENEMY,
-                                    I18n.isVi(activity) ? "Chỉ Đối Thủ" : "Enemy Only",
-                                    I18n.isVi(activity) ? "Chỉ cảnh báo quân cờ đối thủ đang uy hiếp bạn." : "Only warn when opponent pieces threaten yours."),
-                            new PickerOption(StockfishSettings.THREAT_MODE_PLAYER,
-                                    I18n.isVi(activity) ? "Chỉ Phe Mình" : "Player Only",
-                                    I18n.isVi(activity) ? "Chỉ hiển thị cơ hội tấn công của bạn." : "Only show your attack opportunities.")
-                    };
-
-                    showCyberPickerDialog(activity, density,
-                            I18n.isVi(activity) ? "CHẾ ĐỘ ĐE DỌA" : "THREAT MODE",
-                            modeOptions, curThreatMode[0],
-                            opt -> {
-                                curThreatMode[0] = opt.id;
-                                StockfishSettings.setThreatMode(activity, curThreatMode[0]);
-                                threatModeRow[0].selectBtn.setText(opt.label + "  ▾");
-                                threatModeRow[0].subtitle.setText(opt.desc);
-                                if (StockfishSettings.isEngineEnabled(activity)) {
-                                    StockfishExtension.triggerPlayAnalysisOnly();
-                                }
-                            });
-                }
-        );
-
         threatSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setThreatArrowsEnabled(activity, isChecked);
-            threatOptionsLayout.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+            StockfishExtension.resetArrowSignature();
             if (StockfishSettings.isEngineEnabled(activity)) {
                 StockfishExtension.triggerPlayAnalysisOnly();
             }

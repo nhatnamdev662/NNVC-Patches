@@ -668,10 +668,10 @@ public class StockfishExtension {
         boolean threatEnabled = !disableOverlays && StockfishSettings.isThreatArrowsEnabled(context);
         List<BoardUtil.ThreatInfo> threatListToInject = Collections.emptyList();
         if (threatEnabled) {
-            // MŨI TÊN ĐE DỌA (THREAT ARROWS) - Màu Trắng / Đen theo màu quân cờ ra đòn:
+            // MŨI TÊN ĐE DỌA (THREAT ARROWS) - Màu Đỏ Neon chuẩn Extension:
             // 1. Phân tích trực tiếp bàn cờ bằng Board Logic tĩnh siêu tốc (<0.2ms).
-            // 2. Quét toàn diện các đòn đe dọa ăn quân trực tiếp (quân bị treo, chênh lệch giá trị, đòn chiếu).
-            // 3. Phân chia màu: Trắng (viền đen) cho quân Trắng ra đòn, Đen (viền trắng) cho quân Đen ra đòn.
+            // 2. Quét các đòn đe dọa ăn quân trực tiếp từ đối thủ (quân bị treo, chênh lệch giá trị, đòn chiếu).
+            // 3. Màu sắc: Đỏ Neon (#EF4444) cảnh báo đối thủ đang uy hiếp quân ta.
             boolean userIsWhiteSide = (userWhite != null) ? userWhite.booleanValue() : isWhiteTurn;
             String threatMode = StockfishSettings.getThreatMode(context);
             String lastMove = MoveClassifier.getLastDeduceUciMove();
