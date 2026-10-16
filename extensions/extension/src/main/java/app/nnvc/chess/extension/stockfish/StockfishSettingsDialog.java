@@ -421,106 +421,106 @@ public class StockfishSettingsDialog {
         engineChoiceHint.setLayoutParams(ecHintParams);
         engineChoiceCard.addView(engineChoiceHint);
 
-        LinearLayout engineBtnRow = new LinearLayout(activity);
-        engineBtnRow.setOrientation(LinearLayout.HORIZONTAL);
-        engineBtnRow.setPadding(0, (int) (2 * density), 0, (int) (4 * density));
-        engineChoiceCard.addView(engineBtnRow);
-
         final String[] curEngine = { StockfishSettings.getEngineChoice(activity) };
-        final TextView btnKomodo = createTabButton(activity, I18n.get(activity, "engine_komodo"), StockfishSettings.ENGINE_KOMODO.equals(curEngine[0]), density);
-        final TextView btnStockfish = createTabButton(activity, I18n.get(activity, "engine_stockfish"), StockfishSettings.ENGINE_STOCKFISH18.equals(curEngine[0]), density);
-        engineBtnRow.addView(btnKomodo);
-        View btnSpacing2 = new View(activity);
-        btnSpacing2.setLayoutParams(new LinearLayout.LayoutParams((int) (8 * density), 1));
-        engineBtnRow.addView(btnSpacing2);
-        engineBtnRow.addView(btnStockfish);
-
-        // Komodo Styles container
-        final LinearLayout komodoStyleLayout = new LinearLayout(activity);
-        komodoStyleLayout.setOrientation(LinearLayout.VERTICAL);
-        komodoStyleLayout.setVisibility(StockfishSettings.ENGINE_KOMODO.equals(curEngine[0]) ? View.VISIBLE : View.GONE);
-        komodoStyleLayout.setPadding(0, (int) (8 * density), 0, (int) (2 * density));
-        engineChoiceCard.addView(komodoStyleLayout);
-
-        TextView styleTitle = new TextView(activity);
-        styleTitle.setText(I18n.get(activity, "komodo_style"));
-        styleTitle.setTextColor(COLOR_TEXT_SECONDARY);
-        styleTitle.setTextSize(12f);
-        styleTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        komodoStyleLayout.addView(styleTitle);
-
-        LinearLayout styleBtnRow = new LinearLayout(activity);
-        styleBtnRow.setOrientation(LinearLayout.HORIZONTAL);
-        styleBtnRow.setPadding(0, (int) (4 * density), 0, 0);
-        komodoStyleLayout.addView(styleBtnRow);
-
         final String[] curStyle = { StockfishSettings.getKomodoStyle(activity) };
-        final TextView btnStyleDef = createTabButton(activity, I18n.get(activity, "style_default"), StockfishSettings.STYLE_DEFAULT.equals(curStyle[0]), density);
-        final TextView btnStyleAgg = createTabButton(activity, I18n.get(activity, "style_aggressive"), StockfishSettings.STYLE_AGGRESSIVE.equals(curStyle[0]), density);
-        final TextView btnStyleDefens = createTabButton(activity, I18n.get(activity, "style_defensive"), StockfishSettings.STYLE_DEFENSIVE.equals(curStyle[0]), density);
-        styleBtnRow.addView(btnStyleDef);
-        View sSp1 = new View(activity); sSp1.setLayoutParams(new LinearLayout.LayoutParams((int) (6 * density), 1)); styleBtnRow.addView(sSp1);
-        styleBtnRow.addView(btnStyleAgg);
-        View sSp2 = new View(activity); sSp2.setLayoutParams(new LinearLayout.LayoutParams((int) (6 * density), 1)); styleBtnRow.addView(sSp2);
-        styleBtnRow.addView(btnStyleDefens);
 
-        btnKomodo.setOnClickListener(v -> {
-            HapticHelper.tick(activity, v);
-            curEngine[0] = StockfishSettings.ENGINE_KOMODO;
-            StockfishSettings.setEngineChoice(activity, curEngine[0]);
-            updateTabStyle(btnKomodo, true, density);
-            updateTabStyle(btnStockfish, false, density);
-            komodoStyleLayout.setVisibility(View.VISIBLE);
-            if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerPlayAnalysisOnly();
-            }
-        });
+        final Runnable[] updateEngineSub = new Runnable[1];
+        final Runnable[] updateStyleSub = new Runnable[1];
 
-        btnStockfish.setOnClickListener(v -> {
-            HapticHelper.tick(activity, v);
-            curEngine[0] = StockfishSettings.ENGINE_STOCKFISH18;
-            StockfishSettings.setEngineChoice(activity, curEngine[0]);
-            updateTabStyle(btnKomodo, false, density);
-            updateTabStyle(btnStockfish, true, density);
-            komodoStyleLayout.setVisibility(View.GONE);
-            if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerPlayAnalysisOnly();
-            }
-        });
+        // 1. Dòng Chọn Engine (CyberSelectRow)
+        final CyberSelectRow[] engineSelectRow = new CyberSelectRow[1];
+        final CyberSelectRow[] styleSelectRow = new CyberSelectRow[1];
 
-        btnStyleDef.setOnClickListener(v -> {
-            HapticHelper.tick(activity, v);
-            curStyle[0] = StockfishSettings.STYLE_DEFAULT;
-            StockfishSettings.setKomodoStyle(activity, curStyle[0]);
-            updateTabStyle(btnStyleDef, true, density);
-            updateTabStyle(btnStyleAgg, false, density);
-            updateTabStyle(btnStyleDefens, false, density);
-            if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerPlayAnalysisOnly();
-            }
-        });
-        btnStyleAgg.setOnClickListener(v -> {
-            HapticHelper.tick(activity, v);
-            curStyle[0] = StockfishSettings.STYLE_AGGRESSIVE;
-            StockfishSettings.setKomodoStyle(activity, curStyle[0]);
-            updateTabStyle(btnStyleDef, false, density);
-            updateTabStyle(btnStyleAgg, true, density);
-            updateTabStyle(btnStyleDefens, false, density);
-            if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerPlayAnalysisOnly();
-            }
-        });
-        btnStyleDefens.setOnClickListener(v -> {
-            HapticHelper.tick(activity, v);
-            curStyle[0] = StockfishSettings.STYLE_DEFENSIVE;
-            StockfishSettings.setKomodoStyle(activity, curStyle[0]);
-            updateTabStyle(btnStyleDef, false, density);
-            updateTabStyle(btnStyleAgg, false, density);
-            updateTabStyle(btnStyleDefens, true, density);
-            if (StockfishSettings.isEngineEnabled(activity)) {
-                StockfishExtension.triggerPlayAnalysisOnly();
-            }
-        });
+        String initialEngineLabel = StockfishSettings.ENGINE_STOCKFISH18.equals(curEngine[0]) ? "Stockfish 18" : "Komodo 3.3";
+        String initialEngineSub = StockfishSettings.ENGINE_STOCKFISH18.equals(curEngine[0])
+                ? (I18n.isVi(activity) ? "Khuyên dùng để phân tích; độ sâu và sức mạnh cực đại." : "Recommended for deep tactical analysis.")
+                : (I18n.isVi(activity) ? "Khuyên dùng để chơi thực chiến; phong cách tự nhiên." : "Recommended for real play; human-like style.");
+
+        engineSelectRow[0] = addCyberSelectRow(
+                engineChoiceCard,
+                I18n.get(activity, "engine_choice"),
+                initialEngineSub,
+                initialEngineLabel,
+                density,
+                v -> {
+                    HapticHelper.pop(activity, v);
+                    PickerOption[] engineOptions = new PickerOption[] {
+                        new PickerOption(StockfishSettings.ENGINE_KOMODO, "Komodo 3.3",
+                                I18n.isVi(activity) ? "Khuyên dùng để chơi thực chiến; đánh mượt mà, phong cách tự nhiên." : "Recommended for real play; human-like, balanced playstyle."),
+                        new PickerOption(StockfishSettings.ENGINE_STOCKFISH18, "Stockfish 18",
+                                I18n.isVi(activity) ? "Khuyên dùng để phân tích; độ sâu và sức mạnh tính toán cực đại." : "Recommended for deep tactical analysis and brute calculation.")
+                    };
+
+                    showCyberPickerDialog(activity, density,
+                            I18n.isVi(activity) ? "CHỌN ENGINE" : "SELECT ENGINE",
+                            engineOptions, curEngine[0],
+                            opt -> {
+                                curEngine[0] = opt.id;
+                                StockfishSettings.setEngineChoice(activity, curEngine[0]);
+                                engineSelectRow[0].selectBtn.setText(opt.label + "  ▾");
+                                boolean isKomodo = StockfishSettings.ENGINE_KOMODO.equals(curEngine[0]);
+                                engineSelectRow[0].subtitle.setText(isKomodo
+                                        ? (I18n.isVi(activity) ? "Khuyên dùng để chơi thực chiến; phong cách tự nhiên." : "Recommended for real play; human-like style.")
+                                        : (I18n.isVi(activity) ? "Khuyên dùng để phân tích; độ sâu và sức mạnh cực đại." : "Recommended for deep tactical analysis."));
+                                if (styleSelectRow[0] != null) {
+                                    styleSelectRow[0].row.setVisibility(isKomodo ? View.VISIBLE : View.GONE);
+                                }
+                                if (StockfishSettings.isEngineEnabled(activity)) {
+                                    StockfishExtension.triggerPlayAnalysisOnly();
+                                }
+                            });
+                }
+        );
+
+        addCardSeparator(engineChoiceCard, density);
+
+        // 2. Dòng Phong Cách Đánh (Komodo Style)
+        String initialStyleLabel = StockfishSettings.STYLE_AGGRESSIVE.equals(curStyle[0]) ? "⚔️ " + I18n.get(activity, "style_aggressive")
+                : (StockfishSettings.STYLE_DEFENSIVE.equals(curStyle[0]) ? "🛡️ " + I18n.get(activity, "style_defensive")
+                : "⚖️ " + I18n.get(activity, "style_default"));
+
+        String initialStyleSub = StockfishSettings.STYLE_AGGRESSIVE.equals(curStyle[0])
+                ? (I18n.isVi(activity) ? "Tấn công chủ động, tìm kiếm sơ hở." : "Active attack, looking for weaknesses.")
+                : (StockfishSettings.STYLE_DEFENSIVE.equals(curStyle[0])
+                ? (I18n.isVi(activity) ? "Phòng thủ vững chắc, an toàn tối đa." : "Solid defense, maximum security.")
+                : (I18n.isVi(activity) ? "Đánh bài bản, vừa công vừa thủ." : "Balanced strategy, attack and defense."));
+
+        styleSelectRow[0] = addCyberSelectRow(
+                engineChoiceCard,
+                I18n.get(activity, "komodo_style"),
+                initialStyleSub,
+                initialStyleLabel,
+                density,
+                v -> {
+                    HapticHelper.pop(activity, v);
+                    PickerOption[] styleOptions = new PickerOption[] {
+                        new PickerOption(StockfishSettings.STYLE_DEFAULT, "⚖️ " + I18n.get(activity, "style_default"),
+                                I18n.isVi(activity) ? "Đánh bài bản, vừa công vừa thủ." : "Balanced strategy, attack and defense."),
+                        new PickerOption(StockfishSettings.STYLE_AGGRESSIVE, "⚔️ " + I18n.get(activity, "style_aggressive"),
+                                I18n.isVi(activity) ? "Tấn công chủ động, tìm kiếm sơ hở." : "Active attack, looking for weaknesses."),
+                        new PickerOption(StockfishSettings.STYLE_DEFENSIVE, "🛡️ " + I18n.get(activity, "style_defensive"),
+                                I18n.isVi(activity) ? "Phòng thủ vững chắc, an toàn tối đa." : "Solid defense, maximum security.")
+                    };
+
+                    showCyberPickerDialog(activity, density,
+                            I18n.isVi(activity) ? "PHONG CÁCH ĐÁNH" : "PLAY STYLE",
+                            styleOptions, curStyle[0],
+                            opt -> {
+                                curStyle[0] = opt.id;
+                                StockfishSettings.setKomodoStyle(activity, curStyle[0]);
+                                styleSelectRow[0].selectBtn.setText(opt.label + "  ▾");
+                                styleSelectRow[0].subtitle.setText(opt.desc);
+                                if (StockfishSettings.isEngineEnabled(activity)) {
+                                    StockfishExtension.triggerPlayAnalysisOnly();
+                                }
+                            });
+                }
+        );
+
+        // Ẩn dòng phong cách nếu đang chọn Stockfish 18
+        if (!StockfishSettings.ENGINE_KOMODO.equals(curEngine[0])) {
+            styleSelectRow[0].row.setVisibility(View.GONE);
+        }
 
         // Card 2: Sức mạnh & Độ sâu (Auto Depth, Elo 100-3500)
         LinearLayout engineCard = createGlassCard(activity, density);
@@ -745,43 +745,27 @@ public class StockfishSettingsDialog {
 
         addCardSeparator(titleSelectLayout, density);
 
-        // Hàng chọn danh hiệu phong cách Extension: [ Chọn Danh Hiệu ] ........... [ GM ▾ ]
-        LinearLayout titleRow = new LinearLayout(activity);
-        titleRow.setOrientation(LinearLayout.HORIZONTAL);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.setPadding(0, (int) (6 * density), 0, (int) (6 * density));
-        titleSelectLayout.addView(titleRow);
+        // Hàng chọn danh hiệu phong cách Cyber Select: [ Label + Subtitle ] ........... [ GM ▾ ]
+        final String currentCode = StockfishSettings.getCustomTitleCode(activity);
+        final CyberSelectRow titleSelectRow = addCyberSelectRow(
+                titleSelectLayout,
+                I18n.get(activity, "choose_title"),
+                getTitleDisplayName(activity, currentCode),
+                currentCode,
+                density,
+                null
+        );
 
-        TextView titleLabel = new TextView(activity);
-        titleLabel.setText(I18n.get(activity, "choose_title"));
-        titleLabel.setTextColor(COLOR_TEXT_PRIMARY);
-        titleLabel.setTextSize(13f);
-        titleLabel.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        titleLabel.setLayoutParams(labelParams);
-        titleRow.addView(titleLabel);
+        GradientDrawable titleBtnBg = new GradientDrawable();
+        titleBtnBg.setColor(COLOR_CHESS_TITLE_BG); // 0xFF7C2929
+        titleBtnBg.setCornerRadius(8 * density);
+        titleBtnBg.setStroke((int) (1.2f * density), COLOR_CHESS_TITLE_STROKE);
+        titleSelectRow.selectBtn.setBackground(titleBtnBg);
 
-        // Nút Selector phong cách Extension
-        final TextView titleSelectorBtn = new TextView(activity);
-        String currentCode = StockfishSettings.getCustomTitleCode(activity);
-        titleSelectorBtn.setText(currentCode + "  ▾");
-        titleSelectorBtn.setTextColor(COLOR_TEXT_PRIMARY);
-        titleSelectorBtn.setTextSize(13f);
-        titleSelectorBtn.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        titleSelectorBtn.setGravity(Gravity.CENTER);
-        titleSelectorBtn.setPadding((int) (14 * density), (int) (6 * density), (int) (14 * density), (int) (6 * density));
-
-        GradientDrawable selectorBg = new GradientDrawable();
-        selectorBg.setColor(COLOR_CHESS_TITLE_BG); // 0xFF7C2929 (bgChesstitle)
-        selectorBg.setCornerRadius(6 * density);
-        selectorBg.setStroke((int) (1.2f * density), COLOR_CHESS_TITLE_STROKE);
-        titleSelectorBtn.setBackground(selectorBg);
-
-        titleSelectorBtn.setOnClickListener(v -> {
+        titleSelectRow.selectBtn.setOnClickListener(v -> {
             HapticHelper.pop(activity, v);
-            showTitlePickerDialog(activity, density, titleSelectorBtn, hasTitleChanged);
+            showTitlePickerDialog(activity, density, titleSelectRow.selectBtn, titleSelectRow.subtitle, hasTitleChanged);
         });
-        titleRow.addView(titleSelectorBtn);
 
         titleSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setCustomTitleEnabled(activity, isChecked);
@@ -1654,7 +1638,264 @@ public class StockfishSettingsDialog {
         return seekBar;
     }
 
-    private static void showTitlePickerDialog(final Activity activity, final float density, final TextView selectorBtn, final boolean[] hasTitleChanged) {
+    public static class CyberSelectRow {
+        public final LinearLayout row;
+        public final TextView label;
+        public final TextView subtitle;
+        public final TextView selectBtn;
+
+        public CyberSelectRow(LinearLayout row, TextView label, TextView subtitle, TextView selectBtn) {
+            this.row = row;
+            this.label = label;
+            this.subtitle = subtitle;
+            this.selectBtn = selectBtn;
+        }
+    }
+
+    private static CyberSelectRow addCyberSelectRow(
+            LinearLayout container,
+            String title,
+            String subtitle,
+            String initialValue,
+            float density,
+            View.OnClickListener onClickListener) {
+
+        LinearLayout row = new LinearLayout(container.getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, (int) (6 * density), 0, (int) (6 * density));
+
+        LinearLayout textCol = new LinearLayout(container.getContext());
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+        textParams.rightMargin = (int) (12 * density);
+        textCol.setLayoutParams(textParams);
+
+        TextView labelTv = new TextView(container.getContext());
+        labelTv.setText(title);
+        labelTv.setTextColor(COLOR_TEXT_PRIMARY);
+        labelTv.setTextSize(13f);
+        labelTv.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        textCol.addView(labelTv);
+
+        TextView subTv = new TextView(container.getContext());
+        subTv.setText(subtitle != null ? subtitle : "");
+        subTv.setTextColor(COLOR_TEXT_MUTED);
+        subTv.setTextSize(10.5f);
+        subTv.setPadding(0, (int) (2 * density), 0, 0);
+        if (subtitle == null || subtitle.isEmpty()) {
+            subTv.setVisibility(View.GONE);
+        }
+        textCol.addView(subTv);
+
+        row.addView(textCol);
+
+        // Cyber Dropdown Select Button (nncv-select design)
+        TextView selectBtn = new TextView(container.getContext());
+        selectBtn.setText(initialValue + "  ▾");
+        selectBtn.setTextColor(COLOR_TEXT_PRIMARY);
+        selectBtn.setTextSize(12.5f);
+        selectBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        selectBtn.setGravity(Gravity.CENTER);
+        selectBtn.setPadding((int) (14 * density), (int) (7 * density), (int) (14 * density), (int) (7 * density));
+
+        GradientDrawable btnBg = new GradientDrawable();
+        btnBg.setColor(0x1FFFFFFF); // Dark frosted glass
+        btnBg.setCornerRadius(10 * density);
+        btnBg.setStroke((int) (1.2f * density), COLOR_CARD_BORDER);
+        selectBtn.setBackground(btnBg);
+
+        selectBtn.setOnClickListener(onClickListener);
+        row.addView(selectBtn);
+
+        container.addView(row);
+        return new CyberSelectRow(row, labelTv, subTv, selectBtn);
+    }
+
+    public static class PickerOption {
+        public final String id;
+        public final String label;
+        public final String desc;
+        public final String badge;
+
+        public PickerOption(String id, String label, String desc) {
+            this(id, label, desc, null);
+        }
+
+        public PickerOption(String id, String label, String desc, String badge) {
+            this.id = id;
+            this.label = label;
+            this.desc = desc;
+            this.badge = badge;
+        }
+    }
+
+    public interface OnOptionSelectedListener {
+        void onSelected(PickerOption option);
+    }
+
+    private static void showCyberPickerDialog(
+            final Activity activity,
+            final float density,
+            final String title,
+            final PickerOption[] options,
+            final String currentId,
+            final OnOptionSelectedListener listener) {
+
+        final Dialog pickerDialog = new Dialog(activity);
+        pickerDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+        int pickerWidth = (int) (dm.widthPixels * 0.85f);
+
+        GradientDrawable pickerBg = new GradientDrawable();
+        pickerBg.setColor(0xF50C0F16);
+        pickerBg.setCornerRadius(18 * density);
+        pickerBg.setStroke((int) (1.4f * density), COLOR_ACCENT_BLUE);
+        pickerDialog.getWindow().setBackgroundDrawable(pickerBg);
+
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding((int) (18 * density), (int) (16 * density), (int) (18 * density), (int) (16 * density));
+
+        TextView header = new TextView(activity);
+        header.setText(title);
+        header.setTextColor(COLOR_TEXT_PRIMARY);
+        header.setTextSize(14f);
+        header.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        header.setGravity(Gravity.CENTER);
+        root.addView(header);
+
+        View div = new View(activity);
+        div.setBackgroundColor(0x3364D2FF);
+        LinearLayout.LayoutParams divParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (1 * density));
+        divParams.topMargin = (int) (10 * density);
+        divParams.bottomMargin = (int) (10 * density);
+        div.setLayoutParams(divParams);
+        root.addView(div);
+
+        ScrollView scroll = new ScrollView(activity);
+        LinearLayout list = new LinearLayout(activity);
+        list.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(list);
+
+        for (final PickerOption opt : options) {
+            final boolean isSelected = opt.id.equalsIgnoreCase(currentId);
+
+            LinearLayout itemRow = new LinearLayout(activity);
+            itemRow.setOrientation(LinearLayout.HORIZONTAL);
+            itemRow.setGravity(Gravity.CENTER_VERTICAL);
+            itemRow.setPadding((int) (12 * density), (int) (10 * density), (int) (12 * density), (int) (10 * density));
+
+            GradientDrawable rowBg = new GradientDrawable();
+            rowBg.setColor(isSelected ? 0x2A0A84FF : 0x0AFFFFFF);
+            rowBg.setCornerRadius(10 * density);
+            if (isSelected) {
+                rowBg.setStroke((int) (1.2f * density), COLOR_ACCENT_BLUE);
+            }
+            itemRow.setBackground(rowBg);
+
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rowParams.bottomMargin = (int) (6 * density);
+            itemRow.setLayoutParams(rowParams);
+
+            if (opt.badge != null && !opt.badge.isEmpty()) {
+                TextView badgeTv = new TextView(activity);
+                badgeTv.setText(opt.badge);
+                badgeTv.setTextColor(0xFFFFFFFF);
+                badgeTv.setTextSize(11f);
+                badgeTv.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+                badgeTv.setGravity(Gravity.CENTER);
+                badgeTv.setPadding((int) (6 * density), (int) (2 * density), (int) (6 * density), (int) (2 * density));
+
+                GradientDrawable badgeBg = new GradientDrawable();
+                badgeBg.setColor(COLOR_CHESS_TITLE_BG);
+                badgeBg.setCornerRadius(3 * density);
+                badgeTv.setBackground(badgeBg);
+                itemRow.addView(badgeTv);
+            }
+
+            LinearLayout textContainer = new LinearLayout(activity);
+            textContainer.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout.LayoutParams tcParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            if (opt.badge != null && !opt.badge.isEmpty()) {
+                tcParams.leftMargin = (int) (8 * density);
+            }
+            textContainer.setLayoutParams(tcParams);
+
+            TextView labelTv = new TextView(activity);
+            labelTv.setText(opt.label);
+            labelTv.setTextColor(isSelected ? COLOR_TEXT_PRIMARY : COLOR_TEXT_SECONDARY);
+            labelTv.setTextSize(13f);
+            labelTv.setTypeface(Typeface.create("sans-serif-medium", isSelected ? Typeface.BOLD : Typeface.NORMAL));
+            textContainer.addView(labelTv);
+
+            if (opt.desc != null && !opt.desc.isEmpty()) {
+                TextView descTv = new TextView(activity);
+                descTv.setText(opt.desc);
+                descTv.setTextColor(COLOR_TEXT_MUTED);
+                descTv.setTextSize(10.5f);
+                descTv.setPadding(0, (int) (2 * density), 0, 0);
+                textContainer.addView(descTv);
+            }
+
+            itemRow.addView(textContainer);
+
+            if (isSelected) {
+                TextView check = new TextView(activity);
+                check.setText("✓");
+                check.setTextColor(COLOR_GREEN_READY);
+                check.setTextSize(14f);
+                check.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+                itemRow.addView(check);
+            }
+
+            itemRow.setOnClickListener(v -> {
+                HapticHelper.tick(activity, v);
+                if (listener != null) {
+                    listener.onSelected(opt);
+                }
+                pickerDialog.dismiss();
+            });
+
+            list.addView(itemRow);
+        }
+
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (dm.heightPixels * 0.45f));
+        scroll.setLayoutParams(scrollParams);
+        root.addView(scroll);
+
+        pickerDialog.setContentView(root);
+        pickerDialog.show();
+        if (pickerDialog.getWindow() != null) {
+            pickerDialog.getWindow().setLayout(pickerWidth, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private static final String[][] FIDE_TITLES = {
+        {"GM", "Grandmaster", "Đại Kiện Tướng"},
+        {"IM", "International Master", "Kiện Tướng Quốc Tế"},
+        {"FM", "FIDE Master", "Kiện Tướng FIDE"},
+        {"CM", "Candidate Master", "Dự Bị Kiện Tướng"},
+        {"NM", "National Master", "Kiện Tướng Quốc Gia"},
+        {"WGM", "Woman Grandmaster", "Nữ Đại Kiện Tướng"},
+        {"WIM", "Woman International Master", "Nữ Kiện Tướng Quốc Tế"},
+        {"WFM", "Woman FIDE Master", "Nữ Kiện Tướng FIDE"},
+        {"WCM", "Woman Candidate Master", "Nữ Dự Bị Kiện Tướng"},
+        {"WNM", "Woman National Master", "Nữ Kiện Tướng Quốc Gia"}
+    };
+
+    public static String getTitleDisplayName(Activity activity, String code) {
+        if (code == null) return "";
+        for (String[] t : FIDE_TITLES) {
+            if (t[0].equalsIgnoreCase(code)) {
+                return I18n.isVi(activity) ? t[2] : t[1];
+            }
+        }
+        return code;
+    }
+
+    private static void showTitlePickerDialog(final Activity activity, final float density, final TextView selectorBtn, final TextView subtitleView, final boolean[] hasTitleChanged) {
         final Dialog pickerDialog = new Dialog(activity);
         pickerDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
 
@@ -1693,22 +1934,9 @@ public class StockfishSettingsDialog {
         list.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(list);
 
-        final String[][] titles = {
-            {"GM", "Grandmaster", "Đại Kiện Tướng"},
-            {"IM", "International Master", "Kiện Tướng Quốc Tế"},
-            {"FM", "FIDE Master", "Kiện Tướng FIDE"},
-            {"CM", "Candidate Master", "Dự Bị Kiện Tướng"},
-            {"NM", "National Master", "Kiện Tướng Quốc Gia"},
-            {"WGM", "Woman Grandmaster", "Nữ Đại Kiện Tướng"},
-            {"WIM", "Woman International Master", "Nữ Kiện Tướng Quốc Tế"},
-            {"WFM", "Woman FIDE Master", "Nữ Kiện Tướng FIDE"},
-            {"WCM", "Woman Candidate Master", "Nữ Dự Bị Kiện Tướng"},
-            {"WNM", "Woman National Master", "Nữ Kiện Tướng Quốc Gia"}
-        };
-
         String curCode = StockfishSettings.getCustomTitleCode(activity);
 
-        for (final String[] t : titles) {
+        for (final String[] t : FIDE_TITLES) {
             final String code = t[0];
             String nameEn = t[1];
             String nameVi = t[2];
@@ -1766,10 +1994,16 @@ public class StockfishSettingsDialog {
                 row.addView(check);
             }
 
+            final String descText = I18n.isVi(activity) ? nameVi : nameEn;
+
             row.setOnClickListener(v -> {
                 HapticHelper.tick(activity, v);
                 StockfishSettings.setCustomTitleCode(activity, code);
                 selectorBtn.setText(code + "  ▾");
+                if (subtitleView != null) {
+                    subtitleView.setText(descText);
+                    subtitleView.setVisibility(View.VISIBLE);
+                }
                 hasTitleChanged[0] = true;
                 try {
                     activity.getWindow().getDecorView().invalidate();
