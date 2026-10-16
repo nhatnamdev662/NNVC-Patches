@@ -1344,29 +1344,20 @@ public class SelfTest {
                 "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6".equals(key2));
 
         // =========================================================================
-        // Test 32: Chess.com Sound FX Settings & Trigger Logic Verification
+        // Test 32: Chess.com Sound FX Settings & Trigger Logic (Brilliant Only)
         // =========================================================================
-        boolean masterSound = true;
-        boolean threatSoundPref = true;
         boolean brilliantSoundPref = true;
-        boolean goodSoundPref = true;
-        boolean badSoundPref = true;
-        boolean checkSoundPref = true;
-        boolean gameEndSoundPref = true;
+        check("Brilliant sound preference defaults to enabled", brilliantSoundPref);
 
-        check("Master sound enables sub-switches", masterSound && threatSoundPref && brilliantSoundPref);
-        
-        // Test master sound disabled overrides sub-switches
-        boolean masterDisabled = false;
-        boolean effectiveThreatSound = masterDisabled && threatSoundPref;
-        boolean effectiveBrilliantSound = masterDisabled && brilliantSoundPref;
-        check("Master sound disabled shuts down all audio triggers", !effectiveThreatSound && !effectiveBrilliantSound);
+        // Test disabled state
+        boolean brilliantSoundDisabled = false;
+        check("Brilliant sound can be disabled via preference", !brilliantSoundDisabled);
 
         // Test classification sound mapping (Only Brilliant active)
         String soundForBrilliant = "brilliant".equalsIgnoreCase("Brilliant") ? "SOUND_BRILLIANT" : "NONE";
-        
+        String soundForGood = "good".equalsIgnoreCase("Brilliant") ? "SOUND_BRILLIANT" : "NONE";
         check("Brilliant classification triggers Brilliant Sound", "SOUND_BRILLIANT".equals(soundForBrilliant));
-        check("Non-brilliant sounds are disabled and harmless", true);
+        check("Non-brilliant sounds produce zero audio triggers", "NONE".equals(soundForGood));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

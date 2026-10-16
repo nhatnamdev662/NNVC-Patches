@@ -480,69 +480,23 @@ public class StockfishSettings {
         getPrefs(context).edit().putString(KEY_DISMISSED_ANNOUNCEMENT_ID, id != null ? id : "").apply();
     }
 
-    // ── Chess.com Sound FX Settings ──────────────────────────────────────────
-    private static final String KEY_SOUND_MASTER_ENABLED = "chess_sound_master_enabled";
-    private static final String KEY_SOUND_THREAT_ENABLED = "chess_sound_threat_enabled";
+    // ── Chess.com Sound FX Settings (Brilliant Move Only) ──────────────────────
     private static final String KEY_SOUND_BRILLIANT_ENABLED = "chess_sound_brilliant_enabled";
-    private static final String KEY_SOUND_GOOD_ENABLED = "chess_sound_good_enabled";
-    private static final String KEY_SOUND_BAD_ENABLED = "chess_sound_bad_enabled";
-    private static final String KEY_SOUND_CHECK_ENABLED = "chess_sound_check_enabled";
-    private static final String KEY_SOUND_GAME_END_ENABLED = "chess_sound_game_end_enabled";
-
-    public static boolean isSoundMasterEnabled(Context context) {
-        return getPrefs(context).getBoolean(KEY_SOUND_MASTER_ENABLED, true);
-    }
-
-    public static void setSoundMasterEnabled(Context context, boolean enabled) {
-        getPrefs(context).edit().putBoolean(KEY_SOUND_MASTER_ENABLED, enabled).apply();
-    }
-
-    public static boolean isThreatSoundEnabled(Context context) {
-        return isSoundMasterEnabled(context) && getPrefs(context).getBoolean(KEY_SOUND_THREAT_ENABLED, true);
-    }
-
-    public static void setThreatSoundEnabled(Context context, boolean enabled) {
-        getPrefs(context).edit().putBoolean(KEY_SOUND_THREAT_ENABLED, enabled).apply();
-    }
 
     public static boolean isBrilliantSoundEnabled(Context context) {
-        return isSoundMasterEnabled(context) && getPrefs(context).getBoolean(KEY_SOUND_BRILLIANT_ENABLED, true);
+        return getPrefs(context).getBoolean(KEY_SOUND_BRILLIANT_ENABLED, true);
     }
 
     public static void setBrilliantSoundEnabled(Context context, boolean enabled) {
         getPrefs(context).edit().putBoolean(KEY_SOUND_BRILLIANT_ENABLED, enabled).apply();
     }
 
-    public static boolean isGoodSoundEnabled(Context context) {
-        return isSoundMasterEnabled(context) && getPrefs(context).getBoolean(KEY_SOUND_GOOD_ENABLED, true);
+    public static boolean isSoundMasterEnabled(Context context) {
+        return isBrilliantSoundEnabled(context);
     }
 
-    public static void setGoodSoundEnabled(Context context, boolean enabled) {
-        getPrefs(context).edit().putBoolean(KEY_SOUND_GOOD_ENABLED, enabled).apply();
-    }
-
-    public static boolean isBadSoundEnabled(Context context) {
-        return isSoundMasterEnabled(context) && getPrefs(context).getBoolean(KEY_SOUND_BAD_ENABLED, true);
-    }
-
-    public static void setBadSoundEnabled(Context context, boolean enabled) {
-        getPrefs(context).edit().putBoolean(KEY_SOUND_BAD_ENABLED, enabled).apply();
-    }
-
-    public static boolean isCheckSoundEnabled(Context context) {
-        return isSoundMasterEnabled(context) && getPrefs(context).getBoolean(KEY_SOUND_CHECK_ENABLED, true);
-    }
-
-    public static void setCheckSoundEnabled(Context context, boolean enabled) {
-        getPrefs(context).edit().putBoolean(KEY_SOUND_CHECK_ENABLED, enabled).apply();
-    }
-
-    public static boolean isGameEndSoundEnabled(Context context) {
-        return isSoundMasterEnabled(context) && getPrefs(context).getBoolean(KEY_SOUND_GAME_END_ENABLED, true);
-    }
-
-    public static void setGameEndSoundEnabled(Context context, boolean enabled) {
-        getPrefs(context).edit().putBoolean(KEY_SOUND_GAME_END_ENABLED, enabled).apply();
+    public static void setSoundMasterEnabled(Context context, boolean enabled) {
+        setBrilliantSoundEnabled(context, enabled);
     }
 }
 

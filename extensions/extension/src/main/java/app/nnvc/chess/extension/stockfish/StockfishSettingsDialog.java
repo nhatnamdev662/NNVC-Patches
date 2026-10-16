@@ -2130,39 +2130,10 @@ public class StockfishSettingsDialog {
         LinearLayout card = createGlassCard(activity, density);
         scroll.addView(card);
 
-        // 1. MASTER SWITCH: Âm Thanh Chess.com
-        final CyberSwitchView masterSwitch = addCyberSwitchRow(card,
-                I18n.isVi(activity) ? "Âm Thanh Tổng" : "Master Sound FX",
-                I18n.isVi(activity) ? "Bật hoặc tắt toàn bộ hiệu ứng âm thanh Chess.com trong app." : "Toggle all Chess.com sound effects in the app.",
-                StockfishSettings.isSoundMasterEnabled(activity),
-                density, activity);
-
-        final LinearLayout subSwitchesLayout = new LinearLayout(activity);
-        subSwitchesLayout.setOrientation(LinearLayout.VERTICAL);
-        subSwitchesLayout.setVisibility(StockfishSettings.isSoundMasterEnabled(activity) ? View.VISIBLE : View.GONE);
-        card.addView(subSwitchesLayout);
-
-        masterSwitch.setOnCheckedChangeListener((view, isChecked) -> {
-            StockfishSettings.setSoundMasterEnabled(activity, isChecked);
-            subSwitchesLayout.setVisibility(isChecked ? View.VISIBLE : View.GONE);
-        });
-
-        // 2. THREAT SOUND SWITCH
-        addCardSeparator(subSwitchesLayout, density);
-        final CyberSwitchView threatSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
-                I18n.isVi(activity) ? "Cảnh Báo Đe Dọa" : "Threat Warning Sound",
-                I18n.isVi(activity) ? "Phát âm thanh cảnh báo khi có Mũi tên Đe Dọa Đỏ từ đối thủ." : "Play warning audio when enemy threat arrow appears.",
-                StockfishSettings.isThreatSoundEnabled(activity),
-                density, activity);
-        threatSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
-            StockfishSettings.setThreatSoundEnabled(activity, isChecked);
-        });
-
-        // 3. BRILLIANT SOUND SWITCH
-        addCardSeparator(subSwitchesLayout, density);
-        final CyberSwitchView brilliantSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
+        // Âm Thanh Nước Cờ Thiên Tài (Brilliant Move Sound) duy nhất
+        final CyberSwitchView brilliantSoundSwitch = addCyberSwitchRow(card,
                 I18n.isVi(activity) ? "Nước Cờ Thiên Tài" : "Brilliant Move Sound",
-                I18n.isVi(activity) ? "Âm thanh tiếng chuông Brilliant chính hãng Chess.com." : "Authentic Chess.com Brilliant sound chime.",
+                I18n.isVi(activity) ? "Âm thanh tiếng chuông Brilliant chính hãng Chess.com khi xuất hiện nước đi thiên tài." : "Authentic Chess.com Brilliant sound chime on brilliant move.",
                 StockfishSettings.isBrilliantSoundEnabled(activity),
                 density, activity);
         brilliantSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
@@ -2170,53 +2141,6 @@ public class StockfishSettingsDialog {
             if (isChecked) SoundManager.getInstance(activity).playBrilliantSound();
         });
 
-        // 4. GOOD / BEST MOVE SOUND SWITCH
-        addCardSeparator(subSwitchesLayout, density);
-        final CyberSwitchView goodSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
-                I18n.isVi(activity) ? "Nước Xuất Sắc & Tốt Nhất" : "Great & Best Move Sound",
-                I18n.isVi(activity) ? "Âm thanh phản hồi khi đi nước cờ đúng đắn (Great, Best)." : "Feedback sound when playing optimal moves.",
-                StockfishSettings.isGoodSoundEnabled(activity),
-                density, activity);
-        goodSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
-            StockfishSettings.setGoodSoundEnabled(activity, isChecked);
-        });
-
-        // 5. BLUNDER & MISTAKE SOUND SWITCH
-        addCardSeparator(subSwitchesLayout, density);
-        final CyberSwitchView badSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
-                I18n.isVi(activity) ? "Cảnh Báo Sai Lầm (Blunder)" : "Blunder & Mistake Sound",
-                I18n.isVi(activity) ? "Âm thanh cảnh báo khi mắc lỗi sai lầm hoặc đại sai lầm." : "Warning audio on blunder or mistake moves.",
-                StockfishSettings.isBadSoundEnabled(activity),
-                density, activity);
-        badSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
-            StockfishSettings.setBadSoundEnabled(activity, isChecked);
-        });
-
-        // 6. CHECK SOUND SWITCH
-        addCardSeparator(subSwitchesLayout, density);
-        final CyberSwitchView checkSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
-                I18n.isVi(activity) ? "Âm Thanh Chiếu Tướng" : "Check Sound",
-                I18n.isVi(activity) ? "Âm thanh nước đi tạo thế chiếu Vua." : "Audio played when king is in check.",
-                StockfishSettings.isCheckSoundEnabled(activity),
-                density, activity);
-        checkSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
-            StockfishSettings.setCheckSoundEnabled(activity, isChecked);
-        });
-
-        // 7. GAME END SOUND SWITCH
-        addCardSeparator(subSwitchesLayout, density);
-        final CyberSwitchView gameEndSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
-                I18n.isVi(activity) ? "Kết Thúc Ván Đấu" : "Game Over Sound",
-                I18n.isVi(activity) ? "Âm thanh thông báo Thắng, Thua hoặc Hòa ván cờ." : "Audio played when match ends (Win/Lose/Draw).",
-                StockfishSettings.isGameEndSoundEnabled(activity),
-                density, activity);
-        gameEndSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
-            StockfishSettings.setGameEndSoundEnabled(activity, isChecked);
-        });
-
-        // Scroll layout params
-        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (dm.heightPixels * 0.55f));
-        scroll.setLayoutParams(scrollParams);
         root.addView(scroll);
 
         soundDialog.setContentView(root);
