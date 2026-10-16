@@ -18,10 +18,14 @@ import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.DecelerateInterpolator;
+import android.text.Editable;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
+import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -29,6 +33,8 @@ import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.util.List;
 
 import app.nnvc.chess.extension.BuildConfig;
 
@@ -728,6 +734,39 @@ public class StockfishSettingsDialog {
                 OverlayManager.refreshOverlaysLanguage(activity);
             }
         });
+
+        addCardSeparator(coachCard, density);
+
+        // Công tắc Giọng Nói Huấn Luyện Viên (Voice Coach)
+        final CyberSwitchView voiceCoachSwitch = addCyberSwitchRow(coachCard,
+                I18n.isVi(activity) ? "Giọng Nói Huấn Luyện Viên" : "Voice Coach",
+                I18n.isVi(activity) ? "Phát giọng nói nhận xét chính hãng sau mỗi nước đi." : "Spoken commentary by chosen coach after each move.",
+                StockfishSettings.isVoiceCoachEnabled(activity),
+                density, activity);
+
+        voiceCoachSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setVoiceCoachEnabled(activity, isChecked);
+            if (!isChecked) {
+                CoachVoiceManager.getInstance(activity).stop();
+            }
+        });
+
+        addCardSeparator(coachCard, density);
+
+        // Hàng Chọn Huấn Luyện Viên (58 HLV)
+        final CoachManager.CoachInfo initialCoach = CoachManager.getInstance().getCurrentCoach(activity);
+        final CyberSelectRow[] coachSelectRow = new CyberSelectRow[1];
+        coachSelectRow[0] = addCyberSelectRow(
+                coachCard,
+                I18n.isVi(activity) ? "Chọn Huấn Luyện Viên" : "Select Coach",
+                initialCoach.greetingText != null ? initialCoach.greetingText : (I18n.isVi(activity) ? "Dàn 58 Đại kiện tướng & HLV quốc tế." : "58 GMs & International coaches."),
+                initialCoach.getDisplayName(),
+                density,
+                v -> {
+                    HapticHelper.pop(activity, v);
+                    showCoachSelectionDialog(activity, density, coachSelectRow[0]);
+                }
+        );
 
 
 
@@ -2149,6 +2188,274 @@ public class StockfishSettingsDialog {
             soundDialog.getWindow().setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
     }
+
+    /**
+     * Hộp thoại chọn 58 Huấn Luyện Viên chính hãng Chess.com với tìm kiếm và nghe thử giọng nói.
+     */
+    private static void showCoachSelectionDialog(
+            final Activity activity,
+            final float density,
+            final CyberSelectRow selectRow) {
+
+        final Dialog coachDialog = new Dialog(activity);
+        coachDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        if (coachDialog.getWindow() != null) {
+            coachDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            coachDialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        }
+
+        DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+        int dialogWidth = Math.min((int) (dm.widthPixels * 0.92f), (int) (420 * density));
+        int dialogHeight = (int) (dm.heightPixels * 0.78f);
+
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding((int) (16 * density), (int) (14 * density), (int) (16 * density), (int) (14 * density));
+
+        GradientDrawable rootBg = new GradientDrawable();
+        rootBg.setColor(0xF20B101D); // Cyber dark frosted glass
+        rootBg.setCornerRadius(22 * density);
+        rootBg.setStroke((int) (1.4f * density), 0x770A84FF);
+        root.setBackground(rootBg);
+
+        // Header: [ 🎓 HUẤN LUYỆN VIÊN (58 HLV) ] ........ [ ✕ ]
+        LinearLayout hdr = new LinearLayout(activity);
+        hdr.setOrientation(LinearLayout.HORIZONTAL);
+        hdr.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView titleTv = new TextView(activity);
+        titleTv.setText(I18n.isVi(activity) ? "CHỌN HUẤN LUYỆN VIÊN (58 HLV)" : "SELECT COACH (58 COACHES)");
+        titleTv.setTextColor(COLOR_TEXT_PRIMARY);
+        titleTv.setTextSize(13.5f);
+        titleTv.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        titleTv.setLetterSpacing(0.04f);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+        titleTv.setLayoutParams(titleParams);
+        hdr.addView(titleTv);
+
+        TextView closeBtn = new TextView(activity);
+        closeBtn.setText("✕");
+        closeBtn.setTextColor(COLOR_TEXT_SECONDARY);
+        closeBtn.setTextSize(13);
+        closeBtn.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        closeBtn.setGravity(Gravity.CENTER);
+        int closePad = (int) (6 * density);
+        closeBtn.setPadding(closePad, (int) (3 * density), closePad, (int) (3 * density));
+
+        GradientDrawable closeBg = new GradientDrawable();
+        closeBg.setColor(0x1FFFFFFF);
+        closeBg.setCornerRadius(8 * density);
+        closeBg.setStroke((int) (1 * density), 0x33FFFFFF);
+        closeBtn.setBackground(closeBg);
+        closeBtn.setOnClickListener(v -> {
+            HapticHelper.pop(activity, v);
+            coachDialog.dismiss();
+        });
+        hdr.addView(closeBtn);
+        root.addView(hdr);
+
+        // Search Box (Tìm kiếm theo tên HLV hoặc ngôn ngữ)
+        EditText searchEt = new EditText(activity);
+        searchEt.setHint(I18n.isVi(activity) ? "🔍 Tìm tên HLV (Magnus, Hikaru, David...)" : "🔍 Search coach name or language...");
+        searchEt.setHintTextColor(0x77FFFFFF);
+        searchEt.setTextColor(COLOR_TEXT_PRIMARY);
+        searchEt.setTextSize(12.5f);
+        searchEt.setSingleLine(true);
+        searchEt.setPadding((int) (12 * density), (int) (9 * density), (int) (12 * density), (int) (9 * density));
+
+        GradientDrawable searchBg = new GradientDrawable();
+        searchBg.setColor(0x14FFFFFF);
+        searchBg.setCornerRadius(10 * density);
+        searchBg.setStroke((int) (1 * density), 0x3364D2FF);
+        searchEt.setBackground(searchBg);
+
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        searchParams.topMargin = (int) (10 * density);
+        searchParams.bottomMargin = (int) (8 * density);
+        searchEt.setLayoutParams(searchParams);
+        root.addView(searchEt);
+
+        // Danh sách HLV cuộn mượt
+        ScrollView scroll = new ScrollView(activity);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1.0f);
+        scroll.setLayoutParams(scrollParams);
+
+        final LinearLayout listContainer = new LinearLayout(activity);
+        listContainer.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(listContainer);
+        root.addView(scroll);
+
+        final List<CoachManager.CoachInfo> coaches = CoachManager.getInstance().getAllCoaches();
+        final int currentSelectedId = StockfishSettings.getSelectedCoachId(activity);
+
+        final Runnable refreshList = new Runnable() {
+            @Override
+            public void run() {
+                listContainer.removeAllViews();
+                String query = searchEt.getText().toString().trim().toLowerCase(java.util.Locale.US);
+
+                for (final CoachManager.CoachInfo coach : coaches) {
+                    if (!query.isEmpty()) {
+                        String nameL = coach.name.toLowerCase(java.util.Locale.US);
+                        String langL = (coach.langName != null ? coach.langName.toLowerCase(java.util.Locale.US) : "");
+                        if (!nameL.contains(query) && !langL.contains(query)) {
+                            continue;
+                        }
+                    }
+
+                    final boolean isSelected = (coach.id == currentSelectedId);
+
+                    // Row Card HLV
+                    LinearLayout card = new LinearLayout(activity);
+                    card.setOrientation(LinearLayout.HORIZONTAL);
+                    card.setGravity(Gravity.CENTER_VERTICAL);
+                    card.setPadding((int) (12 * density), (int) (10 * density), (int) (12 * density), (int) (10 * density));
+
+                    GradientDrawable cardBg = new GradientDrawable();
+                    cardBg.setColor(isSelected ? 0x240A84FF : 0x14FFFFFF);
+                    cardBg.setCornerRadius(12 * density);
+                    cardBg.setStroke((int) (1.2f * density), isSelected ? 0xFF0A84FF : 0x22FFFFFF);
+                    card.setBackground(cardBg);
+
+                    LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    cardParams.bottomMargin = (int) (7 * density);
+                    card.setLayoutParams(cardParams);
+
+                    // Cột thông tin: Tên HLV & Lời chào
+                    LinearLayout infoCol = new LinearLayout(activity);
+                    infoCol.setOrientation(LinearLayout.VERTICAL);
+                    LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+                    infoCol.setLayoutParams(infoParams);
+
+                    LinearLayout titleRow = new LinearLayout(activity);
+                    titleRow.setOrientation(LinearLayout.HORIZONTAL);
+                    titleRow.setGravity(Gravity.CENTER_VERTICAL);
+
+                    TextView nameTv = new TextView(activity);
+                    nameTv.setText(coach.name);
+                    nameTv.setTextColor(COLOR_TEXT_PRIMARY);
+                    nameTv.setTextSize(13.5f);
+                    nameTv.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+                    titleRow.addView(nameTv);
+
+                    // Badge ngôn ngữ
+                    TextView langBadge = new TextView(activity);
+                    langBadge.setText(coach.langName);
+                    langBadge.setTextColor(0xFF64D2FF);
+                    langBadge.setTextSize(10f);
+                    langBadge.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                    langBadge.setPadding((int) (6 * density), (int) (1.5f * density), (int) (6 * density), (int) (1.5f * density));
+
+                    GradientDrawable badgeBg = new GradientDrawable();
+                    badgeBg.setColor(0x2264D2FF);
+                    badgeBg.setCornerRadius(6 * density);
+                    langBadge.setBackground(badgeBg);
+
+                    LinearLayout.LayoutParams lbParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    lbParams.leftMargin = (int) (6 * density);
+                    langBadge.setLayoutParams(lbParams);
+                    titleRow.addView(langBadge);
+
+                    infoCol.addView(titleRow);
+
+                    // Câu chào
+                    TextView greetTv = new TextView(activity);
+                    greetTv.setText(coach.greetingText != null ? coach.greetingText : "");
+                    greetTv.setTextColor(COLOR_TEXT_MUTED);
+                    greetTv.setTextSize(10.5f);
+                    greetTv.setMaxLines(2);
+                    greetTv.setEllipsize(TextUtils.TruncateAt.END);
+                    greetTv.setPadding(0, (int) (2 * density), 0, 0);
+                    infoCol.addView(greetTv);
+
+                    card.addView(infoCol);
+
+                    // Nút Loa Nghe Thử 🔊
+                    TextView previewBtn = new TextView(activity);
+                    previewBtn.setText("🔊");
+                    previewBtn.setTextSize(14);
+                    previewBtn.setGravity(Gravity.CENTER);
+                    int prevPad = (int) (8 * density);
+                    previewBtn.setPadding(prevPad, (int) (6 * density), prevPad, (int) (6 * density));
+
+                    GradientDrawable prevBg = new GradientDrawable();
+                    prevBg.setColor(0x22FFFFFF);
+                    prevBg.setCornerRadius(8 * density);
+                    prevBg.setStroke((int) (1 * density), 0x33FFFFFF);
+                    previewBtn.setBackground(prevBg);
+
+                    previewBtn.setOnClickListener(v -> {
+                        HapticHelper.pop(activity, v);
+                        CoachVoiceManager.getInstance(activity).playGreeting(coach.id, activity);
+                    });
+
+                    LinearLayout.LayoutParams prevParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    prevParams.leftMargin = (int) (8 * density);
+                    previewBtn.setLayoutParams(prevParams);
+                    card.addView(previewBtn);
+
+                    // Nút Chọn HLV
+                    TextView selectBtn = new TextView(activity);
+                    selectBtn.setText(isSelected ? (I18n.isVi(activity) ? "ĐANG CHỌN" : "ACTIVE") : (I18n.isVi(activity) ? "CHỌN" : "SELECT"));
+                    selectBtn.setTextColor(isSelected ? 0xFF34D399 : COLOR_TEXT_PRIMARY);
+                    selectBtn.setTextSize(11f);
+                    selectBtn.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+                    selectBtn.setGravity(Gravity.CENTER);
+                    selectBtn.setPadding((int) (10 * density), (int) (6 * density), (int) (10 * density), (int) (6 * density));
+
+                    GradientDrawable selBg = new GradientDrawable();
+                    selBg.setColor(isSelected ? 0x2234D399 : 0x1FFFFFFF);
+                    selBg.setCornerRadius(8 * density);
+                    selBg.setStroke((int) (1.2f * density), isSelected ? 0xFF34D399 : COLOR_CARD_BORDER);
+                    selectBtn.setBackground(selBg);
+
+                    LinearLayout.LayoutParams selParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    selParams.leftMargin = (int) (6 * density);
+                    selectBtn.setLayoutParams(selParams);
+                    card.addView(selectBtn);
+
+                    // Click cả card để chọn HLV
+                    card.setOnClickListener(v -> {
+                        HapticHelper.pop(activity, v);
+                        StockfishSettings.setSelectedCoachId(activity, coach.id);
+                        if (selectRow != null) {
+                            selectRow.selectBtn.setText(coach.getDisplayName() + "  ▾");
+                            selectRow.subtitle.setText(coach.greetingText != null ? coach.greetingText : "");
+                        }
+                        // Tự động phát câu chào HLV khi chọn (theo quyết định người dùng)
+                        CoachVoiceManager.getInstance(activity).playGreeting(coach.id, activity);
+                        // Đồng bộ kịch bản sang Torch WASM
+                        CoachManager.getInstance().syncCurrentCoachToTorch(activity);
+                        coachDialog.dismiss();
+                    });
+
+                    listContainer.addView(card);
+                }
+            }
+        };
+
+        searchEt.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                refreshList.run();
+            }
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        refreshList.run();
+
+        coachDialog.setContentView(root);
+        coachDialog.show();
+        if (coachDialog.getWindow() != null) {
+            coachDialog.getWindow().setLayout(dialogWidth, dialogHeight);
+        }
+    }
 }
+
 
 

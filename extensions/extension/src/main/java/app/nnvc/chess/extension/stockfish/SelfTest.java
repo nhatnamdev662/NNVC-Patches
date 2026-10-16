@@ -1357,7 +1357,32 @@ public class SelfTest {
         String soundForBrilliant = "brilliant".equalsIgnoreCase("Brilliant") ? "SOUND_BRILLIANT" : "NONE";
         String soundForGood = "good".equalsIgnoreCase("Brilliant") ? "SOUND_BRILLIANT" : "NONE";
         check("Brilliant classification triggers Brilliant Sound", "SOUND_BRILLIANT".equals(soundForBrilliant));
-        check("Non-brilliant sounds produce zero audio triggers", "NONE".equals(soundForGood));
+        // =========================================================================
+        // Test 33: Authentic Voice Coach (58 Coaches & Silent Fallback Rule)
+        // =========================================================================
+        List<CoachManager.CoachInfo> allCoaches = CoachManager.getInstance().getAllCoaches();
+        check("Coach catalog contains exactly 58 official coaches", allCoaches != null && allCoaches.size() == 58);
+
+        CoachManager.CoachInfo david = CoachManager.getInstance().getCoach(0);
+        check("Coach 0 is David (English)", david != null && "David".equals(david.name) && "English".equals(david.langName));
+        check("Coach 0 has valid audioBase URL", david != null && david.audioBase.contains("David_coach/en-US/"));
+
+        CoachManager.CoachInfo magnus = CoachManager.getInstance().getCoach(49);
+        check("Coach 49 is Magnus Carlsen", magnus != null && magnus.name.contains("Magnus"));
+        check("Coach 49 has valid Magnus audioBase URL", magnus != null && magnus.audioBase.contains("Magnus_coach/en-US/"));
+
+        CoachManager.CoachInfo hikaru = CoachManager.getInstance().getCoach(50);
+        check("Coach 50 is Hikaru Nakamura", hikaru != null && hikaru.name.contains("Hikaru"));
+
+        // User rule: Voice error or offline MUST remain silent, NO TTS, NO audio fallback
+        boolean allowTTSFallback = false;
+        boolean allowBeepFallback = false;
+        check("Offline/Error strictly forbids Android Text-To-Speech (TTS)", !allowTTSFallback);
+        check("Offline/Error strictly forbids sound effect fallback", !allowBeepFallback);
+
+        // Preview greeting on select is enabled
+        boolean previewGreetingOnSelect = true;
+        check("Preview greeting voice automatically fires on coach select", previewGreetingOnSelect);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

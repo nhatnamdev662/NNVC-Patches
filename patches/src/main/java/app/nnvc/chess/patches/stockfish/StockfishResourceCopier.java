@@ -130,6 +130,39 @@ public class StockfishResourceCopier {
                     System.err.println("[ResourceCopier] Error copying " + targetPath + ": " + itemErr.getMessage());
                 }
             }
+
+            // Copy 58 Coach JSON profiles (0.json .. 57.json)
+            for (int cid = 0; cid < 58; cid++) {
+                String targetPath = "assets/coaches/" + cid + ".json";
+                String resourcePath = "coaches/" + cid + ".json";
+                try {
+                    File destFile = null;
+                    if (getMethod.getParameterCount() == 1) {
+                        destFile = (File) getMethod.invoke(patchContext, targetPath);
+                    } else if (getMethod.getParameterCount() == 2) {
+                        destFile = (File) getMethod.invoke(patchContext, targetPath, false);
+                    }
+                    if (destFile == null) continue;
+                    if (destFile.exists() && destFile.length() > 50) continue;
+
+                    File parent = destFile.getParentFile();
+                    if (parent != null && !parent.exists()) parent.mkdirs();
+
+                    InputStream is = openResourceStream(cl, patchContext, resourcePath);
+                    if (is != null) {
+                        File tmp = new File(parent, destFile.getName() + ".tmp");
+                        try (InputStream in = is; OutputStream out = new FileOutputStream(tmp)) {
+                            byte[] buf = new byte[16384];
+                            int r;
+                            while ((r = in.read(buf)) != -1) {
+                                out.write(buf, 0, r);
+                            }
+                        }
+                        if (destFile.exists()) destFile.delete();
+                        tmp.renameTo(destFile);
+                    }
+                } catch (Throwable ignored) {}
+            }
         } catch (Throwable t) {
             System.err.println("[ResourceCopier] Fatal error in copyAll: " + t.getMessage());
         }

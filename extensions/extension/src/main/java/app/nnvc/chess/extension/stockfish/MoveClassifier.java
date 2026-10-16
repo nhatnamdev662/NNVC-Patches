@@ -547,9 +547,14 @@ public class MoveClassifier {
                 int coachDepth = StockfishSettings.getCoachDepth(context);
                 final boolean finalIsMyMove = isMyMove;
                 final boolean finalUserIsWhite = (userIsWhite != null) ? userIsWhite.booleanValue() : true;
-                torch.analyze(moves, userColor, coachDepth, (classificationName, playedMoveLan, bestMoveLan, speechText, rawJson) -> {
-                    TorchEngine.log("[CLASSIFIER CALLBACK] class=" + classificationName + ", act=" + (currentAct != null) + ", isMyMove=" + finalIsMyMove);
+                torch.analyze(moves, userColor, coachDepth, (classificationName, playedMoveLan, bestMoveLan, speechText, audioUrlHash, rawJson) -> {
+                    TorchEngine.log("[CLASSIFIER CALLBACK] class=" + classificationName + ", act=" + (currentAct != null) + ", isMyMove=" + finalIsMyMove + ", audioHash=" + audioUrlHash);
                     
+                    // Kích hoạt giọng nói Huấn Luyện Viên chính hãng (nếu có audioUrlHash)
+                    if (currentAct != null && audioUrlHash != null && !audioUrlHash.isEmpty()) {
+                        CoachVoiceManager.getInstance(currentAct).speakMove(audioUrlHash, speechText, currentAct);
+                    }
+
                     // Trích xuất Accuracy (%) và Estimated Elo từ đối tượng JSON của Torch (chuẩn Extension)
                     if (rawJson != null && currentAct != null) {
                         try {

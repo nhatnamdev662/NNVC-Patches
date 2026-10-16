@@ -67,7 +67,7 @@ public class TorchEngine {
 
 
     public interface TorchClassificationCallback {
-        void onClassification(String classificationName, String playedMoveLan, String bestMoveLan, String speechText, String rawJson);
+        void onClassification(String classificationName, String playedMoveLan, String bestMoveLan, String speechText, String audioUrlHash, String rawJson);
     }
 
     private TorchClassificationCallback activeCallback;
@@ -376,12 +376,28 @@ public class TorchEngine {
         });
     }
 
+    public void loadCoachAsset(String coachCmd) {
+        if (webView == null || coachCmd == null || coachCmd.trim().isEmpty()) return;
+        final String cmd = coachCmd.trim();
+        mainHandler.post(() -> {
+            try {
+                String safeCmd = cmd.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "");
+                String js = "if (window._torchWorker) { window._torchWorker.postMessage('" + safeCmd + "'); }";
+                webView.evaluateJavascript(js, null);
+                log("[TORCH COACH LOAD] Đã gửi kịch bản HLV vào CEE worker (" + cmd.length() + " chars)");
+            } catch (Throwable t) {
+                log("[TORCH COACH ERROR] " + t.getMessage());
+            }
+        });
+    }
+
     public class TorchJsBridge {
         @JavascriptInterface
         public void onTorchReady() {
             isReady = true;
             log("[BRIDGE] onTorchReady() -> Engine WASM đã SẴN SÀNG!");
             Log.i(TAG, "Torch WebAssembly engine is READY (100% authentic CEE)");
+            CoachManager.getInstance().syncCurrentCoachToTorch(context);
         }
 
         @JavascriptInterface
@@ -436,17 +452,19 @@ public class TorchEngine {
                 String bestMoveLan = bestMove != null ? bestMove.optString("moveLan", "") : "";
 
                 String speechText = "";
+                String audioUrlHash = "";
                 if (playedMove != null) {
                     JSONArray speechArr = playedMove.optJSONArray("speech");
                     if (speechArr != null && speechArr.length() > 0) {
                         JSONObject spObj = speechArr.getJSONObject(0);
                         speechText = spObj.optString("sentence", spObj.optString("text", ""));
+                        audioUrlHash = spObj.optString("audioUrlHash", "");
                     }
                 }
-                log("[BRIDGE PARSED] reqId=" + reqId + ", class=" + classificationName + ", played=" + playedMoveLan + ", best=" + bestMoveLan + ", speech=" + speechText);
+                log("[BRIDGE PARSED] reqId=" + reqId + ", class=" + classificationName + ", played=" + playedMoveLan + ", best=" + bestMoveLan + ", speech=" + speechText + ", audioHash=" + audioUrlHash);
 
                 if (cb != null) {
-                    cb.onClassification(classificationName, playedMoveLan, bestMoveLan, speechText, jsonStr);
+                    cb.onClassification(classificationName, playedMoveLan, bestMoveLan, speechText, audioUrlHash, jsonStr);
                 }
 
             } catch (Throwable t) {

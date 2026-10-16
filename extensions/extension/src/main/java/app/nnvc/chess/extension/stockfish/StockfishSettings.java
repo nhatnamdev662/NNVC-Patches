@@ -348,6 +348,26 @@ public class StockfishSettings {
         getPrefs(context).edit().putInt(KEY_COACH_DEPTH, Math.max(1, Math.min(10, depth))).apply();
     }
 
+    private static final String KEY_VOICE_COACH_ENABLED = "voice_coach_enabled";
+    private static final String KEY_SELECTED_COACH_ID = "selected_coach_id";
+    public static final int DEFAULT_COACH_ID = 0; // David (English)
+
+    public static boolean isVoiceCoachEnabled(Context context) {
+        return getPrefs(context).getBoolean(KEY_VOICE_COACH_ENABLED, true);
+    }
+
+    public static void setVoiceCoachEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_VOICE_COACH_ENABLED, enabled).apply();
+    }
+
+    public static int getSelectedCoachId(Context context) {
+        return getPrefs(context).getInt(KEY_SELECTED_COACH_ID, DEFAULT_COACH_ID);
+    }
+
+    public static void setSelectedCoachId(Context context, int coachId) {
+        getPrefs(context).edit().putInt(KEY_SELECTED_COACH_ID, coachId).apply();
+    }
+
     public static boolean isBlunderAlertsEnabled(Context context) {
         return false;
     }
