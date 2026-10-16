@@ -73,6 +73,46 @@ public class StockfishBridge {
     /** Position key: placement, side to move, castling and en passant (move counters ignored). */
     public static String positionKey(String fen) {
         if (fen == null) return null;
+        int len = fen.length();
+        int i = 0;
+        while (i < len && fen.charAt(i) <= ' ') i++;
+        if (i >= len) return fen;
+
+        int start = i;
+        int tokenCount = 0;
+        int fourthTokenEnd = -1;
+        boolean inToken = false;
+
+        while (i < len) {
+            char c = fen.charAt(i);
+            if (c <= ' ') {
+                if (inToken) {
+                    inToken = false;
+                    tokenCount++;
+                    if (tokenCount == 4) {
+                        fourthTokenEnd = i;
+                        break;
+                    }
+                }
+            } else {
+                inToken = true;
+            }
+            i++;
+        }
+        if (inToken) {
+            tokenCount++;
+            if (tokenCount == 4) {
+                fourthTokenEnd = len;
+            }
+        }
+
+        if (tokenCount >= 4 && fourthTokenEnd > start) {
+            String sub = fen.substring(start, fourthTokenEnd);
+            if (sub.indexOf("  ") < 0 && sub.indexOf('\t') < 0) {
+                return sub;
+            }
+        }
+
         String[] p = fen.trim().split("\\s+");
         if (p.length < 2) return fen;
         StringBuilder sb = new StringBuilder(fen.length());

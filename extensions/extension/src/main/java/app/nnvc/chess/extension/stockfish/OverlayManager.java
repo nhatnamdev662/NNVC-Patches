@@ -27,6 +27,29 @@ import java.util.List;
 public class OverlayManager {
     private static final String TAG = "NNVC";
 
+    private static java.lang.ref.WeakReference<View> cachedBoardViewRef = null;
+    private static BoardMetrics cachedBoardMetrics = null;
+
+    private static java.lang.ref.WeakReference<ArrowOverlayView> cachedArrowOverlayRef = null;
+    private static java.lang.ref.WeakReference<EvalBarView> cachedEvalBarRef = null;
+    private static java.lang.ref.WeakReference<TextView> cachedEngineInfoRef = null;
+    private static java.lang.ref.WeakReference<AccuracyEloWidgetView> cachedWidgetRef = null;
+    private static java.lang.ref.WeakReference<View> cachedTopPillRef = null;
+    private static java.lang.ref.WeakReference<View> cachedBotPillRef = null;
+
+    @SuppressWarnings("unchecked")
+    private static <T extends View> T getOrFindTaggedView(ViewGroup decorView, String tag, java.lang.ref.WeakReference<T> ref) {
+        if (ref != null) {
+            T v = ref.get();
+            if (v != null && v.isAttachedToWindow() && v.getParent() == decorView) {
+                return v;
+            }
+        }
+        if (decorView == null) return null;
+        View found = decorView.findViewWithTag(tag);
+        return (T) found;
+    }
+
     public static class BoardMetrics {
         public final int boardX;
         public final int boardY;
@@ -54,6 +77,15 @@ public class OverlayManager {
         if (boardView.getScaleX() != 1.0f) boardView.setScaleX(1.0f);
         if (boardView.getScaleY() != 1.0f) boardView.setScaleY(1.0f);
 
+        BoardMetrics cached = cachedBoardMetrics;
+        if (cached != null && cached.boardView == boardView && boardView.isAttachedToWindow()) {
+            int rawW = boardView.getWidth();
+            int rawH = boardView.getHeight();
+            if (rawW > 0 && rawH > 0 && rawW == cached.boardW && rawH == cached.boardH) {
+                return cached;
+            }
+        }
+
         int[] boardLoc = new int[2];
         boardView.getLocationInWindow(boardLoc);
         int[] decorLoc = new int[2];
@@ -74,37 +106,39 @@ public class OverlayManager {
             rawW = squareSize;
         }
 
-        return new BoardMetrics(rawX, rawY, rawW, rawH, boardView);
+        BoardMetrics bm = new BoardMetrics(rawX, rawY, rawW, rawH, boardView);
+        cachedBoardMetrics = bm;
+        return bm;
     }
 
     public static void ensureZOrder(ViewGroup decorView) {
         if (decorView == null) return;
         try {
-            View arrowView = decorView.findViewWithTag("nnvc_arrow_overlay");
+            View arrowView = getOrFindTaggedView(decorView, "nnvc_arrow_overlay", cachedArrowOverlayRef);
             if (arrowView != null) {
                 arrowView.setElevation(2f);
             }
-            View evalBar = decorView.findViewWithTag("stockfish_eval_bar");
+            View evalBar = getOrFindTaggedView(decorView, "stockfish_eval_bar", cachedEvalBarRef);
             if (evalBar != null && evalBar.getVisibility() == View.VISIBLE) {
                 evalBar.setElevation(10f);
                 evalBar.bringToFront();
             }
-            View info = decorView.findViewWithTag("stockfish_engine_info");
+            View info = getOrFindTaggedView(decorView, "stockfish_engine_info", cachedEngineInfoRef);
             if (info != null && info.getVisibility() == View.VISIBLE) {
                 info.setElevation(10f);
                 info.bringToFront();
             }
-            View widget = decorView.findViewWithTag("nnvc_accuracy_elo_widget");
+            View widget = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
             if (widget != null && widget.getVisibility() == View.VISIBLE) {
                 widget.setElevation(25f);
                 widget.bringToFront();
             }
-            View topPill = decorView.findViewWithTag("nnvc_accuracy_top_pill");
+            View topPill = getOrFindTaggedView(decorView, "nnvc_accuracy_top_pill", cachedTopPillRef);
             if (topPill != null && topPill.getVisibility() == View.VISIBLE) {
                 topPill.setElevation(15f);
                 topPill.bringToFront();
             }
-            View botPill = decorView.findViewWithTag("nnvc_accuracy_bot_pill");
+            View botPill = getOrFindTaggedView(decorView, "nnvc_accuracy_bot_pill", cachedBotPillRef);
             if (botPill != null && botPill.getVisibility() == View.VISIBLE) {
                 botPill.setElevation(15f);
                 botPill.bringToFront();
@@ -224,7 +258,7 @@ public class OverlayManager {
                     int boardH = bm.boardH;
                     View boardView = bm.boardView;
 
-                    View overlay = decorView.findViewWithTag("nnvc_arrow_overlay");
+                    View overlay = getOrFindTaggedView(decorView, "nnvc_arrow_overlay", cachedArrowOverlayRef);
                     ArrowOverlayView arrowView;
                     if (overlay instanceof ArrowOverlayView) {
                         arrowView = (ArrowOverlayView) overlay;
@@ -234,6 +268,7 @@ public class OverlayManager {
                         arrowView.setTag("nnvc_arrow_overlay");
                         decorView.addView(arrowView);
                     }
+                    cachedArrowOverlayRef = new java.lang.ref.WeakReference<>(arrowView);
 
                     List<ArrowOverlayView.ArrowData> list = new ArrayList<>();
                     // 1. Mũi tên Đe Dọa (Chuẩn 100% NNVC Desktop Extension: danh sách đe dọa đa mũi tên, danger/attack, depth 1/2)
@@ -292,8 +327,8 @@ public class OverlayManager {
         Activity activity = StockfishExtension.getCurrentActivity();
         if (activity == null || activity.getWindow() == null) return false;
         View decor = activity.getWindow().getDecorView();
-        if (decor == null) return false;
-        View overlay = decor.findViewWithTag("nnvc_arrow_overlay");
+        if (!(decor instanceof ViewGroup)) return false;
+        View overlay = getOrFindTaggedView((ViewGroup) decor, "nnvc_arrow_overlay", cachedArrowOverlayRef);
         if (overlay instanceof ArrowOverlayView) {
             ArrowOverlayView aov = (ArrowOverlayView) overlay;
             return aov.getVisibility() == View.VISIBLE && aov.hasArrows();
@@ -315,8 +350,8 @@ public class OverlayManager {
                     Window window = activity.getWindow();
                     if (window == null) return;
                     View decorView = window.getDecorView();
-                    if (decorView == null) return;
-                    View v = decorView.findViewWithTag("nnvc_arrow_overlay");
+                    if (!(decorView instanceof ViewGroup)) return;
+                    View v = getOrFindTaggedView((ViewGroup) decorView, "nnvc_arrow_overlay", cachedArrowOverlayRef);
                     if (v instanceof ArrowOverlayView) {
                         ArrowOverlayView aov = (ArrowOverlayView) v;
                         aov.clearArrowsOnly();
@@ -346,8 +381,8 @@ public class OverlayManager {
                     Window window = activity.getWindow();
                     if (window == null) return;
                     View decorView = window.getDecorView();
-                    if (decorView == null) return;
-                    View v = decorView.findViewWithTag("nnvc_arrow_overlay");
+                    if (!(decorView instanceof ViewGroup)) return;
+                    View v = getOrFindTaggedView((ViewGroup) decorView, "nnvc_arrow_overlay", cachedArrowOverlayRef);
                     if (v instanceof ArrowOverlayView) {
                         v.invalidate();
                     }
@@ -403,7 +438,7 @@ public class OverlayManager {
 
                     boolean flipped = isBoardFlipped(boardView, stateImpl);
 
-                    View evalBar = decorView.findViewWithTag("stockfish_eval_bar");
+                    View evalBar = getOrFindTaggedView(decorView, "stockfish_eval_bar", cachedEvalBarRef);
                     EvalBarView evalBarView;
                     if (evalBar instanceof EvalBarView) {
                         evalBarView = (EvalBarView) evalBar;
@@ -413,6 +448,7 @@ public class OverlayManager {
                         evalBarView.setTag("stockfish_eval_bar");
                         decorView.addView(evalBarView);
                     }
+                    cachedEvalBarRef = new java.lang.ref.WeakReference<>(evalBarView);
 
                     evalBarView.update(evalBarX, boardY, barWidth, boardH,
                                        score, hasMate, mateIn, flipped);
@@ -437,7 +473,7 @@ public class OverlayManager {
                     ViewGroup decorView = (ViewGroup) window.getDecorView();
                     if (decorView == null) return;
 
-                    View evalBar = decorView.findViewWithTag("stockfish_eval_bar");
+                    View evalBar = getOrFindTaggedView(decorView, "stockfish_eval_bar", cachedEvalBarRef);
                     if (evalBar instanceof EvalBarView) {
                         ((EvalBarView) evalBar).reset();
                     }
@@ -460,7 +496,7 @@ public class OverlayManager {
                     ViewGroup decorView = (ViewGroup) window.getDecorView();
                     if (decorView == null) return;
                     
-                    View evalBar = decorView.findViewWithTag("stockfish_eval_bar");
+                    View evalBar = getOrFindTaggedView(decorView, "stockfish_eval_bar", cachedEvalBarRef);
                     if (evalBar instanceof EvalBarView) {
                         ((EvalBarView) evalBar).resetStabilizer();
                         evalBar.setVisibility(View.GONE);
@@ -509,7 +545,7 @@ public class OverlayManager {
                     int y = boardY - h - (int) (4 * density);
                     if (y < 0) return;
 
-                    View existing = decorView.findViewWithTag("stockfish_engine_info");
+                    View existing = getOrFindTaggedView(decorView, "stockfish_engine_info", cachedEngineInfoRef);
                     TextView info;
                     if (existing instanceof TextView) {
                         info = (TextView) existing;
@@ -532,6 +568,7 @@ public class OverlayManager {
                         info.setLayoutParams(flp);
                         decorView.addView(info);
                     }
+                    cachedEngineInfoRef = new java.lang.ref.WeakReference<>(info);
                     ViewGroup.LayoutParams lp = info.getLayoutParams();
                     if (lp.width != w || lp.height != h) {
                         lp.width = w;
@@ -583,7 +620,9 @@ public class OverlayManager {
                 try {
                     Activity activity = StockfishExtension.getCurrentActivity();
                     if (activity == null || activity.getWindow() == null) return;
-                    View v = activity.getWindow().getDecorView().findViewWithTag("stockfish_engine_info");
+                    View decor = activity.getWindow().getDecorView();
+                    if (!(decor instanceof ViewGroup)) return;
+                    View v = getOrFindTaggedView((ViewGroup) decor, "stockfish_engine_info", cachedEngineInfoRef);
                     if (v != null) v.setVisibility(View.GONE);
                 } catch (Throwable t) {
                     Log.e(TAG, "hideEngineInfo failed: " + t.getMessage());
@@ -621,10 +660,24 @@ public class OverlayManager {
 
     public static void clearHookedBoardViews() {
         hookedBoardViews.clear();
+        cachedBoardViewRef = null;
+        cachedBoardMetrics = null;
+        cachedArrowOverlayRef = null;
+        cachedEvalBarRef = null;
+        cachedEngineInfoRef = null;
+        cachedWidgetRef = null;
+        cachedTopPillRef = null;
+        cachedBotPillRef = null;
     }
 
     public static View findChessBoardView(View root) {
         if (root == null) return null;
+        if (cachedBoardViewRef != null) {
+            View cached = cachedBoardViewRef.get();
+            if (cached != null && cached.isAttachedToWindow() && cached.getRootView() == root.getRootView()) {
+                return cached;
+            }
+        }
         // 1. First priority: Find the actual, inner ChessBoardView (NOT a Layout or Container)
         View board = findInnerChessBoardView(root);
         if (board == null) {
@@ -635,41 +688,48 @@ public class OverlayManager {
             // 3. Third priority: Last resort fallback (any layout matching ChessBoard)
             board = findAnyBoardLayout(root);
         }
-        if (board != null && hookedBoardViews.add(System.identityHashCode(board))) {
-            board.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-                @Override
-                public void onViewAttachedToWindow(View v) {
-                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Activity act = StockfishExtension.getCurrentActivity();
-                            if (act != null) StockfishExtension.tryLoadMove0(act);
-                        }
-                    });
-                }
-                @Override
-                public void onViewDetachedFromWindow(View v) {}
-            });
-            board.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
-                @Override
-                public void onLayoutChange(View v, int left, int top, int right, int bottom,
-                                           int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                    if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
-                        invalidateArrowOverlay();
-                        if (!hasArrows() && !StockfishExtension.isMove0AnalysisCompleted()) {
-                            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Activity act = StockfishExtension.getCurrentActivity();
-                                    if (act != null && !StockfishExtension.isGameOver(act) && !StockfishExtension.isReviewOrAnalysisActivity(act)) {
-                                        StockfishExtension.checkAndTriggerMove0Watchdog(act);
+        if (board != null) {
+            cachedBoardViewRef = new java.lang.ref.WeakReference<>(board);
+            if (hookedBoardViews.add(System.identityHashCode(board))) {
+                board.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                    @Override
+                    public void onViewAttachedToWindow(View v) {
+                        cachedBoardMetrics = null;
+                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Activity act = StockfishExtension.getCurrentActivity();
+                                if (act != null) StockfishExtension.tryLoadMove0(act);
+                            }
+                        });
+                    }
+                    @Override
+                    public void onViewDetachedFromWindow(View v) {
+                        cachedBoardMetrics = null;
+                    }
+                });
+                board.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                    @Override
+                    public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                               int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                        if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                            cachedBoardMetrics = null;
+                            invalidateArrowOverlay();
+                            if (!hasArrows() && !StockfishExtension.isMove0AnalysisCompleted()) {
+                                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Activity act = StockfishExtension.getCurrentActivity();
+                                        if (act != null && !StockfishExtension.isGameOver(act) && !StockfishExtension.isReviewOrAnalysisActivity(act)) {
+                                            StockfishExtension.checkAndTriggerMove0Watchdog(act);
+                                        }
                                     }
-                                }
-                            });
+                                });
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         }
         return board;
     }
@@ -860,7 +920,7 @@ public class OverlayManager {
 
                     boolean isFlipped = isBoardFlipped(boardView, StockfishExtension.getStateImpl());
 
-                    View overlay = decorView.findViewWithTag("nnvc_arrow_overlay");
+                    View overlay = getOrFindTaggedView(decorView, "nnvc_arrow_overlay", cachedArrowOverlayRef);
                     ArrowOverlayView arrowView;
                     if (overlay instanceof ArrowOverlayView) {
                         arrowView = (ArrowOverlayView) overlay;
@@ -872,6 +932,7 @@ public class OverlayManager {
                         decorView.addView(arrowView);
                         arrowView.update(boardX, boardY, boardW, boardH, null, isFlipped);
                     }
+                    cachedArrowOverlayRef = new java.lang.ref.WeakReference<>(arrowView);
 
                     arrowView.setVisibility(View.VISIBLE);
                     arrowView.setClassificationBadge(fromSquare, toSquare, classificationName, isWhite, isMyMove);
@@ -894,7 +955,7 @@ public class OverlayManager {
                     if (window == null) return;
                     ViewGroup decorView = (ViewGroup) window.getDecorView();
                     if (decorView == null) return;
-                    View overlay = decorView.findViewWithTag("nnvc_arrow_overlay");
+                    View overlay = getOrFindTaggedView(decorView, "nnvc_arrow_overlay", cachedArrowOverlayRef);
                     if (overlay instanceof ArrowOverlayView) {
                         ArrowOverlayView aov = (ArrowOverlayView) overlay;
                         aov.clearClassificationBadge();
@@ -930,12 +991,12 @@ public class OverlayManager {
                     }
 
                     // Loại bỏ các view pill cũ nếu còn sót lại từ phiên bản trước
-                    View oldTop = decorView.findViewWithTag("nnvc_accuracy_top_pill");
+                    View oldTop = getOrFindTaggedView(decorView, "nnvc_accuracy_top_pill", cachedTopPillRef);
                     if (oldTop != null) decorView.removeView(oldTop);
-                    View oldBot = decorView.findViewWithTag("nnvc_accuracy_bot_pill");
+                    View oldBot = getOrFindTaggedView(decorView, "nnvc_accuracy_bot_pill", cachedBotPillRef);
                     if (oldBot != null) decorView.removeView(oldBot);
 
-                    View widgetView = decorView.findViewWithTag("nnvc_accuracy_elo_widget");
+                    View widgetView = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
                     AccuracyEloWidgetView widget;
                     boolean isNew = false;
                     if (widgetView instanceof AccuracyEloWidgetView) {
@@ -952,6 +1013,7 @@ public class OverlayManager {
                         decorView.addView(widget, lp);
                         isNew = true;
                     }
+                    cachedWidgetRef = new java.lang.ref.WeakReference<>(widget);
 
                     widget.updateData(whiteAcc, blackAcc, whiteElo, blackElo, userIsWhite);
 
@@ -1007,12 +1069,12 @@ public class OverlayManager {
                     ViewGroup decorView = (ViewGroup) window.getDecorView();
                     if (decorView == null) return;
 
-                    View widget = decorView.findViewWithTag("nnvc_accuracy_elo_widget");
+                    View widget = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
                     if (widget != null) widget.setVisibility(View.GONE);
 
-                    View oldTop = decorView.findViewWithTag("nnvc_accuracy_top_pill");
+                    View oldTop = getOrFindTaggedView(decorView, "nnvc_accuracy_top_pill", cachedTopPillRef);
                     if (oldTop != null) oldTop.setVisibility(View.GONE);
-                    View oldBot = decorView.findViewWithTag("nnvc_accuracy_bot_pill");
+                    View oldBot = getOrFindTaggedView(decorView, "nnvc_accuracy_bot_pill", cachedBotPillRef);
                     if (oldBot != null) oldBot.setVisibility(View.GONE);
                 } catch (Throwable ignored) {}
             }
@@ -1035,7 +1097,7 @@ public class OverlayManager {
                     ViewGroup decorView = (ViewGroup) window.getDecorView();
                     if (decorView == null) return;
 
-                    View widgetView = decorView.findViewWithTag("nnvc_accuracy_elo_widget");
+                    View widgetView = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
                     if (widgetView instanceof AccuracyEloWidgetView) {
                         ((AccuracyEloWidgetView) widgetView).resetData();
                     }

@@ -1330,6 +1330,23 @@ public class SelfTest {
         check("Threat arrow steps back to avoid occluding target square (targetOffset > 0)", threatTargetOffset >= mockSqSize * 0.20f);
         check("Total lateral lane clearance exceeds 0.20 * sqSize", totalLateralClearance >= mockSqSize * 0.20f);
 
+        // =========================================================================
+        // Test 31: Fast Zero-Regex positionKey & Metric Cache Verification
+        // =========================================================================
+        String benchStartposFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        String key1 = StockfishBridge.positionKey(benchStartposFen);
+        check("positionKey extracts 4 FEN components correctly",
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -".equals(key1));
+
+        String enPassantFen = "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2";
+        String key2 = StockfishBridge.positionKey(enPassantFen);
+        check("positionKey extracts en passant square correctly",
+                "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6".equals(key2));
+
+        String shortFen = "8/8/8/8/8/8/8/8 w";
+        String key3 = StockfishBridge.positionKey(shortFen);
+        check("positionKey handles non-standard/short FEN safely", key3 != null && key3.contains("w"));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

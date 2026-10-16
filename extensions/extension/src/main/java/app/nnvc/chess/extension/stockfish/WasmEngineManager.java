@@ -710,6 +710,38 @@ public class WasmEngineManager {
             NnvcLogger.d(TAG, "[CLASSIFY SKIP] Position already evaluating or evaluated for FEN: " + fen);
             return;
         }
+
+        // Fast Deduplication: Re-use evaluation if Play Engine or cache already has depth >= 10
+        final Context ctx = (context != null) ? context : StockfishExtension.getContext();
+        if (ctx != null) {
+            String engineChoice = StockfishSettings.getEngineChoice(ctx);
+            String komodoStyle = StockfishSettings.getKomodoStyle(ctx);
+            int limited = StockfishSettings.isLimitStrength(ctx) ? StockfishSettings.getElo(ctx) : 0;
+            StockfishProcess.AnalysisResult cached = StockfishBridge.getCached(fen, 10, 1, limited, engineChoice, komodoStyle);
+            if (cached != null && cached.isValid()) {
+                final long epoch = classifyEvalEpochCounter.incrementAndGet();
+                currentClassifyEpoch = epoch;
+                currentClassifyFen = fen;
+                isClassifySearching = false;
+                final float score = cached.score;
+                final boolean hasMate = cached.hasMate;
+                final int mateIn = cached.mateIn;
+                lastClassifyScore = score;
+                lastClassifyHasMate = hasMate;
+                lastClassifyMateIn = mateIn;
+                lastClassifyScoreEpoch = epoch;
+                mainHandler.post(() -> {
+                    try {
+                        if (StockfishSettings.isEvalBarEnabled(ctx)) {
+                            OverlayManager.updateEvalBar(score, hasMate, mateIn, StockfishExtension.getStateImpl());
+                        }
+                    } catch (Throwable ignored) {}
+                });
+                NnvcLogger.d(TAG, "[CLASSIFY DEDUP] Reused cached engine evaluation for FEN: " + fen);
+                return;
+            }
+        }
+
         isClassifySearching = true;
         final long epoch = classifyEvalEpochCounter.incrementAndGet();
         currentClassifyEpoch = epoch;

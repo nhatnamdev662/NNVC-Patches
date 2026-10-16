@@ -540,8 +540,14 @@ public class StockfishExtension {
     /** Signature (position + moves) of the engine arrows currently on the board. */
     private static volatile String lastArrowSignature = null;
 
+    private static volatile String lastThreatCacheFen = null;
+    private static volatile boolean lastThreatCacheWhite = false;
+    private static volatile String lastThreatCacheMove = null;
+    private static volatile List<BoardUtil.ThreatInfo> lastThreatCacheResult = Collections.emptyList();
+
     public static void resetArrowSignature() {
         lastArrowSignature = null;
+        lastThreatCacheFen = null;
     }
 
     /** Position (FEN key) of the most recently scheduled live analysis. */
@@ -696,14 +702,23 @@ public class StockfishExtension {
             // MŨI TÊN ĐE DỌA (THREAT ARROWS) - Màu Đỏ Neon chuẩn Extension (chỉ hiện đối thủ):
             boolean userIsWhiteSide = (userWhite != null) ? userWhite.booleanValue() : isWhiteTurn;
             String lastMove = MoveClassifier.getLastDeduceUciMove();
-            List<BoardUtil.ThreatInfo> rawThreats = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, "enemy");
-            if (rawThreats != null && !rawThreats.isEmpty()) {
-                threatListToInject = new ArrayList<>();
-                for (BoardUtil.ThreatInfo ti : rawThreats) {
-                    if ("danger".equalsIgnoreCase(ti.type)) {
-                        threatListToInject.add(ti);
+            if (fen.equals(lastThreatCacheFen) && userIsWhiteSide == lastThreatCacheWhite &&
+                    (lastMove == null ? lastThreatCacheMove == null : lastMove.equals(lastThreatCacheMove))) {
+                threatListToInject = lastThreatCacheResult;
+            } else {
+                List<BoardUtil.ThreatInfo> rawThreats = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, "enemy");
+                if (rawThreats != null && !rawThreats.isEmpty()) {
+                    threatListToInject = new ArrayList<>();
+                    for (BoardUtil.ThreatInfo ti : rawThreats) {
+                        if ("danger".equalsIgnoreCase(ti.type)) {
+                            threatListToInject.add(ti);
+                        }
                     }
                 }
+                lastThreatCacheFen = fen;
+                lastThreatCacheWhite = userIsWhiteSide;
+                lastThreatCacheMove = lastMove;
+                lastThreatCacheResult = threatListToInject;
             }
         }
 
