@@ -73,9 +73,13 @@ public class I18n {
             case "opponent_arrows_hint":
                 return isVi ? "Hiện mũi tên gợi ý khi đến lượt đối thủ." : "Show suggestion arrows when it is opponent's turn.";
             case "threat_arrow":
-                return isVi ? "Mũi Tên Đe Dọa" : "Threat Arrow";
+                return isVi ? "Mũi Tên Đe Dọa" : "Threat Arrows";
             case "threat_arrow_hint":
-                return isVi ? "Hiện mũi tên đe dọa (đỏ) của đối thủ." : "Show opponent's threat arrow (red).";
+                return isVi ? "Vẽ mũi tên chỉ rõ quân cờ đang tấn công và mục tiêu bị uy hiếp." : "Draw arrows showing attacking pieces and threatened targets.";
+            case "threat_mode":
+                return isVi ? "Chế Độ Đe Dọa" : "Threat Mode";
+            case "threat_depth":
+                return isVi ? "Độ Sâu Đe Dọa" : "Threat Depth";
             case "premove_arrow":
                 return isVi ? "Mũi Tên Premove" : "Premove Arrow";
             case "premove_arrow_hint":

@@ -1,5 +1,7 @@
 package app.nnvc.chess.extension.stockfish;
 
+import java.util.List;
+
 /**
  * Self-checking tests for pure-logic methods in MoveClassifier and StockfishExtension.
  * 
@@ -1261,6 +1263,50 @@ public class SelfTest {
         }
         check("movesToInject slices exactly 2 arrows when configMultiPV=2",
                 movesToInject2.size() == 2 && "d2d4".equals(movesToInject2.get(1)));
+
+        // =========================================================================
+        // Test 29: Authentic BoardUtil Threat Calculation (Matching NNVC Desktop Extension)
+        // =========================================================================
+        // FEN position: Black Rook on e8 threatens White Queen on e2 (danger).
+        // White Bishop on c4 threatens hanging Black Rook on a6 and f7 with check (attack).
+        String threatTestFen = "4r1k1/5ppp/r7/8/2B5/8/4QPPP/6K1 w - - 0 1";
+        boolean userIsWhite = true;
+
+        // 29a. computeBoardThreats with mode "both"
+        List<BoardUtil.ThreatInfo> bothThreats = BoardUtil.computeBoardThreats(threatTestFen, userIsWhite, "c4a6", "both", 1);
+        check("Threats list is non-empty in active tactical position", !bothThreats.isEmpty());
+        check("Threats list never exceeds maximum 4 arrows", bothThreats.size() <= 4);
+
+        boolean hasDanger = false;
+        boolean hasAttack = false;
+        boolean foundThreatToA6 = false;
+        for (BoardUtil.ThreatInfo t : bothThreats) {
+            if ("danger".equals(t.type)) hasDanger = true;
+            if ("attack".equals(t.type)) hasAttack = true;
+            if ("a6".equals(t.to) && "attack".equals(t.type)) foundThreatToA6 = true;
+        }
+        check("Threat mode 'both' identifies both danger and attack threats", hasDanger && hasAttack);
+        check("Threat calculation identifies hanging Rook on a6 as target", foundThreatToA6);
+
+        // 29b. computeBoardThreats with mode "enemy" (only danger threats)
+        List<BoardUtil.ThreatInfo> enemyThreats = BoardUtil.computeBoardThreats(threatTestFen, userIsWhite, null, "enemy", 1);
+        boolean onlyDanger = true;
+        for (BoardUtil.ThreatInfo t : enemyThreats) {
+            if (!"danger".equals(t.type)) onlyDanger = false;
+        }
+        check("Threat mode 'enemy' returns only 'danger' threats", onlyDanger && !enemyThreats.isEmpty());
+
+        // 29c. computeBoardThreats with mode "player" (only attack threats)
+        List<BoardUtil.ThreatInfo> playerThreats = BoardUtil.computeBoardThreats(threatTestFen, userIsWhite, null, "player", 1);
+        boolean onlyAttack = true;
+        for (BoardUtil.ThreatInfo t : playerThreats) {
+            if (!"attack".equals(t.type)) onlyAttack = false;
+        }
+        check("Threat mode 'player' returns only 'attack' threats", onlyAttack && !playerThreats.isEmpty());
+
+        // 29d. Empty/null FEN handling
+        List<BoardUtil.ThreatInfo> emptyThreats = BoardUtil.computeBoardThreats(null, true, null, "both", 1);
+        check("computeBoardThreats safely handles null FEN without crashing", emptyThreats != null && emptyThreats.isEmpty());
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

@@ -59,16 +59,22 @@ public class ArrowOverlayView extends View {
         public final boolean isThreat;
         public final boolean isPremove;
         public final String evalText;
+        public final String threatType; // "danger" (đỏ) hoặc "attack" (vàng)
+        public final int threatDepth;   // 1 (trực tiếp) hoặc 2 (phối hợp)
 
         public ArrowData(String move, int tier, boolean isThreat) {
-            this(move, tier, isThreat, false, null);
+            this(move, tier, isThreat, false, null, "danger", 1);
         }
 
         public ArrowData(String move, int tier, boolean isThreat, String evalText) {
-            this(move, tier, isThreat, false, evalText);
+            this(move, tier, isThreat, false, evalText, "danger", 1);
         }
 
         public ArrowData(String move, int tier, boolean isThreat, boolean isPremove, String evalText) {
+            this(move, tier, isThreat, isPremove, evalText, "danger", 1);
+        }
+
+        public ArrowData(String move, int tier, boolean isThreat, boolean isPremove, String evalText, String threatType, int threatDepth) {
             this.move = move;
             this.from = move.substring(0, 2);
             this.to = move.substring(2, 4);
@@ -76,6 +82,8 @@ public class ArrowOverlayView extends View {
             this.isThreat = isThreat;
             this.isPremove = isPremove;
             this.evalText = evalText;
+            this.threatType = threatType != null ? threatType : "danger";
+            this.threatDepth = threatDepth > 0 ? threatDepth : 1;
         }
     }
 
@@ -412,32 +420,43 @@ public class ArrowOverlayView extends View {
         }
 
         if (arrow.isThreat) {
-            // Style riêng biệt cho Mũi Tên Đe Dọa của Đối Thủ (Threat Arrow):
-            // 1. Màu Đỏ Cảnh Báo Nguy Hiểm (#EF4444 phối #B91C1C)
-            // 2. Viền đỏ thẫm sắc nét (#7F1D1D)
-            // 3. Glow đỏ rực cảnh báo
-            int threatLight = 0xFFEF4444; // Danger Red Light
-            int threatDark = 0xFFB91C1C;  // Danger Red Dark
+            // Style chuẩn 100% NNVC Desktop Extension:
+            // 1. "danger": Quân đối thủ đe dọa quân ta -> Màu Đỏ Cảnh Báo (#EF4444 phối #B91C1C)
+            // 2. "attack": Quân ta đe dọa quân đối thủ -> Màu Vàng/Hổ Phách (#F59E0B phối #D97706)
+            // 3. depth == 2: Nét đứt (DashPathEffect) biểu thị đòn phối hợp tiềm năng
+            boolean isAttack = "attack".equalsIgnoreCase(arrow.threatType);
+            int threatLight = isAttack ? 0xFFF59E0B : 0xFFEF4444;
+            int threatDark  = isAttack ? 0xFFD97706 : 0xFFB91C1C;
+            int glowRgb     = isAttack ? Color.argb((int)(0.45f * 255), 245, 158, 11) : Color.argb((int)(0.45f * 255), 239, 68, 68);
+            int strokeColor = isAttack ? 0xCC78350F : 0xCC7F1D1D;
 
-            // 1. Glow viền cảnh báo nguy hiểm
-            glowPaint.setColor(Color.argb((int)(0.45f * 255), 239, 68, 68));
+            // 1. Glow viền cảnh báo
+            glowPaint.setColor(glowRgb);
             glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.035f);
             glowPaint.setMaskFilter(new BlurMaskFilter(Math.max(1.0f, sqSize * 0.05f), BlurMaskFilter.Blur.NORMAL));
             canvas.drawPath(arrowPath, glowPaint);
             glowPaint.setMaskFilter(null);
 
-            // 2. Linear Gradient Fill Đỏ Nguy Hiểm
+            // 2. Linear Gradient Fill
             fillPaint.setShader(new LinearGradient(x1, y1, x2, y2,
                     new int[]{threatDark, threatLight},
                     new float[]{0.0f, 1.0f},
                     Shader.TileMode.CLAMP));
+            if (arrow.threatDepth == 2) {
+                fillPaint.setAlpha((int)(0.80f * 255));
+            }
             canvas.drawPath(arrowPath, fillPaint);
+            fillPaint.setAlpha(255);
 
-            // 3. Viền mảnh tương phản cao đỏ thẫm
+            // 3. Viền mảnh tương phản cao (Hỗ trợ nét đứt nếu depth == 2)
             edgePaint.setShader(null);
-            edgePaint.setColor(0xCC7F1D1D); // Deep red contrast stroke
+            edgePaint.setColor(strokeColor);
             edgePaint.setStrokeWidth(Math.max(1.5f, sqSize * 0.018f));
+            if (arrow.threatDepth == 2) {
+                edgePaint.setPathEffect(new DashPathEffect(new float[]{sqSize * 0.12f, sqSize * 0.06f}, 0));
+            }
             canvas.drawPath(arrowPath, edgePaint);
+            edgePaint.setPathEffect(null);
             return;
         }
 

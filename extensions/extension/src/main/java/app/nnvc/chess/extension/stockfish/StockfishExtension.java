@@ -13,6 +13,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -665,23 +666,17 @@ public class StockfishExtension {
         }
 
         boolean threatEnabled = !disableOverlays && StockfishSettings.isThreatArrowsEnabled(context);
-        String threatToInject = null;
+        List<BoardUtil.ThreatInfo> threatListToInject = Collections.emptyList();
         if (threatEnabled) {
-            // MŨI TÊN ĐE DỌA (Threat Arrow - Màu đỏ cảnh báo):
-            // 1. Khi đến lượt người chơi (isMyTurn): dự đoán nước đi đe dọa tiếp theo của đối thủ (result.ponder).
-            // 2. Khi đến lượt đối thủ (!isMyTurn): hiển thị nước đi mạnh nhất mà đối thủ có thể thực hiện (result.moves.get(0)).
-            if (isMyTurn) {
-                if (result.ponder != null && result.ponder.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
-                    threatToInject = result.ponder;
-                }
-            } else {
-                if (result.moves != null && !result.moves.isEmpty()) {
-                    String m0 = result.moves.get(0);
-                    if (m0 != null && m0.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
-                        threatToInject = m0;
-                    }
-                }
-            }
+            // MŨI TÊN ĐE DỌA CHUẨN EXTENSION (_computeBoardThreats):
+            // 1. Phân tích trực tiếp bàn cờ bằng Board Logic tĩnh siêu tốc (<0.2ms).
+            // 2. Quét toàn diện các đòn đe dọa ăn quân (tấn công / nguy hiểm), quân bị treo, đòn chiếu.
+            // 3. Phân chia màu: Đỏ (#EF4444) cho quân địch đe dọa ta, Vàng (#F59E0B) cho quân ta đe dọa địch.
+            boolean userIsWhiteSide = (userWhite != null) ? userWhite.booleanValue() : isWhiteTurn;
+            String threatMode = StockfishSettings.getThreatMode(context);
+            int threatDepth = StockfishSettings.getThreatDepth(context);
+            String lastMove = MoveClassifier.getLastDeduceUciMove();
+            threatListToInject = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, threatMode, threatDepth);
         }
 
         boolean premoveEnabled = !disableOverlays && StockfishSettings.isPremoveArrowsEnabled(context);
@@ -738,7 +733,7 @@ public class StockfishExtension {
             }
         }
 
-        boolean showThreat = (threatToInject != null);
+        boolean showThreat = (threatListToInject != null && !threatListToInject.isEmpty());
         boolean showPremove = (premoveMoveToInject != null);
 
         if (showArrows || showThreat || showPremove) {
@@ -749,12 +744,12 @@ public class StockfishExtension {
                 movesToInject = new java.util.ArrayList<>(result.moves.subList(0, count));
             }
 
-            if (showThreat && threatToInject != null) {
-                ArrowInjector.injectThreatArrow(context, getStateImpl(), threatToInject);
+            if (showThreat) {
+                ArrowInjector.injectThreatArrow(context, getStateImpl(), null);
             }
 
             String sig = fen + '|' + (showArrows ? movesToInject.toString() : "") + '|'
-                    + (showThreat && threatToInject != null ? threatToInject : "") + '|'
+                    + (showThreat ? threatListToInject.toString() : "") + '|'
                     + (showPremove && premoveMoveToInject != null ? premoveMoveToInject : "") + '|'
                     + StockfishSettings.getArrowTierColor(context, 1) + '|'
                     + StockfishSettings.getArrowTierColor(context, 2) + '|'
@@ -762,7 +757,7 @@ public class StockfishExtension {
             if (!sig.equals(lastArrowSignature)) {
                 lastArrowSignature = sig;
                 boolean whiteTurn = isWhiteTurnFromFen(fen);
-                OverlayManager.updateArrowOverlay(movesToInject, threatToInject, premoveMoveToInject, result.sideToMoveScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
+                OverlayManager.updateArrowOverlay(movesToInject, threatListToInject, premoveMoveToInject, result.sideToMoveScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
             }
         } else if (isFinal) {
             lastArrowSignature = null;

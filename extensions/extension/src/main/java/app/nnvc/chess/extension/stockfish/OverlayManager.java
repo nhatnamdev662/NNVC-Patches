@@ -176,6 +176,22 @@ public class OverlayManager {
                                           final int[] lineMateIn,
                                           final boolean whiteToMove,
                                           final Object stateImpl) {
+        List<BoardUtil.ThreatInfo> threatList = null;
+        if (threatMove != null && threatMove.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
+            threatList = new ArrayList<>();
+            threatList.add(new BoardUtil.ThreatInfo(threatMove.substring(0, 2), threatMove.substring(2, 4), "danger", 1, ' ', ' ', false, false, false, 0));
+        }
+        updateArrowOverlay(moves, threatList, premoveMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
+    }
+
+    public static void updateArrowOverlay(final List<String> moves,
+                                          final List<BoardUtil.ThreatInfo> threatList,
+                                          final String premoveMove,
+                                          final float[] lineScores,
+                                          final boolean[] lineMates,
+                                          final int[] lineMateIn,
+                                          final boolean whiteToMove,
+                                          final Object stateImpl) {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
             public void run() {
@@ -196,7 +212,7 @@ public class OverlayManager {
                         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                             @Override
                             public void run() {
-                                updateArrowOverlay(moves, threatMove, premoveMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
+                                updateArrowOverlay(moves, threatList, premoveMove, lineScores, lineMates, lineMateIn, whiteToMove, stateImpl);
                             }
                         }, 150);
                         return;
@@ -220,9 +236,14 @@ public class OverlayManager {
                     }
 
                     List<ArrowOverlayView.ArrowData> list = new ArrayList<>();
-                    // 1. Mũi tên Đe dọa của đối thủ (màu đỏ nguy hiểm)
-                    if (threatMove != null && threatMove.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
-                        list.add(new ArrowOverlayView.ArrowData(threatMove, 1, true, false, null));
+                    // 1. Mũi tên Đe Dọa (Chuẩn 100% NNVC Desktop Extension: danh sách đe dọa đa mũi tên, danger/attack, depth 1/2)
+                    if (threatList != null && !threatList.isEmpty()) {
+                        for (BoardUtil.ThreatInfo ti : threatList) {
+                            String mv = ti.getUci();
+                            if (mv != null && mv.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {
+                                list.add(new ArrowOverlayView.ArrowData(mv, 1, true, false, null, ti.type, ti.depth));
+                            }
+                        }
                     }
                     // 2. Mũi tên Premove của người chơi (màu cam hổ phách neon)
                     if (premoveMove != null && premoveMove.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")) {

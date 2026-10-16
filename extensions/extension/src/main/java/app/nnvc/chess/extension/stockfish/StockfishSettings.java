@@ -287,6 +287,12 @@ public class StockfishSettings {
     }
 
     private static final String KEY_SHOW_THREAT_ARROWS = "show_threat_arrows";
+    private static final String KEY_THREAT_MODE = "threat_mode";
+    private static final String KEY_THREAT_DEPTH = "threat_depth";
+
+    public static final String THREAT_MODE_BOTH = "both";
+    public static final String THREAT_MODE_ENEMY = "enemy";
+    public static final String THREAT_MODE_PLAYER = "player";
 
     public static boolean isThreatArrowsEnabled(Context context) {
         return getPrefs(context).getBoolean(KEY_SHOW_THREAT_ARROWS, false);
@@ -294,6 +300,22 @@ public class StockfishSettings {
 
     public static void setThreatArrowsEnabled(Context context, boolean enabled) {
         getPrefs(context).edit().putBoolean(KEY_SHOW_THREAT_ARROWS, enabled).apply();
+    }
+
+    public static String getThreatMode(Context context) {
+        return getPrefs(context).getString(KEY_THREAT_MODE, THREAT_MODE_BOTH);
+    }
+
+    public static void setThreatMode(Context context, String mode) {
+        getPrefs(context).edit().putString(KEY_THREAT_MODE, mode).apply();
+    }
+
+    public static int getThreatDepth(Context context) {
+        return getPrefs(context).getInt(KEY_THREAT_DEPTH, 1);
+    }
+
+    public static void setThreatDepth(Context context, int depth) {
+        getPrefs(context).edit().putInt(KEY_THREAT_DEPTH, depth).apply();
     }
 
     private static final String KEY_SHOW_PREMOVE_ARROWS = "show_premove_arrows";

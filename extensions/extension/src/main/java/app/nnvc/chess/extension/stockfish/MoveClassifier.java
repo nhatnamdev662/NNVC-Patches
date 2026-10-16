@@ -43,9 +43,14 @@ public class MoveClassifier {
     /** Hooked moves from Chess.com positionObject (StandardPosition) */
     private static volatile Object lastPositionObject = null;
     private static volatile List<String> currentPositionMoves = null;
+    private static volatile String lastDeduceUciMove = null;
 
     public static List<String> getCurrentPositionMoves() {
         return currentPositionMoves != null ? new ArrayList<>(currentPositionMoves) : null;
+    }
+
+    public static String getLastDeduceUciMove() {
+        return lastDeduceUciMove;
     }
 
     public static boolean isStandardStartposFirstMove(String move) {
@@ -489,6 +494,7 @@ public class MoveClassifier {
                     TorchEngine.log("[CLASSIFIER DEDUCE NULL] prev=" + prevKey + ", curr=" + currentKey);
                     return;
                 }
+                lastDeduceUciMove = uciMove;
                 moveIdentifier = transition;
                 moves = getPlayedMoves();
                 if (moves.isEmpty()) {
