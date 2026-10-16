@@ -881,12 +881,10 @@ public class SelfTest {
         check("StockfishExtension.getDiamondStatus() returns null (diamond badge removed)", diamondStatus == null);
 
         // Test 16: LoginData is always recognized as target user
-        Object mockLoginData = new Object() {
-            @Override
-            public String toString() {
-                return "com.chess.net.model.LoginData@1234";
-            }
-        };
+        class MockLoginData {
+            public int dummy = 123;
+        }
+        Object mockLoginData = new MockLoginData();
         boolean isLoginDataUser = app.nnvc.chess.extension.titles.CustomTitlesExtension.isTargetCurrentUser(null, "magnus99", mockLoginData);
         check("isTargetCurrentUser recognizes LoginData as current user", isLoginDataUser);
 
@@ -1171,7 +1169,7 @@ public class SelfTest {
         check("overrideProfileLabels preserves original labels exactly without injecting fake UserLabelUi",
                 preservedLabels != null && preservedLabels.size() == 2 && "labelA".equals(preservedLabels.get(0)));
 
-        // 27b. extractUsername fast path
+        // 27b. extractUsername fast path & avatarUrl rejection
         class MockUsernameState {
             public String username = "trannnguyennhatnam";
         }
@@ -1184,7 +1182,28 @@ public class SelfTest {
         check("extractUsername extracts from obfuscated field 'a'",
                 "player_abc".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.extractUsername(new MockObfuscatedUsernameState())));
 
-        // 27c. Null-safe fallbacks for overrideModelChessTitle and overridePaletteChessTitle
+        class MockUserProfileHeaderWithAvatar {
+            public String a = "https://images.chesscomfiles.com/uploads/v1/user/12345.png";
+            public String b = "trannnguyennhatnam";
+        }
+        check("extractUsername extracts username from 'b' and skips avatar URL in 'a'",
+                "trannnguyennhatnam".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.extractUsername(new MockUserProfileHeaderWithAvatar())));
+
+        check("isValidUsername returns true for normal username",
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.isValidUsername("trannnguyennhatnam"));
+        check("isValidUsername returns false for avatar URLs",
+                !app.nnvc.chess.extension.titles.CustomTitlesExtension.isValidUsername("https://images.chesscomfiles.com/avatar.png") &&
+                !app.nnvc.chess.extension.titles.CustomTitlesExtension.isValidUsername("http://images.chesscomfiles.com/avatar.png") &&
+                !app.nnvc.chess.extension.titles.CustomTitlesExtension.isValidUsername("user/avatar/path"));
+
+        // 27c. isTargetCurrentUser non-toString performance check
+        class MockLoginDataContainer {
+            public int dummy = 123;
+        }
+        check("isTargetCurrentUser identifies LoginData container without calling heavy toString()",
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.isTargetCurrentUser(null, null, new MockLoginDataContainer()));
+
+        // 27d. Null-safe fallbacks for overrideModelChessTitle and overridePaletteChessTitle
         check("overrideModelChessTitle(null) returns null safely",
                 app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideModelChessTitle(null) == null);
         check("overridePaletteChessTitle(null) returns null safely",
@@ -1193,6 +1212,55 @@ public class SelfTest {
                 "default".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsPaletteChessTitle(null, "default")));
         check("getOverrideAsPaletteChessTitle(\"\", fallback) returns fallback safely",
                 "default".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsPaletteChessTitle("", "default")));
+
+        // 28. Arrow count limits & MultiPV trimming tests
+        java.util.List<String> rawMoves = java.util.Arrays.asList("e2e4", "d2d4", "g1f3", "c2c4", "b1c3");
+        float[] rawScores = new float[]{0.3f, 0.25f, 0.2f, 0.15f, 0.1f};
+        StockfishProcess.AnalysisResult multiRes = new StockfishProcess.AnalysisResult(
+                rawMoves, 0.3f, false, 0, 100, 800, 100, null,
+                java.util.Collections.singletonList("e2e4"), rawScores, 12, true
+        );
+
+        // 28a. trimLines trimming to 1 PV
+        StockfishProcess.AnalysisResult trimmed1 = StockfishBridge.trimLines(multiRes, 1);
+        check("trimLines trims 5 moves down to 1 move for multiPV=1",
+                trimmed1 != null && trimmed1.moves.size() == 1 && "e2e4".equals(trimmed1.moves.get(0)));
+        check("trimLines trims lineScores length down to 1 for multiPV=1",
+                trimmed1 != null && trimmed1.lineScores.length == 1 && trimmed1.lineScores[0] == 0.3f);
+
+        // 28b. trimLines trimming to 2 PV
+        StockfishProcess.AnalysisResult trimmed2 = StockfishBridge.trimLines(multiRes, 2);
+        check("trimLines trims 5 moves down to 2 moves for multiPV=2",
+                trimmed2 != null && trimmed2.moves.size() == 2 && "d2d4".equals(trimmed2.moves.get(1)));
+        check("trimLines trims lineScores length down to 2 for multiPV=2",
+                trimmed2 != null && trimmed2.lineScores.length == 2);
+
+        // 28c. trimLines with multiPV >= moves.size() returns untouched object
+        StockfishProcess.AnalysisResult trimmed5 = StockfishBridge.trimLines(multiRes, 5);
+        check("trimLines with multiPV=5 keeps all 5 moves",
+                trimmed5 != null && trimmed5.moves.size() == 5);
+        StockfishProcess.AnalysisResult trimmed10 = StockfishBridge.trimLines(multiRes, 10);
+        check("trimLines with multiPV=10 preserves original result untouched",
+                trimmed10 == multiRes);
+
+        // 28d. StockfishExtension movesToInject slicing simulation
+        int configMultiPV1 = 1;
+        java.util.List<String> movesToInject1 = java.util.Collections.emptyList();
+        if (multiRes.moves != null && !multiRes.moves.isEmpty()) {
+            int count1 = Math.min(multiRes.moves.size(), Math.max(1, configMultiPV1));
+            movesToInject1 = new java.util.ArrayList<>(multiRes.moves.subList(0, count1));
+        }
+        check("movesToInject slices exactly 1 arrow when configMultiPV=1",
+                movesToInject1.size() == 1 && "e2e4".equals(movesToInject1.get(0)));
+
+        int configMultiPV2 = 2;
+        java.util.List<String> movesToInject2 = java.util.Collections.emptyList();
+        if (multiRes.moves != null && !multiRes.moves.isEmpty()) {
+            int count2 = Math.min(multiRes.moves.size(), Math.max(1, configMultiPV2));
+            movesToInject2 = new java.util.ArrayList<>(multiRes.moves.subList(0, count2));
+        }
+        check("movesToInject slices exactly 2 arrows when configMultiPV=2",
+                movesToInject2.size() == 2 && "d2d4".equals(movesToInject2.get(1)));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

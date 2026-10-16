@@ -111,8 +111,8 @@ public class StockfishBridge {
         return trimLines(e.result, multiPV);
     }
 
-    private static StockfishProcess.AnalysisResult trimLines(StockfishProcess.AnalysisResult r, int multiPV) {
-        if (r.moves.size() <= multiPV) return r;
+    static StockfishProcess.AnalysisResult trimLines(StockfishProcess.AnalysisResult r, int multiPV) {
+        if (r == null || r.moves == null || r.moves.size() <= multiPV) return r;
         java.util.List<String> moves = new java.util.ArrayList<>(r.moves.subList(0, multiPV));
         float[] lines = java.util.Arrays.copyOf(r.lineScores, Math.min(multiPV, r.lineScores.length));
         boolean[] lineMates = r.lineMates != null ? java.util.Arrays.copyOf(r.lineMates, Math.min(multiPV, r.lineMates.length)) : new boolean[lines.length];
@@ -180,7 +180,7 @@ public class StockfishBridge {
             liveSearchRunning = false;
         }
         putCache(fen, r, depth, multiPV, limited, engineChoice, komodoStyle);
-        return r;
+        return trimLines(r, multiPV);
     }
 
 

@@ -149,7 +149,9 @@ public class StockfishExtension {
                 || name.contains("ArchiveSearch")
                 || name.contains("ReviewPuzzle")
                 || name.contains("RecentRushReview")
-                || name.contains("AnalysisActivity");
+                || name.contains("AnalysisActivity")
+                || name.contains("UserProfile")
+                || name.contains("ProfileActivity");
     }
 
     public static Activity getCurrentActivity() {
@@ -571,9 +573,6 @@ public class StockfishExtension {
                         ? StockfishSettings.autoDepthForElo(StockfishSettings.getElo(context))
                         : StockfishSettings.getDepth(context);
                 int multiPV = StockfishSettings.getMultiPV(context);
-                if (StockfishSettings.isMoveClassificationEnabled(context)) {
-                    multiPV = Math.max(multiPV, 2);
-                }
 
                 Log.d(TAG, "Analysing FEN with " + StockfishSettings.getEngineChoice(context) + " at depth " + depth + " with MultiPV=" + multiPV + "…");
                 // Stream intermediate depths to the classifier, but NEVER paint intermediate arrows to UI.
@@ -743,13 +742,18 @@ public class StockfishExtension {
         boolean showPremove = (premoveMoveToInject != null);
 
         if (showArrows || showThreat || showPremove) {
-            java.util.List<String> movesToInject = (showArrows && result.moves != null) ? result.moves : java.util.Collections.emptyList();
+            int maxArrows = StockfishSettings.getMultiPV(context);
+            java.util.List<String> movesToInject = java.util.Collections.emptyList();
+            if (showArrows && result.moves != null && !result.moves.isEmpty()) {
+                int count = Math.min(result.moves.size(), Math.max(1, maxArrows));
+                movesToInject = new java.util.ArrayList<>(result.moves.subList(0, count));
+            }
 
             if (showThreat && threatToInject != null) {
                 ArrowInjector.injectThreatArrow(context, getStateImpl(), threatToInject);
             }
 
-            String sig = fen + '|' + (showArrows ? (result.moves != null ? result.moves.toString() : "") : "") + '|'
+            String sig = fen + '|' + (showArrows ? movesToInject.toString() : "") + '|'
                     + (showThreat && threatToInject != null ? threatToInject : "") + '|'
                     + (showPremove && premoveMoveToInject != null ? premoveMoveToInject : "") + '|'
                     + StockfishSettings.getArrowTierColor(context, 1) + '|'

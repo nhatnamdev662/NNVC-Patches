@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -531,7 +532,7 @@ public final class InAppUpdater {
 
         GradientDrawable btnBg = new GradientDrawable();
         btnBg.setColor(0xFF0A84FF);
-        btnBg.setCornerRadius(10 * density);
+        btnBg.setCornerRadius(22 * density);
         updateBtn.setBackground(btnBg);
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (44 * density));
         btnParams.topMargin = (int) (14 * density);
@@ -550,26 +551,29 @@ public final class InAppUpdater {
     }
 
     /**
-     * Standard Non-blocking Optional Update Dialog.
+     * Standard Non-blocking Optional Update Dialog with Cyber Frosted Glass styling.
      */
     private static void showOptionalUpdateDialog(final Activity activity, final RemoteConfig config) {
         final Dialog dialog = new Dialog(activity);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
 
         final float density = activity.getResources().getDisplayMetrics().density;
         int screenW = activity.getResources().getDisplayMetrics().widthPixels;
-        int dialogW = Math.min((int) (screenW * 0.90f), (int) (420 * density));
+        int dialogW = Math.min((int) (screenW * 0.90f), (int) (400 * density));
 
         LinearLayout root = new LinearLayout(activity);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setLayoutParams(new ViewGroup.LayoutParams(dialogW, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xF20C0F16);
-        bg.setCornerRadius(18 * density);
-        bg.setStroke((int) (1.4f * density), 0xAA0A84FF);
+        bg.setColor(0xF20D121D); // Dark Cyber Frosted card
+        bg.setCornerRadius(20 * density);
+        bg.setStroke((int) (1.5f * density), 0x4D64D2FF); // Neon cyan border
         root.setBackground(bg);
-        root.setPadding((int) (18 * density), (int) (18 * density), (int) (18 * density), (int) (16 * density));
+        root.setPadding((int) (20 * density), (int) (20 * density), (int) (20 * density), (int) (20 * density));
 
         // Header Row
         LinearLayout header = new LinearLayout(activity);
@@ -598,12 +602,12 @@ public final class InAppUpdater {
         verTv.setText("Phiên bản v" + config.versionName + " (Hiện tại: v" + BuildConfig.VERSION_NAME + ")");
         verTv.setTextColor(0xFFFFD760);
         verTv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
-        verTv.setPadding(0, (int) (4 * density), 0, (int) (8 * density));
+        verTv.setPadding(0, (int) (6 * density), 0, (int) (10 * density));
         root.addView(verTv);
 
         if (!config.changelog.isEmpty()) {
             ScrollView sv = new ScrollView(activity);
-            sv.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (90 * density)));
+            sv.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (95 * density)));
             TextView chText = new TextView(activity);
             chText.setText(config.changelog);
             chText.setTextColor(0xD0EBF0FF);
@@ -616,7 +620,7 @@ public final class InAppUpdater {
         final LinearLayout progressBox = new LinearLayout(activity);
         progressBox.setOrientation(LinearLayout.VERTICAL);
         progressBox.setVisibility(View.GONE);
-        progressBox.setPadding(0, (int) (10 * density), 0, 0);
+        progressBox.setPadding(0, (int) (12 * density), 0, 0);
 
         final ProgressBar pb = new ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
         pb.setMax(100);
@@ -626,7 +630,7 @@ public final class InAppUpdater {
         final TextView progressStatus = new TextView(activity);
         progressStatus.setText("Đang tải: 0%");
         progressStatus.setTextColor(0xFF64D2FF);
-        progressStatus.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+        progressStatus.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         progressStatus.setGravity(Gravity.CENTER);
         progressStatus.setPadding(0, (int) (4 * density), 0, 0);
         progressBox.addView(progressStatus);
@@ -636,18 +640,18 @@ public final class InAppUpdater {
         // Buttons
         LinearLayout btnRow = new LinearLayout(activity);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
-        btnRow.setPadding(0, (int) (14 * density), 0, 0);
+        btnRow.setPadding(0, (int) (16 * density), 0, 0);
 
         final Button laterBtn = new Button(activity);
         laterBtn.setText("Để sau");
         laterBtn.setTextColor(0xFF8B949E);
         laterBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         GradientDrawable laterBg = new GradientDrawable();
-        laterBg.setColor(0x22FFFFFF);
-        laterBg.setCornerRadius(8 * density);
+        laterBg.setColor(0x1FFFFFFF);
+        laterBg.setCornerRadius(22 * density);
         laterBtn.setBackground(laterBg);
-        LinearLayout.LayoutParams laterParams = new LinearLayout.LayoutParams(0, (int) (40 * density), 1.0f);
-        laterParams.rightMargin = (int) (8 * density);
+        LinearLayout.LayoutParams laterParams = new LinearLayout.LayoutParams(0, (int) (42 * density), 1.0f);
+        laterParams.rightMargin = (int) (10 * density);
         laterBtn.setLayoutParams(laterParams);
         laterBtn.setOnClickListener(v -> dialog.dismiss());
         btnRow.addView(laterBtn);
@@ -655,13 +659,13 @@ public final class InAppUpdater {
         final Button dlBtn = new Button(activity);
         dlBtn.setText("Cập nhật");
         dlBtn.setTextColor(Color.WHITE);
-        dlBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        dlBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f);
         dlBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         GradientDrawable dlBg = new GradientDrawable();
         dlBg.setColor(0xFF0A84FF);
-        dlBg.setCornerRadius(8 * density);
+        dlBg.setCornerRadius(22 * density);
         dlBtn.setBackground(dlBg);
-        dlBtn.setLayoutParams(new LinearLayout.LayoutParams(0, (int) (40 * density), 1.5f));
+        dlBtn.setLayoutParams(new LinearLayout.LayoutParams(0, (int) (42 * density), 1.5f));
 
         dlBtn.setOnClickListener(v -> {
             dlBtn.setEnabled(false);
@@ -677,11 +681,14 @@ public final class InAppUpdater {
     }
 
     /**
-     * Broadcast Announcement Dialog. Non-blocking pop-up banner.
+     * Broadcast Announcement Dialog with Cyber Frosted Glass styling. Non-blocking pop-up banner.
      */
     private static void showAnnouncementDialog(final Activity activity, final RemoteConfig config) {
         final Dialog dialog = new Dialog(activity);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
 
         final float density = activity.getResources().getDisplayMetrics().density;
         int screenW = activity.getResources().getDisplayMetrics().widthPixels;
@@ -692,11 +699,11 @@ public final class InAppUpdater {
         root.setLayoutParams(new ViewGroup.LayoutParams(dialogW, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xF50C0F16);
-        bg.setCornerRadius(16 * density);
-        bg.setStroke((int) (1.2f * density), 0xAA64D2FF);
+        bg.setColor(0xF20D121D); // Dark Cyber Frosted card
+        bg.setCornerRadius(20 * density);
+        bg.setStroke((int) (1.5f * density), 0x4D64D2FF); // Neon cyan border
         root.setBackground(bg);
-        root.setPadding((int) (16 * density), (int) (16 * density), (int) (16 * density), (int) (14 * density));
+        root.setPadding((int) (20 * density), (int) (20 * density), (int) (20 * density), (int) (18 * density));
 
         // Header
         LinearLayout header = new LinearLayout(activity);
@@ -714,7 +721,7 @@ public final class InAppUpdater {
         TextView closeBtn = new TextView(activity);
         closeBtn.setText("✕");
         closeBtn.setTextColor(0xFF8B949E);
-        closeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        closeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         closeBtn.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         closeBtn.setPadding((int) (6 * density), (int) (2 * density), (int) (6 * density), (int) (2 * density));
         closeBtn.setOnClickListener(v -> {
@@ -729,7 +736,7 @@ public final class InAppUpdater {
         msg.setText(config.announcementMessage);
         msg.setTextColor(0xD0EBF0FF);
         msg.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        msg.setPadding(0, (int) (10 * density), 0, (int) (12 * density));
+        msg.setPadding(0, (int) (12 * density), 0, (int) (16 * density));
         root.addView(msg);
 
         // Buttons
@@ -740,11 +747,14 @@ public final class InAppUpdater {
         Button dismissBtn = new Button(activity);
         dismissBtn.setText("Đã hiểu");
         dismissBtn.setTextColor(0xFF8B949E);
-        dismissBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        dismissBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
         GradientDrawable disBg = new GradientDrawable();
-        disBg.setColor(0x22FFFFFF);
-        disBg.setCornerRadius(8 * density);
+        disBg.setColor(0x1FFFFFFF);
+        disBg.setCornerRadius(22 * density);
         dismissBtn.setBackground(disBg);
+        LinearLayout.LayoutParams disParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, (int) (42 * density));
+        dismissBtn.setLayoutParams(disParams);
+        dismissBtn.setPadding((int) (16 * density), 0, (int) (16 * density), 0);
         dismissBtn.setOnClickListener(v -> {
             StockfishSettings.setDismissedAnnouncementId(activity, config.announcementId);
             dialog.dismiss();
@@ -755,15 +765,16 @@ public final class InAppUpdater {
             Button actBtn = new Button(activity);
             actBtn.setText(config.announcementActionText);
             actBtn.setTextColor(Color.WHITE);
-            actBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            actBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
             actBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
             GradientDrawable actBg = new GradientDrawable();
             actBg.setColor(0xFF0A84FF);
-            actBg.setCornerRadius(8 * density);
+            actBg.setCornerRadius(22 * density);
             actBtn.setBackground(actBg);
-            LinearLayout.LayoutParams actParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, (int) (38 * density));
-            actParams.leftMargin = (int) (8 * density);
+            LinearLayout.LayoutParams actParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, (int) (42 * density));
+            actParams.leftMargin = (int) (10 * density);
             actBtn.setLayoutParams(actParams);
+            actBtn.setPadding((int) (16 * density), 0, (int) (16 * density), 0);
             actBtn.setOnClickListener(v -> {
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(config.announcementActionUrl));

@@ -266,7 +266,8 @@ public class StockfishProcess {
             sendUciCommand(goCmd);
             NnvcLogger.d(TAG, "Search started [wasm]: " + goCmd + " (Elo=" + elo + ")");
 
-            return readSearchOutput(Math.max(3, multiPV), whiteToMove,
+            int targetMpv = Math.max(1, Math.min(8, multiPV));
+            return readSearchOutput(targetMpv, whiteToMove,
                     softMs + BESTMOVE_GRACE_MS,
                     effectiveDepth, progress);
         } catch (Throwable e) {
@@ -618,8 +619,7 @@ public class StockfishProcess {
         String engineChoice = StockfishSettings.getEngineChoice(context);
         boolean isKomodo = StockfishSettings.ENGINE_KOMODO.equals(engineChoice);
 
-        int neededMpv = Math.max(3, multiPV);
-        int finalMpv = Math.max(1, Math.min(8, neededMpv));
+        int finalMpv = Math.max(1, Math.min(8, multiPV));
         if (finalMpv != curMultiPV) {
             sendUciCommand("setoption name MultiPV value " + finalMpv);
             curMultiPV = finalMpv;
