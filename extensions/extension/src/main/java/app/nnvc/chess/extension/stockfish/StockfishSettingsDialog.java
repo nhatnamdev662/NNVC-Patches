@@ -6,6 +6,7 @@ import android.app.Dialog;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.util.DisplayMetrics;
@@ -13,6 +14,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.DecelerateInterpolator;
@@ -236,6 +238,33 @@ public class StockfishSettingsDialog {
         View hdrSpacer = new View(activity);
         hdrSpacer.setLayoutParams(new LinearLayout.LayoutParams((int) (8 * density), 1));
         headerBtns.addView(hdrSpacer);
+
+        // Gear Settings Button (⚙) for Chess.com Sound FX & System
+        TextView gearBtn = new TextView(activity);
+        gearBtn.setText("⚙");
+        gearBtn.setTextColor(COLOR_TEXT_PRIMARY);
+        gearBtn.setTextSize(13);
+        gearBtn.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        gearBtn.setGravity(Gravity.CENTER);
+        int gearPad = (int) (6 * density);
+        gearBtn.setPadding(gearPad, (int) (3 * density), gearPad, (int) (3 * density));
+
+        GradientDrawable gearBg = new GradientDrawable();
+        gearBg.setColor(0x22FFFFFF);
+        gearBg.setCornerRadius(8 * density);
+        gearBg.setStroke((int) (1 * density), COLOR_CARD_BORDER);
+        gearBtn.setBackground(gearBg);
+
+        gearBtn.setOnClickListener(v -> {
+            HapticHelper.pop(activity, v);
+            showSoundSettingsDialog(activity, density);
+        });
+        headerBtns.addView(gearBtn);
+
+        // Spacer between Gear button and Close button
+        View gearSpacer = new View(activity);
+        gearSpacer.setLayoutParams(new LinearLayout.LayoutParams((int) (6 * density), 1));
+        headerBtns.addView(gearSpacer);
 
         // Extension Style Close Button (✕)
         TextView closeBtn = new TextView(activity);
@@ -2025,5 +2054,184 @@ public class StockfishSettingsDialog {
             pickerDialog.getWindow().setLayout(pickerWidth, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
     }
+
+    /**
+     * Hộp thoại Cài Đặt Âm Thanh Chess.com (Sound FX Dialog)
+     * Thiết kế Cyber Glass cao cấp, cho phép bật/tắt toàn diện âm thanh hệ thống.
+     */
+    public static void showSoundSettingsDialog(final Activity activity, final float density) {
+        if (activity == null || activity.isFinishing()) return;
+
+        final Dialog soundDialog = new Dialog(activity);
+        soundDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        if (soundDialog.getWindow() != null) {
+            soundDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            soundDialog.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        }
+
+        DisplayMetrics dm = activity.getResources().getDisplayMetrics();
+        int dialogWidth = Math.min((int) (dm.widthPixels * 0.90f), (int) (380 * density));
+
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding((int) (18 * density), (int) (16 * density), (int) (18 * density), (int) (18 * density));
+
+        GradientDrawable rootBg = new GradientDrawable();
+        rootBg.setColor(0xF00A0E17); // Cyber dark glass
+        rootBg.setCornerRadius(20 * density);
+        rootBg.setStroke((int) (1.4f * density), 0x660A84FF);
+        root.setBackground(rootBg);
+
+        // Header: [ 🔊 CÀI ĐẶT ÂM THANH CHESS.COM ] ........ [ ✕ ]
+        LinearLayout hdr = new LinearLayout(activity);
+        hdr.setOrientation(LinearLayout.HORIZONTAL);
+        hdr.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView titleTv = new TextView(activity);
+        titleTv.setText(I18n.isVi(activity) ? "ÂM THANH CHESS.COM" : "CHESS.COM SOUND FX");
+        titleTv.setTextColor(COLOR_TEXT_PRIMARY);
+        titleTv.setTextSize(14f);
+        titleTv.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        titleTv.setLetterSpacing(0.06f);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+        titleTv.setLayoutParams(titleParams);
+        hdr.addView(titleTv);
+
+        TextView closeBtn = new TextView(activity);
+        closeBtn.setText("✕");
+        closeBtn.setTextColor(COLOR_TEXT_SECONDARY);
+        closeBtn.setTextSize(13);
+        closeBtn.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        closeBtn.setGravity(Gravity.CENTER);
+        int closePad = (int) (6 * density);
+        closeBtn.setPadding(closePad, (int) (3 * density), closePad, (int) (3 * density));
+
+        GradientDrawable closeBg = new GradientDrawable();
+        closeBg.setColor(0x1FFFFFFF);
+        closeBg.setCornerRadius(8 * density);
+        closeBg.setStroke((int) (1 * density), 0x33FFFFFF);
+        closeBtn.setBackground(closeBg);
+        closeBtn.setOnClickListener(v -> {
+            HapticHelper.pop(activity, v);
+            soundDialog.dismiss();
+        });
+        hdr.addView(closeBtn);
+        root.addView(hdr);
+
+        // Divider
+        View div = new View(activity);
+        div.setBackgroundColor(0x330A84FF);
+        LinearLayout.LayoutParams divParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (1 * density));
+        divParams.topMargin = (int) (12 * density);
+        divParams.bottomMargin = (int) (12 * density);
+        div.setLayoutParams(divParams);
+        root.addView(div);
+
+        ScrollView scroll = new ScrollView(activity);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout card = createGlassCard(activity, density);
+        scroll.addView(card);
+
+        // 1. MASTER SWITCH: Âm Thanh Chess.com
+        final CyberSwitchView masterSwitch = addCyberSwitchRow(card,
+                I18n.isVi(activity) ? "Âm Thanh Tổng" : "Master Sound FX",
+                I18n.isVi(activity) ? "Bật hoặc tắt toàn bộ hiệu ứng âm thanh Chess.com trong app." : "Toggle all Chess.com sound effects in the app.",
+                StockfishSettings.isSoundMasterEnabled(activity),
+                density, activity);
+
+        final LinearLayout subSwitchesLayout = new LinearLayout(activity);
+        subSwitchesLayout.setOrientation(LinearLayout.VERTICAL);
+        subSwitchesLayout.setVisibility(StockfishSettings.isSoundMasterEnabled(activity) ? View.VISIBLE : View.GONE);
+        card.addView(subSwitchesLayout);
+
+        masterSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setSoundMasterEnabled(activity, isChecked);
+            subSwitchesLayout.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+        });
+
+        // 2. THREAT SOUND SWITCH
+        addCardSeparator(subSwitchesLayout, density);
+        final CyberSwitchView threatSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
+                I18n.isVi(activity) ? "Cảnh Báo Đe Dọa" : "Threat Warning Sound",
+                I18n.isVi(activity) ? "Phát âm thanh cảnh báo khi có Mũi tên Đe Dọa Đỏ từ đối thủ." : "Play warning audio when enemy threat arrow appears.",
+                StockfishSettings.isThreatSoundEnabled(activity),
+                density, activity);
+        threatSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setThreatSoundEnabled(activity, isChecked);
+            if (isChecked) SoundManager.getInstance(activity).playThreatSound();
+        });
+
+        // 3. BRILLIANT SOUND SWITCH
+        addCardSeparator(subSwitchesLayout, density);
+        final CyberSwitchView brilliantSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
+                I18n.isVi(activity) ? "Nước Cờ Thiên Tài" : "Brilliant Move Sound",
+                I18n.isVi(activity) ? "Âm thanh tiếng chuông Brilliant chính hãng Chess.com." : "Authentic Chess.com Brilliant sound chime.",
+                StockfishSettings.isBrilliantSoundEnabled(activity),
+                density, activity);
+        brilliantSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setBrilliantSoundEnabled(activity, isChecked);
+            if (isChecked) SoundManager.getInstance(activity).playBrilliantSound();
+        });
+
+        // 4. GOOD / BEST MOVE SOUND SWITCH
+        addCardSeparator(subSwitchesLayout, density);
+        final CyberSwitchView goodSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
+                I18n.isVi(activity) ? "Nước Xuất Sắc & Tốt Nhất" : "Great & Best Move Sound",
+                I18n.isVi(activity) ? "Âm thanh phản hồi khi đi nước cờ đúng đắn (Great, Best)." : "Feedback sound when playing optimal moves.",
+                StockfishSettings.isGoodSoundEnabled(activity),
+                density, activity);
+        goodSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setGoodSoundEnabled(activity, isChecked);
+            if (isChecked) SoundManager.getInstance(activity).playGoodMoveSound();
+        });
+
+        // 5. BLUNDER & MISTAKE SOUND SWITCH
+        addCardSeparator(subSwitchesLayout, density);
+        final CyberSwitchView badSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
+                I18n.isVi(activity) ? "Cảnh Báo Sai Lầm (Blunder)" : "Blunder & Mistake Sound",
+                I18n.isVi(activity) ? "Âm thanh cảnh báo khi mắc lỗi sai lầm hoặc đại sai lầm." : "Warning audio on blunder or mistake moves.",
+                StockfishSettings.isBadSoundEnabled(activity),
+                density, activity);
+        badSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setBadSoundEnabled(activity, isChecked);
+            if (isChecked) SoundManager.getInstance(activity).playBadMoveSound();
+        });
+
+        // 6. CHECK SOUND SWITCH
+        addCardSeparator(subSwitchesLayout, density);
+        final CyberSwitchView checkSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
+                I18n.isVi(activity) ? "Âm Thanh Chiếu Tướng" : "Check Sound",
+                I18n.isVi(activity) ? "Âm thanh nước đi tạo thế chiếu Vua." : "Audio played when king is in check.",
+                StockfishSettings.isCheckSoundEnabled(activity),
+                density, activity);
+        checkSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setCheckSoundEnabled(activity, isChecked);
+            if (isChecked) SoundManager.getInstance(activity).playCheckSound();
+        });
+
+        // 7. GAME END SOUND SWITCH
+        addCardSeparator(subSwitchesLayout, density);
+        final CyberSwitchView gameEndSoundSwitch = addCyberSwitchRow(subSwitchesLayout,
+                I18n.isVi(activity) ? "Kết Thúc Ván Đấu" : "Game Over Sound",
+                I18n.isVi(activity) ? "Âm thanh thông báo Thắng, Thua hoặc Hòa ván cờ." : "Audio played when match ends (Win/Lose/Draw).",
+                StockfishSettings.isGameEndSoundEnabled(activity),
+                density, activity);
+        gameEndSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setGameEndSoundEnabled(activity, isChecked);
+            if (isChecked) SoundManager.getInstance(activity).playGameEndSound(true, false);
+        });
+
+        // Scroll layout params
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (dm.heightPixels * 0.55f));
+        scroll.setLayoutParams(scrollParams);
+        root.addView(scroll);
+
+        soundDialog.setContentView(root);
+        soundDialog.show();
+        if (soundDialog.getWindow() != null) {
+            soundDialog.getWindow().setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
 }
+
 

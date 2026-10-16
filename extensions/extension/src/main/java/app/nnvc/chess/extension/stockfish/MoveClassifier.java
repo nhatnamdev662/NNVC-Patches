@@ -709,9 +709,14 @@ public class MoveClassifier {
             OverlayManager.setClassificationBadge(fromSquare, targetSquare, torchName, isWhite, isMyMove);
         }
 
-        // 2. Phát âm thanh Brilliant chính hãng khi có nước cờ thiên tài
-        if ("brilliant".equalsIgnoreCase(torchName)) {
+        // 2. Phát âm thanh Chess.com chính hãng theo phân loại nước cờ
+        String lowerName = torchName.toLowerCase(java.util.Locale.US).replace(" ", "_");
+        if ("brilliant".equals(lowerName)) {
             SoundManager.getInstance(activity).playBrilliantSound();
+        } else if ("great".equals(lowerName) || "greatfind".equals(lowerName) || "great_find".equals(lowerName) || "best".equals(lowerName)) {
+            SoundManager.getInstance(activity).playGoodMoveSound();
+        } else if ("blunder".equals(lowerName) || "mistake".equals(lowerName) || "miss".equals(lowerName) || "missed".equals(lowerName) || "missed_win".equals(lowerName)) {
+            SoundManager.getInstance(activity).playBadMoveSound();
         }
     }
 }

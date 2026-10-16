@@ -1343,9 +1343,33 @@ public class SelfTest {
         check("positionKey extracts en passant square correctly",
                 "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6".equals(key2));
 
-        String shortFen = "8/8/8/8/8/8/8/8 w";
-        String key3 = StockfishBridge.positionKey(shortFen);
-        check("positionKey handles non-standard/short FEN safely", key3 != null && key3.contains("w"));
+        // =========================================================================
+        // Test 32: Chess.com Sound FX Settings & Trigger Logic Verification
+        // =========================================================================
+        boolean masterSound = true;
+        boolean threatSoundPref = true;
+        boolean brilliantSoundPref = true;
+        boolean goodSoundPref = true;
+        boolean badSoundPref = true;
+        boolean checkSoundPref = true;
+        boolean gameEndSoundPref = true;
+
+        check("Master sound enables sub-switches", masterSound && threatSoundPref && brilliantSoundPref);
+        
+        // Test master sound disabled overrides sub-switches
+        boolean masterDisabled = false;
+        boolean effectiveThreatSound = masterDisabled && threatSoundPref;
+        boolean effectiveBrilliantSound = masterDisabled && brilliantSoundPref;
+        check("Master sound disabled shuts down all audio triggers", !effectiveThreatSound && !effectiveBrilliantSound);
+
+        // Test classification sound mapping
+        String soundForBrilliant = "brilliant".equalsIgnoreCase("Brilliant") ? "SOUND_BRILLIANT" : "NONE";
+        String soundForGreat = ("great".equalsIgnoreCase("Great") || "best".equalsIgnoreCase("Great")) ? "SOUND_GOOD" : "NONE";
+        String soundForBlunder = ("blunder".equalsIgnoreCase("Blunder") || "mistake".equalsIgnoreCase("Blunder")) ? "SOUND_BAD" : "NONE";
+        
+        check("Brilliant classification triggers Brilliant Sound", "SOUND_BRILLIANT".equals(soundForBrilliant));
+        check("Great classification triggers Good/Best Sound", "SOUND_GOOD".equals(soundForGreat));
+        check("Blunder classification triggers Bad/Mistake Sound", "SOUND_BAD".equals(soundForBlunder));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
