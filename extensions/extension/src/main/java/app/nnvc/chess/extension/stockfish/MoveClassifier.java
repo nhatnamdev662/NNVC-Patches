@@ -60,6 +60,7 @@ public class MoveClassifier {
     private static volatile Class<?> cachedMoveConverterClass = null;
     private static volatile Method cachedConvertHistoryMethod = null;
     private static volatile Method cachedConvertMoveMethod = null;
+    private static volatile Method cachedItemBMethod = null;
     private static volatile boolean converterResolved = false;
 
     /** Minimum depth for an interrupted / intermediate search to be trusted for a rating. */
@@ -142,12 +143,18 @@ public class MoveClassifier {
                 }
                 if (uci == null && cachedConvertMoveMethod != null) {
                     try {
-                        Method bMethod = item.getClass().getMethod("b");
-                        Object moveObj = bMethod.invoke(item);
-                        if (moveObj != null) {
-                            Object res = cachedConvertMoveMethod.invoke(null, moveObj);
-                            if (res instanceof String) {
-                                uci = (String) res;
+                        if (cachedItemBMethod == null) {
+                            try {
+                                cachedItemBMethod = item.getClass().getMethod("b");
+                            } catch (Throwable ignored) {}
+                        }
+                        if (cachedItemBMethod != null) {
+                            Object moveObj = cachedItemBMethod.invoke(item);
+                            if (moveObj != null) {
+                                Object res = cachedConvertMoveMethod.invoke(null, moveObj);
+                                if (res instanceof String) {
+                                    uci = (String) res;
+                                }
                             }
                         }
                     } catch (Throwable ignored) {}

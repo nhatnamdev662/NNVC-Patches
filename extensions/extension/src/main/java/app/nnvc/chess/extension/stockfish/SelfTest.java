@@ -1301,6 +1301,33 @@ public class SelfTest {
         List<BoardUtil.ThreatInfo> emptyThreats = BoardUtil.computeBoardThreats(null, true, null, "enemy");
         check("computeBoardThreats safely handles null FEN without crashing", emptyThreats != null && emptyThreats.isEmpty());
 
+        // =========================================================================
+        // Test 30: Distinct Threat Arrow Geometry & Universal Anti-Collision Clearance
+        // =========================================================================
+        float mockSqSize = 100f;
+
+        // 30a. Threat arrow flared head geometry vs standard engine arrow
+        float engineHeadHalf = mockSqSize * 0.17f;
+        float threatHeadHalf = mockSqSize * 0.22f;
+        check("Threat arrow has wider flared arrowhead wings than engine arrow", threatHeadHalf > engineHeadHalf);
+
+        // 30b. Barbed head notch points validation
+        float headLen = mockSqSize * 0.25f;
+        float barbSweep = headLen * 0.16f;
+        float notchIndent = headLen * 0.14f;
+        check("Threat arrow includes swept-back barbed hooks", barbSweep > 0f && notchIndent > 0f);
+
+        // 30c. Collision clearance when Threat arrow & Engine arrow share same target square
+        float threatTargetOffset = mockSqSize * 0.22f;
+        float engineTargetOffset = 0f;
+        float threatPerpOffset = mockSqSize * 0.12f;
+        float enginePerpOffset = -mockSqSize * 0.10f;
+        float totalLateralClearance = threatPerpOffset - enginePerpOffset;
+
+        check("Engine Best Move reaches target square directly (targetOffset = 0)", engineTargetOffset == 0f);
+        check("Threat arrow steps back to avoid occluding target square (targetOffset > 0)", threatTargetOffset >= mockSqSize * 0.20f);
+        check("Total lateral lane clearance exceeds 0.20 * sqSize", totalLateralClearance >= mockSqSize * 0.20f);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

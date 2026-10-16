@@ -148,6 +148,11 @@ public class ArrowOverlayView extends View {
     private float lastDashSqSize = -1f;
     private DashPathEffect cachedDashEffect = null;
 
+    private float[] cachedPerpOffsets = new float[0];
+    private float[] cachedTargetOffsets = new float[0];
+    private float lastSqSizeForOffsets = -1f;
+    private int lastArrowsHash = 0;
+
     public ArrowOverlayView(Context context) {
         super(context);
         setClickable(false);
@@ -155,8 +160,6 @@ public class ArrowOverlayView extends View {
         try {
             setElevation(2.0f);
         } catch (Throwable ignored) {}
-        // Software layer ensures BlurMaskFilter renders smoothly on all devices
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
 
         fillPaint.setStyle(Paint.Style.FILL);
 
@@ -303,11 +306,22 @@ public class ArrowOverlayView extends View {
         // 2. Draw arrows with authentic NNVC Desktop Extension Anti-Collision & Symmetric Lane Separation
         if (!arrows.isEmpty()) {
             int n = arrows.size();
-            float[] perpOffsets = new float[n];
-            float[] targetOffsets = new float[n];
-            computeExtensionOffsets(sqSize, perpOffsets, targetOffsets);
+            int currentHash = 0;
+            for (int i = 0; i < n; i++) {
+                ArrowData a = arrows.get(i);
+                currentHash = 31 * currentHash + a.from.hashCode() * 17 + a.to.hashCode() + (a.isThreat ? 1 : 0);
+            }
+            if (cachedPerpOffsets.length != n || lastSqSizeForOffsets != sqSize || lastArrowsHash != currentHash) {
+                cachedPerpOffsets = new float[n];
+                cachedTargetOffsets = new float[n];
+                computeExtensionOffsets(sqSize, cachedPerpOffsets, cachedTargetOffsets);
+                lastSqSizeForOffsets = sqSize;
+                lastArrowsHash = currentHash;
+            }
+            float[] perpOffsets = cachedPerpOffsets;
+            float[] targetOffsets = cachedTargetOffsets;
 
-            // Pass 1: Mũi tên Đe Dọa (Threat Arrows - Màu đỏ cảnh báo khối solid nguyên bản, vẽ trước không đè Best Move)
+            // Pass 1: Mũi tên Đe Dọa (Threat Arrows - Dạng ngạnh nhọn Barbed Spear riêng biệt, vẽ trước không đè Best Move)
             for (int i = 0; i < n; i++) {
                 ArrowData arrow = arrows.get(i);
                 if (arrow.isThreat) {
@@ -349,7 +363,7 @@ public class ArrowOverlayView extends View {
         if (n == 0) return;
 
         Map<String, List<Integer>> lineMap = new HashMap<>();
-        Map<String, List<Integer>> rayMap = new HashMap<>();
+        Map<String, List<Integer>> targetMap = new HashMap<>();
 
         for (int i = 0; i < n; i++) {
             ArrowData a = arrows.get(i);
@@ -358,81 +372,48 @@ public class ArrowOverlayView extends View {
             if (!lineMap.containsKey(pairKey)) lineMap.put(pairKey, new ArrayList<Integer>());
             lineMap.get(pairKey).add(i);
 
-            int fFile = f.charAt(0) - 'a', fRank = f.charAt(1) - '1';
-            int tFile = t.charAt(0) - 'a', tRank = t.charAt(1) - '1';
-            int dFile = tFile - fFile, dRank = tRank - fRank;
-            int stepX = dFile == 0 ? 0 : (dFile > 0 ? 1 : -1);
-            int stepY = dRank == 0 ? 0 : (dRank > 0 ? 1 : -1);
-            if (dFile == 0 || dRank == 0 || Math.abs(dFile) == Math.abs(dRank)) {
-                String rayKey = f + "_" + stepX + "_" + stepY;
-                if (!rayMap.containsKey(rayKey)) rayMap.put(rayKey, new ArrayList<Integer>());
-                rayMap.get(rayKey).add(i);
+            if (!targetMap.containsKey(t)) targetMap.put(t, new ArrayList<Integer>());
+            targetMap.get(t).add(i);
+        }
+
+        // 1. Tách làn theo cặp ô đối đầu hoặc cùng hướng (Line Separation)
+        for (Map.Entry<String, List<Integer>> entry : lineMap.entrySet()) {
+            List<Integer> group = entry.getValue();
+            if (group.size() <= 1) continue;
+
+            float step = Math.min(sqSize * 0.14f, (sqSize * 0.28f) / group.size());
+            float mid = (group.size() - 1) / 2.0f;
+            for (int k = 0; k < group.size(); k++) {
+                int idx = group.get(k);
+                ArrowData a = arrows.get(idx);
+                float po = (k - mid) * step;
+                if (a.from.compareTo(a.to) > 0) po = -po;
+                if (a.isThreat) {
+                    po = Math.abs(po) < 1e-4f ? (sqSize * 0.15f) : (po > 0 ? po : -po);
+                }
+                perpOffsets[idx] = po;
             }
         }
 
-        Map<String, Integer> destUsage = new HashMap<>();
-        Map<String, Integer> lineEntryIndex = new HashMap<>();
-        Map<String, Integer> rayEntryIndex = new HashMap<>();
+        // 2. Tách và lùi bậc khi trùng ô đích (Same Destination Target Clearance - Triệt tiêu đè mũi tên)
+        for (Map.Entry<String, List<Integer>> entry : targetMap.entrySet()) {
+            List<Integer> group = entry.getValue();
+            if (group.size() <= 1) continue;
 
-        for (int i = 0; i < n; i++) {
-            ArrowData a = arrows.get(i);
-            String toSq = a.to;
-            int prevDest = destUsage.containsKey(toSq) ? destUsage.get(toSq) : 0;
-            destUsage.put(toSq, prevDest + 1);
-            targetOffsets[i] = prevDest * (sqSize * 0.22f);
-
-            String f = a.from, t = a.to;
-            String pairKey = f.compareTo(t) < 0 ? (f + "-" + t) : (t + "-" + f);
-            List<Integer> pairGroup = lineMap.get(pairKey);
-
-            int fFile = f.charAt(0) - 'a', fRank = f.charAt(1) - '1';
-            int tFile = t.charAt(0) - 'a', tRank = t.charAt(1) - '1';
-            int dFile = tFile - fFile, dRank = tRank - fRank;
-            int stepX = dFile == 0 ? 0 : (dFile > 0 ? 1 : -1);
-            int stepY = dRank == 0 ? 0 : (dRank > 0 ? 1 : -1);
-            String rayKey = (dFile == 0 || dRank == 0 || Math.abs(dFile) == Math.abs(dRank)) ? (f + "_" + stepX + "_" + stepY) : null;
-            List<Integer> rayGroup = rayKey != null ? rayMap.get(rayKey) : null;
-
-            float po = 0f;
-            if (pairGroup != null && pairGroup.size() > 1) {
-                int gIdx = lineEntryIndex.containsKey(pairKey) ? lineEntryIndex.get(pairKey) : 0;
-                lineEntryIndex.put(pairKey, gIdx + 1);
-                float step = Math.min(sqSize * 0.12f, (sqSize * 0.24f) / pairGroup.size());
-                float mid = (pairGroup.size() - 1) / 2.0f;
-                po = (gIdx - mid) * step;
-                if (f.compareTo(t) > 0) po = -po;
-            } else if (rayGroup != null && rayGroup.size() > 1) {
-                int rIdx = rayEntryIndex.containsKey(rayKey) ? rayEntryIndex.get(rayKey) : 0;
-                rayEntryIndex.put(rayKey, rIdx + 1);
-                float step = Math.min(sqSize * 0.06f, (sqSize * 0.16f) / rayGroup.size());
-                float mid = (rayGroup.size() - 1) / 2.0f;
-                po = (rIdx - mid) * step;
-            }
-            perpOffsets[i] = po;
-        }
-
-        // Tách làn đối xứng toàn diện cho TẤT CẢ các cặp mũi tên có xung đột (Threat, Engine, Premove):
-        // 1. Trùng làn cùng hướng (Same Lane): dạt sang 2 làn đối xứng ±0.14 * sqSize
-        // 2. Đối đầu ngược hướng (Opposite Lane): dạt sang 2 làn đối xứng ±0.12 * sqSize
-        // 3. Trùng ô đích (Same Destination): dạt làn ±0.10 * sqSize và lùi bậc đầu mũi tên +0.15 * sqSize
-        for (int i = 0; i < n; i++) {
-            ArrowData cur = arrows.get(i);
-            for (int j = i + 1; j < n; j++) {
-                ArrowData other = arrows.get(j);
-                boolean sameLane = cur.from.equals(other.from) && cur.to.equals(other.to);
-                boolean oppLane = cur.from.equals(other.to) && cur.to.equals(other.from);
-                boolean sameTarget = cur.to.equals(other.to);
-
-                if (sameLane) {
-                    perpOffsets[i] += (sqSize * 0.14f);
-                    perpOffsets[j] -= (sqSize * 0.14f);
-                } else if (oppLane) {
-                    perpOffsets[i] += (sqSize * 0.12f);
-                    perpOffsets[j] -= (sqSize * 0.12f);
-                } else if (sameTarget) {
-                    perpOffsets[i] += (sqSize * 0.10f);
-                    perpOffsets[j] -= (sqSize * 0.10f);
-                    targetOffsets[j] += (sqSize * 0.15f);
+            int stepOrder = 0;
+            for (int idx : group) {
+                ArrowData a = arrows.get(idx);
+                if (a.isThreat) {
+                    // Mũi tên đe dọa lùi đầu mũi tên lại để nhìn thấy trọn vẹn cả đòn đe dọa và nước gợi ý
+                    targetOffsets[idx] += sqSize * 0.22f;
+                    perpOffsets[idx] += sqSize * 0.12f;
+                } else if (a.tier > 1) {
+                    stepOrder++;
+                    targetOffsets[idx] += stepOrder * (sqSize * 0.16f);
+                    perpOffsets[idx] -= (stepOrder % 2 == 1 ? 1 : -1) * (sqSize * 0.10f);
+                } else {
+                    // Tier 1 Best Move giữ nguyên ô đích cờ
+                    perpOffsets[idx] -= sqSize * 0.10f;
                 }
             }
         }
@@ -452,8 +433,8 @@ public class ArrowOverlayView extends View {
 
         float thicknessScale = 1.0f - 0.06f * (arrow.tier - 1);
         float baseShaftHalf = arrow.isThreat ? 0.048f : 0.042f;
-        float baseHeadHalf = arrow.isThreat ? 0.18f : 0.17f;
-        float baseHeadLen = arrow.isThreat ? 0.22f : 0.24f;
+        float baseHeadHalf = arrow.isThreat ? 0.22f : 0.17f;
+        float baseHeadLen = arrow.isThreat ? 0.25f : 0.24f;
 
         float shaftHalf = sqSize * baseShaftHalf * thicknessScale;
         float neckHalf = shaftHalf;
@@ -468,27 +449,61 @@ public class ArrowOverlayView extends View {
         Path arrowPath;
         if (isKnight) {
             arrowPath = buildKnightPath(x1, y1, x2, y2, fileDelta, rankDelta,
-                    startOffset, shaftHalf, neckHalf, headHalf, headLen, perpOffset, targetOffset);
+                    startOffset, shaftHalf, neckHalf, headHalf, headLen, perpOffset, targetOffset, arrow.isThreat);
         } else {
             arrowPath = buildStraightPath(x1, y1, x2, y2, len,
-                    startOffset, shaftHalf, neckHalf, headHalf, headLen, perpOffset, targetOffset);
+                    startOffset, shaftHalf, neckHalf, headHalf, headLen, perpOffset, targetOffset, arrow.isThreat);
         }
         if (arrowPath == null) return;
 
+        if (arrow.isThreat) {
+            // DẠNG MŨI TÊN ĐE DỌA ĐỘC BẢN (DISTINCT DANGER BARBED SPEAR):
+            // 1. Quầng sáng đỏ rực cảnh báo (GPU accelerated 2-pass stroke)
+            glowPaint.setMaskFilter(null);
+            glowPaint.setColor(0x40FF1744);
+            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.042f);
+            canvas.drawPath(arrowPath, glowPaint);
+
+            glowPaint.setColor(0x80DC2626);
+            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.018f);
+            canvas.drawPath(arrowPath, glowPaint);
+
+            // 2. Thân mũi tên ngạnh nhọn (Linear Gradient Đỏ Ruby đậm -> Đỏ Lửa Neon)
+            int threatTail = 0xFF991B1B;
+            int threatTip  = 0xFFFF1744;
+            fillPaint.setShader(new LinearGradient(x1, y1, x2, y2,
+                    new int[]{threatTail, threatTip},
+                    new float[]{0.0f, 1.0f},
+                    Shader.TileMode.CLAMP));
+            canvas.drawPath(arrowPath, fillPaint);
+
+            // 3. Viền than tương phản cao (High-contrast Obsidian border)
+            edgePaint.setShader(null);
+            edgePaint.setColor(0xFF18181B);
+            edgePaint.setStrokeWidth(Math.max(2.0f, sqSize * 0.024f));
+            canvas.drawPath(arrowPath, edgePaint);
+
+            // 4. Viền trắng highlight tương phản cao ở đầu ngạnh tam giác
+            glowPaint.setColor(0xDDFFFFFF);
+            glowPaint.setStrokeWidth(Math.max(1.2f, sqSize * 0.012f));
+            canvas.drawPath(arrowPath, glowPaint);
+            return;
+        }
+
         if (arrow.isPremove) {
             // Style riêng biệt cho Mũi Tên Premove (Premove Arrow):
-            // 1. Màu Cam Hổ Phách Neon (#F59E0B) phối Đỏ Cam (#EA580C) để phân biệt rõ ràng với mũi tên gợi ý Play và mũi tên Đe Dọa
-            // 2. Viền nét việt quất/than đậm (#78350F) sắc nét
-            // 3. Glow màu hổ phách cảnh báo nhẹ nhàng
             int premoveColor = 0xFFF59E0B; // Amber Premove
             int premoveDark = 0xFFEA580C;
 
-            // 1. Glow viền cảnh báo
-            glowPaint.setColor(Color.argb((int)(0.35f * 255), 245, 158, 11));
-            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.025f);
-            glowPaint.setMaskFilter(new BlurMaskFilter(Math.max(1.0f, sqSize * 0.04f), BlurMaskFilter.Blur.NORMAL));
-            canvas.drawPath(arrowPath, glowPaint);
+            // 1. Glow viền cảnh báo (GPU accelerated 2-pass stroke)
             glowPaint.setMaskFilter(null);
+            glowPaint.setColor(0x35F59E0B);
+            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.035f);
+            canvas.drawPath(arrowPath, glowPaint);
+
+            glowPaint.setColor(0x60EA580C);
+            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.016f);
+            canvas.drawPath(arrowPath, glowPaint);
 
             // 2. Linear Gradient Fill Cam Hổ Phách
             fillPaint.setShader(new LinearGradient(x1, y1, x2, y2,
@@ -520,12 +535,15 @@ public class ArrowOverlayView extends View {
                 : (arrow.tier == 2) ? 0.82f
                 : 0.65f;
 
-        // 1. Neon Drop Shadow / Glow
-        glowPaint.setColor(Color.argb((int)(0.40f * opacity * 255), colMid[0], colMid[1], colMid[2]));
-        glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.045f);
-        glowPaint.setMaskFilter(new BlurMaskFilter(Math.max(1.0f, sqSize * 0.06f), BlurMaskFilter.Blur.NORMAL));
-        canvas.drawPath(arrowPath, glowPaint);
+        // 1. Neon Drop Shadow / Glow (GPU accelerated 2-pass stroke)
         glowPaint.setMaskFilter(null);
+        glowPaint.setColor(Color.argb((int)(0.25f * opacity * 255), colMid[0], colMid[1], colMid[2]));
+        glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.040f);
+        canvas.drawPath(arrowPath, glowPaint);
+
+        glowPaint.setColor(Color.argb((int)(0.50f * opacity * 255), colMid[0], colMid[1], colMid[2]));
+        glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.018f);
+        canvas.drawPath(arrowPath, glowPaint);
 
         // 2. Linear Gradient Fill
         int cTail = Color.argb((int)(0.88f * opacity * 255), colTail[0], colTail[1], colTail[2]);
@@ -550,7 +568,7 @@ public class ArrowOverlayView extends View {
 
     private Path buildStraightPath(float x1, float y1, float x2, float y2, float len,
                                    float startOffset, float shaftHalf, float neckHalf,
-                                   float headHalf, float headLen, float perpOffset, float targetOffset) {
+                                   float headHalf, float headLen, float perpOffset, float targetOffset, boolean isThreat) {
         if (len < 2.0f) return null;
 
         float ux = (x2 - x1) / len;
@@ -563,7 +581,7 @@ public class ArrowOverlayView extends View {
         float endX = x2 - ux * targetOffset + px * perpOffset;
         float endY = y2 - uy * targetOffset + py * perpOffset;
 
-        HeadPoints h = buildHeadPoints(endX, endY, ux, uy, px, py, headLen, headHalf, neckHalf);
+        HeadPoints h = buildHeadPoints(endX, endY, ux, uy, px, py, headLen, headHalf, neckHalf, isThreat);
 
         float leftStartX  = startX + px * shaftHalf;
         float leftStartY  = startY + py * shaftHalf;
@@ -585,7 +603,7 @@ public class ArrowOverlayView extends View {
     private Path buildKnightPath(float x1, float y1, float x2, float y2,
                                  int fileDelta, int rankDelta, float startOffset,
                                  float shaftHalf, float neckHalf, float headHalf, float headLen,
-                                 float perpOffset, float targetOffset) {
+                                 float perpOffset, float targetOffset, boolean isThreat) {
         float elbowX = x1;
         float elbowY = y2;
         if (fileDelta == 2 && rankDelta == 1) {
@@ -611,7 +629,7 @@ public class ArrowOverlayView extends View {
         float endX = x2 - u2x * targetOffset + p2x * perpOffset;
         float endY = y2 - u2y * targetOffset + p2y * perpOffset;
 
-        HeadPoints h = buildHeadPoints(endX, endY, u2x, u2y, p2x, p2y, headLen, headHalf, neckHalf);
+        HeadPoints h = buildHeadPoints(endX, endY, u2x, u2y, p2x, p2y, headLen, headHalf, neckHalf, isThreat);
 
         float leftStartX  = startX + p1x * shaftHalf;
         float leftStartY  = startY + p1y * shaftHalf;
@@ -642,9 +660,20 @@ public class ArrowOverlayView extends View {
 
     private HeadPoints buildHeadPoints(float tipX, float tipY, float ux, float uy,
                                        float px, float py, float headLen,
-                                       float headHalf, float neckHalf) {
+                                       float headHalf, float neckHalf, boolean isThreat) {
         float headBaseX = tipX - ux * headLen;
         float headBaseY = tipY - uy * headLen;
+        if (isThreat) {
+            float barbSweep = headLen * 0.16f;
+            float notchIndent = headLen * 0.14f;
+            return new HeadPoints(
+                    tipX, tipY,
+                    headBaseX + px * headHalf - ux * barbSweep, headBaseY + py * headHalf - uy * barbSweep,
+                    headBaseX - px * headHalf - ux * barbSweep, headBaseY - py * headHalf - uy * barbSweep,
+                    headBaseX + px * neckHalf + ux * notchIndent, headBaseY + py * neckHalf + uy * notchIndent,
+                    headBaseX - px * neckHalf + ux * notchIndent, headBaseY - py * neckHalf + uy * notchIndent
+            );
+        }
         return new HeadPoints(
                 tipX, tipY,
                 headBaseX + px * headHalf, headBaseY + py * headHalf,

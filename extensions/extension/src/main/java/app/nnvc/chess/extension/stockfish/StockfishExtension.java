@@ -277,11 +277,15 @@ public class StockfishExtension {
         } catch (Throwable ignored) {}
     }
 
+    private static volatile boolean soundSilenced = false;
+
     public static void silenceIllegalMoveSound() {
+        if (soundSilenced) return;
         try {
             // Giữ lại âm thanh IllegalMove gốc của Chess.com (k.java).
             // Chỉ chặn StillInCheck (s.java) - nguồn phát âm thanh lỗi khi thao tác quân cờ / khai cuộc:
             muteSoundEventClass("com.chess.soundandhaptics.api.s"); // StillInCheck
+            soundSilenced = true;
         } catch (Throwable ignored) {}
     }
 
