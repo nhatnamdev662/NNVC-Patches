@@ -1055,8 +1055,6 @@ public class StockfishSettingsDialog {
         return windowRoot;
     }
 
-    private static boolean evalBarCbChecked(CyberSwitchView s) { return s != null && s.isChecked(); }
-
     // ══ UI Helpers matching NNVC Cyber Glass Architecture ══════════════════════
 
     private static void switchTabWithAnim(View showView, View... hideViews) {
@@ -2158,7 +2156,6 @@ public class StockfishSettingsDialog {
                 density, activity);
         threatSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setThreatSoundEnabled(activity, isChecked);
-            if (isChecked) SoundManager.getInstance(activity).playThreatSound();
         });
 
         // 3. BRILLIANT SOUND SWITCH
@@ -2182,7 +2179,6 @@ public class StockfishSettingsDialog {
                 density, activity);
         goodSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setGoodSoundEnabled(activity, isChecked);
-            if (isChecked) SoundManager.getInstance(activity).playGoodMoveSound();
         });
 
         // 5. BLUNDER & MISTAKE SOUND SWITCH
@@ -2194,7 +2190,6 @@ public class StockfishSettingsDialog {
                 density, activity);
         badSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setBadSoundEnabled(activity, isChecked);
-            if (isChecked) SoundManager.getInstance(activity).playBadMoveSound();
         });
 
         // 6. CHECK SOUND SWITCH
@@ -2206,7 +2201,6 @@ public class StockfishSettingsDialog {
                 density, activity);
         checkSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setCheckSoundEnabled(activity, isChecked);
-            if (isChecked) SoundManager.getInstance(activity).playCheckSound();
         });
 
         // 7. GAME END SOUND SWITCH
@@ -2218,7 +2212,6 @@ public class StockfishSettingsDialog {
                 density, activity);
         gameEndSoundSwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setGameEndSoundEnabled(activity, isChecked);
-            if (isChecked) SoundManager.getInstance(activity).playGameEndSound(true, false);
         });
 
         // Scroll layout params

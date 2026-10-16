@@ -15,7 +15,6 @@ public class StockfishSettings {
     private static final String KEY_MY_SIDE_ONLY = "my_side_only";
     private static final String KEY_LIMIT_STRENGTH = "limit_strength";
     private static final String KEY_ELO = "elo_rating";
-    private static final String KEY_ARROW_COLOR = "arrow_color";
     private static final String KEY_ADS_REMOVED = "ads_removed";
 
     private static SharedPreferences getPrefs(Context context) {
@@ -349,8 +348,6 @@ public class StockfishSettings {
         getPrefs(context).edit().putInt(KEY_COACH_DEPTH, Math.max(1, Math.min(10, depth))).apply();
     }
 
-    private static final String KEY_ENABLE_BLUNDER_ALERTS = "enable_blunder_alerts";
-
     public static boolean isBlunderAlertsEnabled(Context context) {
         return false;
     }
@@ -358,8 +355,6 @@ public class StockfishSettings {
     public static void setBlunderAlertsEnabled(Context context, boolean enabled) {
         // Disabled permanently
     }
-
-    private static final String KEY_SHOW_MATE_ANNOUNCEMENT = "show_mate_announcement";
 
     public static boolean isMateAnnouncementEnabled(Context context) {
         return false;

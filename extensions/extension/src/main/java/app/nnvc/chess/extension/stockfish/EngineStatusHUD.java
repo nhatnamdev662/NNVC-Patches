@@ -2,23 +2,13 @@ package app.nnvc.chess.extension.stockfish;
 
 import android.app.Activity;
 import android.content.Context;
-import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.TypedValue;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 
 /**
  * EngineStatusHUD – Floating status indicator that informs the user about
@@ -32,7 +22,6 @@ public class EngineStatusHUD {
     private static final String TAG = "NNVC";
     private static final String HUD_TAG = "nnvc_engine_loading_hud";
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private static Runnable autoDismissRunnable = null;
 
     public static void show(final Context context, final String message, final boolean isError, final long autoDismissMs) {
         // Disabled: 100% offline local extraction, hide all loading/download HUD overlays

@@ -69,8 +69,6 @@ public class WasmEngineManager {
     private volatile boolean isClassifyReady = false;
     private volatile String currentPlayEngineKey = StockfishSettings.ENGINE_KOMODO;
 
-    private final AtomicBoolean isDownloading = new AtomicBoolean(false);
-
     // UCI Line queues for synchronous readSearchOutput
     private final BlockingQueue<String> playUciOutputQueue = new LinkedBlockingQueue<>();
     private final BlockingQueue<String> classifyUciOutputQueue = new LinkedBlockingQueue<>();

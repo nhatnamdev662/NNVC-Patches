@@ -24,7 +24,6 @@ public class StockfishProcess {
     public static final float MATE_SCORE = 99.0f;
     private static final int READY_TIMEOUT_MS = 10_000;
     private static final int BESTMOVE_GRACE_MS = 10_000;
-    private static final int DEFAULT_SEARCH_TIMEOUT_MS = 60_000;
     private static final int PROGRESS_MIN_DEPTH = 8;
     private static final long PROGRESS_INTERVAL_MS = 250;
 

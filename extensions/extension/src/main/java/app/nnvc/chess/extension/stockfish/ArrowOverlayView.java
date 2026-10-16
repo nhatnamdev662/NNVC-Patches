@@ -144,7 +144,6 @@ public class ArrowOverlayView extends View {
     private final Paint brilliantCelebrationPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF squareRectF = new RectF();
     private final RectF squareGlowRectF = new RectF();
-    private final RectF brilliantCelebrationRectF = new RectF();
     private float lastDashSqSize = -1f;
     private DashPathEffect cachedDashEffect = null;
 

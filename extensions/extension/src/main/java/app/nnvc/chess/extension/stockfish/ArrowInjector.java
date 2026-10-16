@@ -119,45 +119,6 @@ public class ArrowInjector {
         return null;
     }
 
-    /**
-     * Creates a HintArrow: (from, to, Integer color, Float opacity, Z persistent, Z animated).
-     */
-    private static Object newArrow(Class<?> arrowClass, Object from, Object to, int color, float opacity) throws Exception {
-        Constructor<?> best = null;
-        for (Constructor<?> k : arrowClass.getDeclaredConstructors()) {
-            Class<?>[] p = k.getParameterTypes();
-            if (p.length > 0 && p[p.length - 1].getName().equals("kotlin.jvm.internal.DefaultConstructorMarker")) continue;
-            if (best == null || p.length > best.getParameterTypes().length) best = k;
-        }
-        if (best == null) throw new NoSuchMethodException("HintArrow constructor");
-        best.setAccessible(true);
-        Class<?>[] p = best.getParameterTypes();
-        Object[] args = new Object[p.length];
-        args[0] = from;
-        args[1] = to;
-        int bools = 0;
-        for (int i = 2; i < p.length; i++) {
-            if (p[i] == Integer.class) args[i] = color;
-            else if (p[i] == Float.class) args[i] = opacity;
-            else if (p[i] == Boolean.class) args[i] = null;               // isKnight (auto)
-            else if (p[i] == boolean.class) args[i] = (bools++ == 1);     // persistent=false, animated=true
-            else args[i] = defaultFor(p[i]);
-        }
-        return best.newInstance(args);
-    }
-
-    private static Object defaultFor(Class<?> t) {
-        if (!t.isPrimitive()) return null;
-        if (t == boolean.class) return Boolean.FALSE;
-        if (t == byte.class) return (byte) 0;
-        if (t == short.class) return (short) 0;
-        if (t == int.class) return 0;
-        if (t == long.class) return 0L;
-        if (t == float.class) return 0f;
-        if (t == double.class) return 0.0;
-        if (t == char.class) return '\0';
-        return null;
-    }
 
     public static boolean isEngineArrow(Object arrow) {
         if (arrow == null) return false;

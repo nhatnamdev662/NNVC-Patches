@@ -24,56 +24,11 @@ public class SoundManager {
     private SoundPool soundPool;
 
     private int brilliantSoundId = -1;
-    private int threatSoundId = -1;
-    private int goodSoundId = -1;
-    private int badSoundId = -1;
-    private int checkSoundId = -1;
-    private int gameWinSoundId = -1;
-    private int gameLoseSoundId = -1;
-    private int gameDrawSoundId = -1;
 
-    // Đường dẫn ứng viên cho các file âm thanh trong APK Chess.com
+    // Đường dẫn ứng viên cho file âm thanh Brilliant trong APK Chess.com
     private static final String[] BRILLIANT_SOUND_PATHS = {
             "sounds/brilliant.mp3",
             "sounds/delight/brilliant.mp3"
-    };
-
-    private static final String[] THREAT_SOUND_PATHS = {
-            "sounds/event-warning.mp3",
-            "sounds/event/event-warning.mp3",
-            "sounds/event-warning-60s.mp3"
-    };
-
-    private static final String[] GOOD_SOUND_PATHS = {
-            "sounds/results-and-feedback/training-result-good.mp3",
-            "sounds/training-result-good.mp3",
-            "sounds/game-actions/correct.mp3"
-    };
-
-    private static final String[] BAD_SOUND_PATHS = {
-            "sounds/results-and-feedback/training-result-bad.mp3",
-            "sounds/training-result-bad.mp3",
-            "sounds/game-actions/incorrect.mp3"
-    };
-
-    private static final String[] CHECK_SOUND_PATHS = {
-            "sounds/game-actions/move-check.mp3",
-            "sounds/move-check.mp3"
-    };
-
-    private static final String[] GAME_WIN_SOUND_PATHS = {
-            "sounds/game-events/game-win.mp3",
-            "sounds/game-win.mp3"
-    };
-
-    private static final String[] GAME_LOSE_SOUND_PATHS = {
-            "sounds/game-events/game-lose.mp3",
-            "sounds/game-lose.mp3"
-    };
-
-    private static final String[] GAME_DRAW_SOUND_PATHS = {
-            "sounds/game-events/game-draw.mp3",
-            "sounds/game-draw.mp3"
     };
 
     private SoundManager(Context context) {
@@ -111,19 +66,12 @@ public class SoundManager {
                     .build();
 
             soundPool = new SoundPool.Builder()
-                    .setMaxStreams(6)
+                    .setMaxStreams(2)
                     .setAudioAttributes(attrs)
                     .build();
 
             AssetManager am = context.getAssets();
             brilliantSoundId = loadSoundCandidate(am, BRILLIANT_SOUND_PATHS, "Brilliant");
-            threatSoundId = loadSoundCandidate(am, THREAT_SOUND_PATHS, "Threat");
-            goodSoundId = loadSoundCandidate(am, GOOD_SOUND_PATHS, "Good/Best");
-            badSoundId = loadSoundCandidate(am, BAD_SOUND_PATHS, "Bad/Mistake");
-            checkSoundId = loadSoundCandidate(am, CHECK_SOUND_PATHS, "Check");
-            gameWinSoundId = loadSoundCandidate(am, GAME_WIN_SOUND_PATHS, "GameWin");
-            gameLoseSoundId = loadSoundCandidate(am, GAME_LOSE_SOUND_PATHS, "GameLose");
-            gameDrawSoundId = loadSoundCandidate(am, GAME_DRAW_SOUND_PATHS, "GameDraw");
         } catch (Throwable t) {
             Log.e(TAG, "Failed to initialize SoundPool: " + t.getMessage(), t);
         }
