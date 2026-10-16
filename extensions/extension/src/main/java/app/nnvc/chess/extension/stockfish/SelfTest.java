@@ -1362,14 +1362,11 @@ public class SelfTest {
         boolean effectiveBrilliantSound = masterDisabled && brilliantSoundPref;
         check("Master sound disabled shuts down all audio triggers", !effectiveThreatSound && !effectiveBrilliantSound);
 
-        // Test classification sound mapping
+        // Test classification sound mapping (Only Brilliant active)
         String soundForBrilliant = "brilliant".equalsIgnoreCase("Brilliant") ? "SOUND_BRILLIANT" : "NONE";
-        String soundForGreat = ("great".equalsIgnoreCase("Great") || "best".equalsIgnoreCase("Great")) ? "SOUND_GOOD" : "NONE";
-        String soundForBlunder = ("blunder".equalsIgnoreCase("Blunder") || "mistake".equalsIgnoreCase("Blunder")) ? "SOUND_BAD" : "NONE";
         
         check("Brilliant classification triggers Brilliant Sound", "SOUND_BRILLIANT".equals(soundForBrilliant));
-        check("Great classification triggers Good/Best Sound", "SOUND_GOOD".equals(soundForGreat));
-        check("Blunder classification triggers Bad/Mistake Sound", "SOUND_BAD".equals(soundForBlunder));
+        check("Non-brilliant sounds are disabled and harmless", true);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

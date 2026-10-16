@@ -181,40 +181,24 @@ public class SoundManager {
         playSoundWithFallback(brilliantSoundId, BRILLIANT_SOUND_PATHS, "Brilliant");
     }
 
-    /** Phát âm thanh Cảnh báo nguy hiểm khi xuất hiện đòn đe dọa từ đối thủ */
+    /** Phát âm thanh Cảnh báo nguy hiểm khi xuất hiện đòn đe dọa từ đối thủ (Disabled - Brilliant only) */
     public void playThreatSound() {
-        if (!StockfishSettings.isThreatSoundEnabled(context)) return;
-        playSoundWithFallback(threatSoundId, THREAT_SOUND_PATHS, "Threat");
     }
 
-    /** Phát âm thanh Nước đi xuất sắc / tốt nhất (Great / Best Move) */
+    /** Phát âm thanh Nước đi xuất sắc / tốt nhất (Disabled - Brilliant only) */
     public void playGoodMoveSound() {
-        if (!StockfishSettings.isGoodSoundEnabled(context)) return;
-        playSoundWithFallback(goodSoundId, GOOD_SOUND_PATHS, "GoodMove");
     }
 
-    /** Phát âm thanh Sai lầm / Đại sai lầm (Mistake / Blunder) */
+    /** Phát âm thanh Sai lầm / Đại sai lầm (Disabled - Brilliant only) */
     public void playBadMoveSound() {
-        if (!StockfishSettings.isBadSoundEnabled(context)) return;
-        playSoundWithFallback(badSoundId, BAD_SOUND_PATHS, "BadMove");
     }
 
-    /** Phát âm thanh Chiếu tướng */
+    /** Phát âm thanh Chiếu tướng (Disabled - Brilliant only) */
     public void playCheckSound() {
-        if (!StockfishSettings.isCheckSoundEnabled(context)) return;
-        playSoundWithFallback(checkSoundId, CHECK_SOUND_PATHS, "Check");
     }
 
-    /** Phát âm thanh Kết thúc ván đấu (Thắng / Thua / Hòa) */
+    /** Phát âm thanh Kết thúc ván đấu (Disabled - Brilliant only) */
     public void playGameEndSound(boolean isWin, boolean isDraw) {
-        if (!StockfishSettings.isGameEndSoundEnabled(context)) return;
-        if (isDraw) {
-            playSoundWithFallback(gameDrawSoundId, GAME_DRAW_SOUND_PATHS, "GameDraw");
-        } else if (isWin) {
-            playSoundWithFallback(gameWinSoundId, GAME_WIN_SOUND_PATHS, "GameWin");
-        } else {
-            playSoundWithFallback(gameLoseSoundId, GAME_LOSE_SOUND_PATHS, "GameLose");
-        }
     }
 
     public void release() {

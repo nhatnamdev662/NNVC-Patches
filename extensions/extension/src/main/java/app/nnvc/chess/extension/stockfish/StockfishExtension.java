@@ -801,9 +801,6 @@ public class StockfishExtension {
                 lastArrowSignature = sig;
                 boolean whiteTurn = isWhiteTurnFromFen(fen);
                 OverlayManager.updateArrowOverlay(movesToInject, threatListToInject, premoveMoveToInject, result.sideToMoveScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
-                if (showThreat && threatListToInject != null && !threatListToInject.isEmpty()) {
-                    SoundManager.getInstance(context).playThreatSound();
-                }
             }
         } else if (isFinal) {
             lastArrowSignature = null;
