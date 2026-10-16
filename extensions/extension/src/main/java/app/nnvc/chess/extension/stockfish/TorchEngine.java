@@ -62,8 +62,68 @@ public class TorchEngine {
     private static final String FOG_TORCH_WORKER = "Kj0ufCgzLj80FD0yODA5LnxhfDIpMDBnVio9LnwuOT04JXxhfDo9MC85Z1YqPS58LSk5KTk4fGF8BwFnVjopMj8oNTMyfD4pOjo5LggzHjUyPS4lDyguNTI7dD4pOjo5LnV8J1Z8fHx8Kj0ufD4lKDkvfGF8MjkrfAk1MihkHS4uPSV0Pik6OjkudWdWfHx8fCo9LnwuOS8pMCh8YXx7e2dWfHx8fCo9Lnw/NCkyNw81Jjl8YXxvbmtqZGdWfHx8fDozLnx0Kj0ufDV8YXxsZ3w1fGB8PiUoOS9yMDkyOyg0Z3w1fHdhfD80KTI3DzUmOXV8J1Z8fHx8fHx8fC45LykwKHx3YXwPKC41MjtyOi4zMR80PS4fMzg5cj0sLDAldDIpMDBwfD4lKDkvci8pPj0uLj0ldDVwfDV8d3w/NCkyNw81Jjl1dWdWfHx8fCFWfHx8fC45KCkuMnwuOS8pMChnViFWOikyPyg1MzJ8NTIvKD0wMAs9LzEENC50Kz0vMR4pOjo5LnV8J1Z8fHx8Kj0ufBI9KDUqOQQUDnxhfC85MDpyBBEQFCgoLA45LSk5LyhnVnx8fHwqPS58NS8LPS8xCS4wfGF8OikyPyg1MzJ0KS4wdXwnfC45KCkuMnwPKC41Mjt0KS4wfCAgfHt7dXI1Mjg5JBM6dHsoMy4/NHIrPS8xe3V8fWFhfHFtZ3whZ1Z8fHx8OikyPyg1MzJ8Cz0vMR0rPS45BBQOdHV8J1Z8fHx8fHx8fCg0NS9yLjk9OCUPKD0oOXxhfGxnfCg0NS9yLjkvLDMyLzl8YXwyKTAwZ3woNDUvci45LywzMi85CDkkKHxhfHt7Z3woNDUvci45LywzMi85CCUsOXxhfHt7Z1Z8fHx8fHx8fCg0NS9yLyg9KCkvfGF8bGd8KDQ1L3IvKD0oKS8IOSQofGF8e3tnfCg0NS9yAz0vJTI/fGF8KC4pOWd8KDQ1L3IDNDk9ODkuL3xhfCchZ1Z8fHx8fHx8fCg0NS9yAzI9KDUqOXxhfBI9KDUqOQQUDnxjfDI5K3wSPSg1KjkEFA50dXxmfDIpMDBnfCg0NS9yAzUvCz0vMXxhfDo9MC85Z1Z8fHx8IVZ8fHx8Cz0vMR0rPS45BBQOciwuMygzKCUsOXIzLDkyfGF8OikyPyg1MzJ0MTkoNDM4cHwpLjBwfD0vJTI/dXwnVnx8fHx8fHx8KDQ1L3IDKS4wfGF8DyguNTI7dCkuMHwgIHx7e3VnfCg0NS9yAz0vJTI/fGF8PS8lMj98fWFhfDo9MC85Z1Z8fHx8fHx8fCg0NS9yAzUvCz0vMXxhfDUvCz0vMQkuMHQoNDUvcgMpLjB1Z1Z8fHx8fHx8fDU6fHQoNDUvcgM1Lws9LzF1fCd8KDQ1L3IuOT04JQ8oPSg5fGF8bWd8LjkoKS4yZ3whVnx8fHx8fHx8NTp8dCg0NS9yAzI9KDUqOXV8KDQ1L3IDMj0oNSo5cjMsOTJ0MTkoNDM4cHwpLjBwfD0vJTI/dWdWfHx8fCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5ci85Mjh8YXw6KTI/KDUzMnQ+MzgldXwnVnx8fHx8fHx8NTp8dH0oNDUvcgM1Lws9LzF8enp8KDQ1L3IDMj0oNSo5dXwuOSgpLjJ8KDQ1L3IDMj0oNSo5ci85Mjh0PjM4JXVnVnx8fHx8fHx8Kj0ufC85MDoENC58YXwoNDUvZ1Z8fHx8fHx8fCo9Lnw6NTI1LzR8YXw6KTI/KDUzMnR1fCdWfHx8fHx8fHx8fHx8LzkwOgQ0LnIvKD0oKS98YXxubGxnfC85MDoENC5yLyg9KCkvCDkkKHxhfHsTF3tnfC85MDoENC5yLjk9OCUPKD0oOXxhfGhnVnx8fHx8fHx8fHx8fDU6fHQvOTA6BDQuci45LywzMi85CCUsOXxhYWF8ez0uLj0lPik6Ojkue3V8J1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfCs9LzEeKTo6OS5yLzA1Pzl0bHVnVnx8fHx8fHx8fHx8fCF8OTAvOXw1Onx0LzkwOgQ0LnIuOS8sMzIvOQglLDl8YWFhfHs+MDM+e3x6enwoJSw5Mzp8HjAzPnxhYWF8ezopMj8oNTMye3V8J1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfDI5K3weMDM+dAcrPS8xHik6OjkuAXB8J3woJSw5Znx7PSwsMDU/PSg1MzJzKz0vMXt8IXVnVnx8fHx8fHx8fHx8fCF8OTAvOXwnVnx8fHx8fHx8fHx8fHx8fHwvOTA6BDQuci45LywzMi85CDkkKHxhfD4pOjo5LggzHjUyPS4lDyguNTI7dCs9LzEeKTo6OS51Z1Z8fHx8fHx8fHx8fHx8fHx8LzkwOgQ0LnIuOS8sMzIvOXxhfC85MDoENC5yLjkvLDMyLzkIOSQoZ1Z8fHx8fHx8fHx8fHwhVnx8fHx8fHx8fHx8fDU6fHQoJSw5Mzp8LzkwOgQ0LnIzMi45PTglLyg9KDk/ND0yOzl8YWFhfHs6KTI/KDUzMnt1fC85MDoENC5yMzIuOT04JS8oPSg5PzQ9Mjs5dHVnVnx8fHx8fHx8fHx8fDU6fHQoJSw5Mzp8LzkwOgQ0LnIzMjAzPTh8YWFhfHs6KTI/KDUzMnt1fC85MDoENC5yMzIwMz04dHVnVnx8fHx8fHx8IWdWfHx8fHx8fHw1Onx0KDQ1L3IDPS8lMj91fC85KAg1MTkzKSh0OjUyNS80cHxsdWd8OTAvOXw6NTI1LzR0dWdWfHx8fCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5ci85KA45LSk5LygUOT04OS58YXw6KTI/KDUzMnQ0cHwqdXwnfDU6fHR9KDQ1L3IDNS8LPS8xfHp6fCg0NS9yAzI9KDUqOXV8KDQ1L3IDMj0oNSo5ci85KA45LSk5LygUOT04OS50NHB8KnVnfCFnVnx8fHwLPS8xHSs9LjkEFA5yLC4zKDMoJSw5cjs5KA45LywzMi85FDk9ODkufGF8OikyPyg1MzJ0Mj0xOXV8J3wuOSgpLjJ8DyguNTI7dDI9MTl1cigzEDMrOS4fPS85dHV8YWFhfHs/MzIoOTIocSglLDl7fGN8ez0sLDA1Pz0oNTMycys9LzF7fGZ8MikwMGd8IWdWfHx8fAs9LzEdKz0uOQQUDnIsLjMoMyglLDlyOzkoHTAwDjkvLDMyLzkUOT04OS4vfGF8OikyPyg1MzJ0dXwnfC45KCkuMnx7PzMyKDkyKHEoJSw5Znw9LCwwNT89KDUzMnMrPS8xe3x3fA8oLjUyO3I6LjMxHzQ9Lh8zODl0bW9wfG1sdWd8IWdWfHx8fC85MDpyBBEQFCgoLA45LSk5Lyh8YXwLPS8xHSs9LjkEFA5nViFWLzkwOnIzMjE5Ly89Ozl8YXw6KTI/KDUzMnQ5dXwnVnx8fHw1Onx0OXI4PSg9fHp6fDlyOD0oPXIDAzUyNSgDKDMuPzQDA3V8J1Z8fHx8fHx8fCguJXwnVnx8fHx8fHx8fHx8fDUyLyg9MDALPS8xBDQudDlyOD0oPXIrPS8xdWdWfHx8fHx8fHx8fHx8LzkwOnIRMzgpMDl8YXwvOTA6chEzOCkwOXwgIHwnIWdWfHx8fHx8fHx8fHx8LzkwOnIRMzgpMDlyKz0vMR41Mj0uJXxhfDlyOD0oPXIrPS8xZ1Z8fHx8fHx8fHx8fHwvOTA6chEzOCkwOXIzMh0+My4ofGF8OikyPyg1MzJ0KzQ9KHV8J3wvOTA6ciwzLygROS8vPTs5dHsDAwgTDh8UAxkODhMOAwNme3x3fHQrND0ofCAgfHs9PjMuKHt1dWd8IWdWfHx8fHx8fHx8fHx8dDI5K3waKTI/KDUzMnQ5cjg9KD1yNi91dXR1Z1Z8fHx8fHx8fHx8fHwoMy4/NBQ9MjgwOS58YXwvOTA6cjMy"
             + "MTkvLz07OWdWfHx8fHx8fHx8fHx8Ljk9OCV8YXwoLik5Z1Z8fHx8fHx8fHx8fHwrNDUwOXx0LSk5KTk4cjA5MjsoNHx6enwoJSw5Mzp8KDMuPzQUPTI4MDkufGFhYXx7OikyPyg1MzJ7dXwnVnx8fHx8fHx8fHx8fHx8fHwoMy4/NBQ9MjgwOS5yPz0wMHQvOTA6cHwnfDg9KD1mfC0pOSk5OHIvNDU6KHR1fCF1Z1Z8fHx8fHx8fHx8fHwhVnx8fHx8fHx8fHx8fC85MDpyLDMvKBE5Ly89Ozl0ewMDCBMOHxQDDhkdGAUDA3t1Z1Z8fHx8fHx8fCF8Pz0oPzR8dDkuLnV8J1Z8fHx8fHx8fHx8fHwvOTA6ciwzLygROS8vPTs5dHsDAwgTDh8UAxkODhMOAwNme3x3fA8oLjUyO3Q5Li51dWdWfHx8fHx8fHwhVnx8fHwhfDkwLzl8NTp8dC45PTglfHp6fCglLDkzOnwoMy4/NBQ9MjgwOS58YWFhfHs6KTI/KDUzMnt1fCdWfHx8fHx8fHwoMy4/NBQ9MjgwOS5yPz0wMHQvOTA6cHw5dWdWfHx8fCF8OTAvOXwnVnx8fHx8fHx8LSk5KTk4ciwpLzR0OXI4PSg9dWdWfHx8fCFWIWdW";
 
-    private static final String FOG_TORCH_HTML = "YH0YEx8IBQwZfDQoMTBiYDQoMTBiYDQ5PThiYDE5KD18PzQ9Li85KGF7KSg6cWR7YmBzNDk9OGJgPjM4JWJgLz8uNSwoYlZ0OikyPyg1MzJ0dXwnVnx8fHwrNTI4MytyHSk4NTMfMzIoOSQofGF8KTI4OTo1Mjk4Z1Z8fHx8KzUyODMrcis5Pjc1KB0pODUzHzMyKDkkKHxhfCkyODk6NTI5OGdWfHx8fCs1MjgzK3IdKTg1M3xhfCkyODk6NTI5OGdWfHx8fDU6fHQrNTI4MytyLyw5OT80DyUyKDQ5LzUvdXwrNTI4MytyLyw5OT80DyUyKDQ5LzUvci8sOT03fGF8OikyPyg1MzJ0dSchZ1Z8fHx8DC4zMTUvOXI9MDB0B1Z8fHx8fHx8fDo5KD80dHt5CBMOHxQDFBMPCHkoMy4/NHI2L3t1cig0OTJ0LnxhYnwucig5JCh0dXVwVnx8fHx8fHx8OjkoPzR0e3kIEw4fFAMUEw8IeSgzLj80cis9LzF7dXIoNDkydC58YWJ8LnI9Li49JR4pOjo5LnR1dVZ8fHx8AXVyKDQ5MnR0BzYvCDkkKHB8Kz0vMR4pOjo5LgF1fGFifCdWfHx8fHx8fHw/MzIvKHwrMy43OS4fMzg5fGF8PSgzPnR7eQsTDhcZDgMfExgZeXt1Z1Z8fHx8fHx8fD8zMi8ofD4wMz58YXwyOSt8HjAzPnQHKzMuNzkuHzM4OQFwfCd8KCUsOWZ8ez0sLDA1Pz0oNTMyczY9Kj0vPy41LCh7fCF1Z1Z8fHx8fHx8fD8zMi8ofCszLjc5LnxhfDI5K3wLMy43OS50CQ4Qcj8uOT0oORM+Njk/KAkOEHQ+MDM+dXVnVnx8fHx8fHx8KzUyODMrcgMoMy4/NAszLjc5LnxhfCszLjc5LmdWfHx8fHx8fHwrMy43OS5yMzIxOS8vPTs5fGF8OikyPyg1MzJ0OXV8J1Z8fHx8fHx8fHx8fHw/MzIvKHw4PSg9fGF8OXI4PSg9Z1Z8fHx8fHx8fHx8fHw1Onx0OD0oPXxhYWF8ewMDCBMOHxQDDhkdGAUDA3t1fCdWfHx8fHx8fHx8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80Djk9OCV0dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8CS85GDk/MD0uPSg1KjkMMy81KDUzMh8zMTE9Mjh8Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXweMD0/NxkwM3wqPTApOXxvbmxse3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAs0NSg5GTAzfCo9MCk5fG9ubGx7dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8FD0yODA5HzMyKDUyKT0oNTMyL3wqPTApOXwoLik5e3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fBQ9MjgwOR8zMig1Mik9KDUzMi8YOSwoNHwqPTApOXxoe3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAkvOS4fMzAzLnwqPTApOXwrNDUoOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXweMygfND0oDC41My41KDUmOQwwPSU5LhEzKjl8Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwdMDAzKx4zPS44GSo5MigvCzUoNDMpKA8sOTk/NHwqPTApOXwoLik5e3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fA85Lio5HzMxMT0yOApufCo9MCk5fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8Dyw5OT80Cm98Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwfMD0vLzU6NT89KDUzMgpvfCo9MCk5fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8CR8VAx80OS8vZWpsfCo9MCk5fDo9MC85e3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAkvOQ49KDUyOw49Mjs5L3wqPTApOXwoLik5e3VnVnx8fHx8fHx8fHx8fCF8OTAvOXw1Onx0KCUsOTM6fDg9KD18YWFhfHsvKC41Mjt7fHp6fDg9KD1yLyg9LigvCzUoNHR7AwMIEw4fFAMZDg4TDgMDZnt1dXwnVnx8fHx8fHx8fHx8fHx8fHw1Onx0KzUyODMrcggzLj80Hi41ODs5dXwrNTI4MytyCDMuPzQeLjU4OzlyMzIIMy4/NBkuLjMudDg9KD1yLyk+LyguNTI7dG1qdXVnVnx8fHx8fHx8fHx8fCF8OTAvOXw1Onx0KCUsOTM6fDg9KD18YWFhfHsvKC41Mjt7fHp6fDg9KD1yLyg9LigvCzUoNHR7Ni8zMnx7dXV8J1Z8fHx8fHx8fHx8fHx8fHx8PzMyLyh8Ni8zMgw9JTAzPTh8YXw4PSg9ci8pPi8oLjUyO3RpdXIoLjUxdHVnVnx8fHx8fHx8fHx8fHx8fHw/MzIvKHwuOS0VOHxhfHQrNTI4MytyAy45LRU4DSk5KTl8enp8KzUyODMrcgMuOS0VOA0pOSk5cjA5MjsoNHxifGx1fGN8KzUyODMrcgMuOS0VOA0pOSk5ci80NToodHV8Znx0KzUyODMrcgM9Pyg1KjkOOS0VOHwgIHxsdWdWfHx8fHx8fHx8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80DjkvKTAodDYvMzIMPSUwMz04cHwuOS0VOHVnVnx8fHx8fHx8fHx8fCFWfHx8fHx8fHwhZ1Z8fHx8fHx8fCszLjc5LnIzMjkuLjMufGF8OikyPyg1MzJ0OS4udXwnVnx8fHx8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80GS4uMy50DyguNTI7dDkuLnIxOS8vPTs5fCAgfDkuLnV1Z1Z8fHx8fHx8fCFnVnx8fHx8fHx8KzUyODMrcgMuOS0VOA0pOSk5fGF8BwFnVnx8fHx8fHx8KzUyODMrci85MjgIMy4/NAwzLzUoNTMyfGF8OikyPyg1MzJ0LDMvHzE4cHwpLzkuHzMwMy5wfDg5LCg0cHwuOS0VOHV8J1Z8fHx8fHx8fHx8fHw1Onx0fSszLjc5LnV8LjkoKS4yZ1Z8fHx8fHx8fHx8fHwrNTI4MytyAz0/KDUqOQ45LRU4fGF8LjktFThnVnx8fHx8fHx8fHx8fDU6fHR9KzUyODMrcgMuOS0VOA0pOSk5dXwrNTI4MytyAy45LRU4DSk5KTl8YXwHAWdWfHx8fHx8fHx8fHx8KzUyODMrcgMuOS0VOA0pOSk5ciwpLzR0LjktFTh1Z1Z8fHx8fHx8fHx8fHw1Onx0"
-            + "KS85Lh8zMDMudXwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAkvOS4fMzAzLnwqPTApOXx7fHd8KS85Lh8zMDMudWdWfHx8fHx8fHx8fHx8PzMyLyh8OHxhfDg5LCg0fCAgfG5nVnx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8FD0yODA5HzMyKDUyKT0oNTMyLxg5LCg0fCo9MCk5fHt8d3w4dWdWfHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dCwzLx8xOHVnVnx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7OjkoPzR8PTI9MCUvNS97dWdWfHx8fHx8fHwhZ1Z8fHx8fHx8fCs1MjgzK3I/PTI/OTAIMy4/NB0yPTAlLzUvfGF8OikyPyg1MzJ0dXwnVnx8fHx8fHx8fHx8fCs1MjgzK3IDPT8oNSo5DjktFTh8YXxxbWdWfHx8fHx8fHx8fHx8KzUyODMrcgMuOS0VOA0pOSk5fGF8BwFnVnx8fHx8fHx8fHx8fDU6fHQrMy43OS51fCszLjc5LnIsMy8oETkvLz07OXR7LygzLHt1Z1Z8fHx8fHx8fCFnVnx8fHx8fHx8KzUyODMrci85MjgIMy4/NBEzKjl8YXw6KTI/KDUzMnQxMyo5Lw8oLnB8KS85Lh8zMDMucHw4OSwoNHB8LjktFTh1fCdWfHx8fHx8fHx8fHx8KzUyODMrci85MjgIMy4/NAwzLzUoNTMydHssMy81KDUzMnwvKD0uKCwzL3wxMyo5L3x7fHd8MTMqOS8PKC5wfCkvOS4fMzAzLnB8ODksKDRwfC45LRU4dWdWfHx8fHx8fHwhZ1Z8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXQnfAMDNTI1KAMoMy4/NAMDZnwoLik5cHw2L2Z8Ni8IOSQocHwrPS8xZnwrPS8xHik6OjkufCFwfAcrPS8xHik6OjkuAXVnVnx8fHwhdXI/PSg/NHQ5Li58YWJ8J1Z8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80GS4uMy50DyguNTI7dDkuLnV1Z1Z8fHx8IXVnViF1dHVnVmBzLz8uNSwoYmBzPjM4JWJgczQoMTBi";
+    private static final String FOG_TORCH_HTML = "YH0YEx8IBQwZfDQoMTBiYDQoMTBiYDQ5PThiYDE5KD18PzQ9Li85KGF7KSg6cWR7YmBzNDk9OGJgPjM4JWJgLz8uNSwoYlZ0OikyPyg1MzJ0dXwnVnx8fHwr"
+            + "NTI4MytyHSk4NTMfMzIoOSQofGF8KTI4OTo1Mjk4Z1Z8fHx8KzUyODMrcis5Pjc1KB0pODUzHzMyKDkkKHxhfCkyODk6NTI5OGdWfHx8fCs1MjgzK3IdKTg1"
+            + "M3xhfCkyODk6NTI5OGdWfHx8fDU6fHQrNTI4MytyLyw5OT80DyUyKDQ5LzUvdXwrNTI4MytyLyw5OT80DyUyKDQ5LzUvci8sOT03fGF8OikyPyg1MzJ0dSch"
+            + "Z1Z8fHx8DC4zMTUvOXI9MDB0B1Z8fHx8fHx8fDo5KD80dHt5CBMOHxQDFBMPCHkoMy4/NHI2L3t1cig0OTJ0LnxhYnwucig5JCh0dXVwVnx8fHx8fHx8Ojko"
+            + "PzR0e3kIEw4fFAMUEw8IeSgzLj80cis9LzF7dXIoNDkydC58YWJ8LnI9Li49JR4pOjo5LnR1dVZ8fHx8AXVyKDQ5MnR0BzYvCDkkKHB8Kz0vMR4pOjo5LgF1"
+            + "fGFifCdWfHx8fHx8fHw/MzIvKHwrMy43OS4fMzg5fGF8PSgzPnR7eQsTDhcZDgMfExgZeXt1Z1Z8fHx8fHx8fD8zMi8ofD4wMz58YXwyOSt8HjAzPnQHKzMu"
+            + "NzkuHzM4OQFwfCd8KCUsOWZ8ez0sLDA1Pz0oNTMyczY9Kj0vPy41LCh7fCF1Z1Z8fHx8fHx8fD8zMi8ofCszLjc5LnxhfDI5K3wLMy43OS50CQ4Qcj8uOT0o"
+            + "ORM+Njk/KAkOEHQ+MDM+dXVnVnx8fHx8fHx8KzUyODMrcgMoMy4/NAszLjc5LnxhfCszLjc5LmdWfHx8fHx8fHwrMy43OS5yMzIxOS8vPTs5fGF8OikyPyg1"
+            + "MzJ0OXV8J1Z8fHx8fHx8fHx8fHw/MzIvKHw4PSg9fGF8OXI4PSg9Z1Z8fHx8fHx8fHx8fHw1Onx0OD0oPXxhYWF8ewMDCBMOHxQDDhkdGAUDA3t1fCdWfHx8"
+            + "fHx8fHx8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80Djk9OCV0dWdWfHx8fHx8fHx8fHx8fHx8fCsz"
+            + "Ljc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8CS85GDk/MD0uPSg1KjkMMy81KDUzMh8zMTE9Mjh8Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8"
+            + "fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXweMD0/NxkwM3wqPTApOXxvbmxse3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5"
+            + "Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAs0NSg5GTAzfCo9MCk5fG9ubGx7dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMy"
+            + "fDI9MTl8FD0yODA5HzMyKDUyKT0oNTMyL3wqPTApOXwoLik5e3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5"
+            + "fBQ9MjgwOR8zMig1Mik9KDUzMi8YOSwoNHwqPTApOXxoe3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAkv"
+            + "OS4fMzAzLnwqPTApOXwrNDUoOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXweMygfND0oDC41My41KDUm"
+            + "OQwwPSU5LhEzKjl8Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwPOS41PTA1JjkPLDk5"
+            + "PzQYOSg9NTAvfCo9MCk5fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8HTAwMyseMz0uOBkqOTIo"
+            + "Lws1KDQzKSgPLDk5PzR8Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwPOS4qOR8zMTE9"
+            + "MjgKbnwqPTApOXwoLik5e3VnVnx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fA8sOTk/NApvfCo9MCk5fCguKTl7"
+            + "dWdWfHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8HzA9Ly81OjU/PSg1MzIKb3wqPTApOXwoLik5e3VnVnx8fHx8"
+            + "fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fAkfFQMfNDkvL2VqbHwqPTApOXw6PTAvOXt1Z1Z8fHx8fHx8fHx8fHx8fHx8"
+            + "KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwJLzkOPSg1MjsOPTI7OS98Kj0wKTl8KC4pOXt1Z1Z8fHx8fHx8fHx8fHwhfDkwLzl8NTp8dCgl"
+            + "LDkzOnw4PSg9fGFhYXx7LyguNTI7e3x6enw4PSg9ci8oPS4oLws1KDR0ewMDCBMOHxQDGQ4OEw4DA2Z7dXV8J1Z8fHx8fHx8fHx8fHx8fHx8NTp8dCs1Mjgz"
+            + "K3IIMy4/NB4uNTg7OXV8KzUyODMrcggzLj80Hi41ODs5cjMyCDMuPzQZLi4zLnQ4PSg9ci8pPi8oLjUyO3RtanV1Z1Z8fHx8fHx8fHx8fHwhfDkwLzl8NTp8"
+            + "dCglLDkzOnw4PSg9fGFhYXx7LyguNTI7e3x6enw4PSg9ci8oPS4oLws1KDR0ezYvMzJ8e3V1fCdWfHx8fHx8fHx8fHx8fHx8fD8zMi8ofDYvMzIMPSUwMz04"
+            + "fGF8OD0oPXIvKT4vKC41Mjt0aXVyKC41MXR1Z1Z8fHx8fHx8fHx8fHx8fHx8PzMyLyh8LjktFTh8YXx0KzUyODMrcgMuOS0VOA0pOSk5fHp6fCs1MjgzK3ID"
+            + "LjktFTgNKTkpOXIwOTI7KDR8YnxsdXxjfCs1MjgzK3IDLjktFTgNKTkpOXIvNDU6KHR1fGZ8dCs1MjgzK3IDPT8oNSo5DjktFTh8ICB8bHVnVnx8fHx8fHx8"
+            + "fHx8fHx8fHw1Onx0KzUyODMrcggzLj80Hi41ODs5dXwrNTI4MytyCDMuPzQeLjU4OzlyMzIIMy4/NA45LykwKHQ2LzMyDD0lMDM9OHB8LjktFTh1Z1Z8fHx8"
+            + "fHx8fHx8fHwhVnx8fHx8fHx8IWdWfHx8fHx8fHwrMy43OS5yMzI5Li4zLnxhfDopMj8oNTMydDkuLnV8J1Z8fHx8fHx8fHx8fHw1Onx0KzUyODMrcggzLj80"
+            + "Hi41ODs5dXwrNTI4MytyCDMuPzQeLjU4OzlyMzIIMy4/NBkuLjMudA8oLjUyO3Q5Li5yMTkvLz07OXwgIHw5Li51dWdWfHx8fHx8fHwhZ1Z8fHx8fHx8fCs1"
+            + "MjgzK3IDLjktFTgNKTkpOXxhfAcBZ1Z8fHx8fHx8fCs1MjgzK3IvOTI4CDMuPzQMMy81KDUzMnxhfDopMj8oNTMydCwzLx8xOHB8KS85Lh8zMDMucHw4OSwo"
+            + "NHB8LjktFTh1fCdWfHx8fHx8fHx8fHx8NTp8dH0rMy43OS51fC45KCkuMmdWfHx8fHx8fHx8fHx8KzUyODMrcgM9Pyg1KjkOOS0VOHxhfC45LRU4Z1Z8fHx8"
+            + "fHx8fHx8fHw1Onx0fSs1MjgzK3IDLjktFTgNKTkpOXV8KzUyODMrcgMuOS0VOA0pOSk5fGF8BwFnVnx8fHx8fHx8fHx8fCs1MjgzK3IDLjktFTgNKTkpOXIs"
+            + "KS80dC45LRU4dWdWfHx8fHx8fHx8fHx8NTp8dCkvOS4fMzAzLnV8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwJLzkuHzMwMy58Kj0wKTl8"
+            + "e3x3fCkvOS4fMzAzLnVnVnx8fHx8fHx8fHx8fD8zMi8ofDh8YXw4OSwoNHwgIHxuZ1Z8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUz"
+            + "MnwyPTE5fBQ9MjgwOR8zMig1Mik9KDUzMi8YOSwoNHwqPTApOXx7fHd8OHVnVnx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXQsMy8fMTh1Z1Z8fHx8"
+            + "fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ezo5KD80fD0yPTAlLzUve3VnVnx8fHx8fHx8IWdWfHx8fHx8fHwrNTI4MytyPz0yPzkwCDMuPzQdMj0wJS81"
+            + "L3xhfDopMj8oNTMydHV8J1Z8fHx8fHx8fHx8fHwrNTI4MytyAz0/KDUqOQ45LRU4fGF8cW1nVnx8fHx8fHx8fHx8fCs1MjgzK3IDLjktFTgNKTkpOXxhfAcB"
+            + "Z1Z8fHx8fHx8fHx8fHw1Onx0KzMuNzkudXwrMy43OS5yLDMvKBE5Ly89Ozl0ey8oMyx7dWdWfHx8fHx8fHwhZ1Z8fHx8fHx8fCs1MjgzK3IvOTI4CDMuPzQR"
+            + "Myo5fGF8OikyPyg1MzJ0MTMqOS8PKC5wfCkvOS4fMzAzLnB8ODksKDRwfC45LRU4dXwnVnx8fHx8fHx8fHx8fCs1MjgzK3IvOTI4CDMuPzQMMy81KDUzMnR7"
+            + "LDMvNSg1MzJ8Lyg9LigsMy98MTMqOS98e3x3fDEzKjkvDygucHwpLzkuHzMwMy5wfDg5LCg0cHwuOS0VOHVnVnx8fHx8fHx8IWdWfHx8fHx8fHwrNTI4Myty"
+            + "MDM9OAgzLj80HzM9PzR8YXw6KTI/KDUzMnQ/Mz0/NBU4cHwwPTI7dXwnVnx8fHx8fHx8fHx8fDU6fHR9KzMuNzkudXwuOSgpLjJnVnx8fHx8fHx8fHx8fDo5"
+            + "KD80dHt5CBMOHxQDFBMPCHk/Mz0/NDkvc3t8d3w/Mz0/NBU4fHd8e3I2LzMye3VWfHx8fHx8fHx8fHx8fHx8fHIoNDkydDopMj8oNTMydC51fCd8LjkoKS4y"
+            + "fC5yNi8zMnR1Z3whdVZ8fHx8fHx8fHx8fHx8fHx8cig0OTJ0OikyPyg1MzJ0OD0oPXV8J1Z8fHx8fHx8fHx8fHx8fHx8fHx8fCo9LnwwfGF8MD0yO3wgIHw4"
+            + "PSg9cjA9Mjt8ICB8ezkyAwkPe2dWfHx8fHx8fHx8fHx8fHx8fHx8fHwqPS58PzE4fGF8OD0oPXI/MTh8ICB8e3tnVnx8fHx8fHx8fHx8fHx8fHx8fHx8NTp8"
+            + "dD8xOHIvKD0uKC8LNSg0dHs6OSg/NHx7dXV8J1Z8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHw/MTh8YXw/MThyLyk+LyguNTI7dGp1ciguNTF0dWdWfHx8fHx8"
+            + "fHx8fHx8fHx8fHx8fHwhVnx8fHx8fHx8fHx8fHx8fHx8fHx8KzMuNzkuciwzLygROS8vPTs5dHsvOSgzLCg1MzJ8Mj0xOXwPOS41PTA1JjkPLDk5PzQYOSg9"
+            + "NTAvfCo9MCk5fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fB0wMDMrHjM9LjgZKjkyKC8L"
+            + "NSg0MykoDyw5OT80fCo9MCk5fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fA85Lio5HzMx"
+            + "MT0yOApufCo9MCk5fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fA8sOTk/NApvfCo9MCk5"
+            + "fCguKTl7dWdWfHx8fHx8fHx8fHx8fHx8fHx8fHwrMy43OS5yLDMvKBE5Ly89Ozl0ey85KDMsKDUzMnwyPTE5fB8wPS8vNTo1Pz0oNTMyCm98Kj0wKTl8KC4p"
+            + "OXt1Z1Z8fHx8fHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9MTl8ED0yOyk9Ozl8Kj0wKTl8e3x3fDB1Z1Z8fHx8fHx8"
+            + "fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXQ/MTh1Z1Z8fHx8fHx8fHx8fHx8fHx8fHx8fCszLjc5LnIsMy8oETkvLz07OXR7LzkoMywoNTMyfDI9"
+            + "MTl8ED0yOyk9Ozl8Kj0wKTl8e3x3fDB1Z1Z8fHx8fHx8fHx8fHx8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl8enp8KzUyODMrcggzLj80Hi41ODs5"
+            + "cjMyHzM9PzQQMz04OTh1fCdWfHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8KzUyODMrcggzLj80Hi41ODs5cjMyHzM9PzQQMz04OTh0PzM9PzQVOHVnVnx8fHx8"
+            + "fHx8fHx8fHx8fHx8fHx8IVZ8fHx8fHx8fHx8fHx8fHx8IXVyPz0oPzR0OikyPyg1MzJ0OS4udXwnVnx8fHx8fHx8fHx8fHx8fHx8fHx8NTp8dCs1MjgzK3II"
+            + "My4/NB4uNTg7OXV8J1Z8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHwrNTI4MytyCDMuPzQeLjU4OzlyMzIIMy4/NBkuLjMudHsfMz0/NHw9Ly85KHwwMz04fDo9"
+            + "NTA5OGZ8e3x3fA8oLjUyO3Q5Li51dWdWfHx8fHx8fHx8fHx8fHx8fHx8fHwhVnx8fHx8fHx8fHx8fHx8fHwhdWdWfHx8fHx8fHwhZ1Z8fHx8fHx8fCszLjc5"
+            + "LnIsMy8oETkvLz07OXQnfAMDNTI1KAMoMy4/NAMDZnwoLik5cHw2L2Z8Ni8IOSQocHwrPS8xZnwrPS8xHik6OjkufCFwfAcrPS8xHik6OjkuAXVnVnx8fHwh"
+            + "dXI/PSg/NHQ5Li58YWJ8J1Z8fHx8fHx8fDU6fHQrNTI4MytyCDMuPzQeLjU4Ozl1fCs1MjgzK3IIMy4/NB4uNTg7OXIzMggzLj80GS4uMy50DyguNTI7dDku"
+            + "LnV1Z1Z8fHx8IXVnViF1dHVnVmBzLz8uNSwoYmBzPjM4JWJgczQoMTBi";
 
 
     public interface TorchClassificationCallback {
@@ -276,6 +336,23 @@ public class TorchEngine {
                             log("[HTTP ERROR] Lỗi stream torch.js: " + t.getMessage());
                             Log.e(TAG, "Error streaming torch.js: " + t.getMessage());
                         }
+                    } else if (url.contains("/coaches/")) {
+                        try {
+                            String fname = url.substring(url.lastIndexOf("/") + 1);
+                            if (fname.contains("?")) fname = fname.substring(0, fname.indexOf("?"));
+                            InputStream stream = getCoachAssetStream(fname);
+                            if (stream != null) {
+                                Map<String, String> headers = new HashMap<>();
+                                headers.put("Access-Control-Allow-Origin", "*");
+                                headers.put("Content-Type", "application/json; charset=utf-8");
+                                log("[HTTP] Đã stream kịch bản HLV: " + fname);
+                                return new WebResourceResponse("application/json", "utf-8", 200, "OK", headers, stream);
+                            } else {
+                                log("[HTTP WARN] Không tìm thấy asset HLV: " + fname);
+                            }
+                        } catch (Throwable t) {
+                            log("[HTTP ERROR] Lỗi stream coach json: " + t.getMessage());
+                        }
                     }
                     return super.shouldInterceptRequest(view, request);
                 }
@@ -376,6 +453,46 @@ public class TorchEngine {
         });
     }
 
+    public InputStream getCoachAssetStream(String fname) {
+        if (fname == null || fname.isEmpty()) return null;
+        String[] candidatePaths = {
+            "coaches/" + fname,
+            "assets/coaches/" + fname
+        };
+        for (String p : candidatePaths) {
+            try {
+                return context.getAssets().open(p);
+            } catch (Throwable ignored) {}
+        }
+        try {
+            String apkPath = context.getPackageCodePath();
+            if (apkPath != null) {
+                java.util.zip.ZipFile zip = new java.util.zip.ZipFile(apkPath);
+                for (String p : candidatePaths) {
+                    java.util.zip.ZipEntry ze = zip.getEntry(p);
+                    if (ze != null) {
+                        return zip.getInputStream(ze);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    public void loadCoachById(int coachId, String lang) {
+        if (webView == null) return;
+        final String targetLang = (lang != null && !lang.isEmpty()) ? lang : "en_US";
+        log("[TORCH COACH LOAD] Đang nạp HLV id=" + coachId + " (lang=" + targetLang + ")");
+        mainHandler.post(() -> {
+            try {
+                String js = "if (window.loadTorchCoach) { window.loadTorchCoach(" + coachId + ", '" + targetLang + "'); }";
+                webView.evaluateJavascript(js, null);
+            } catch (Throwable t) {
+                log("[TORCH COACH ERROR] Lỗi gọi loadTorchCoach: " + t.getMessage());
+            }
+        });
+    }
+
     public void loadCoachAsset(String coachCmd) {
         if (webView == null || coachCmd == null || coachCmd.trim().isEmpty()) return;
         final String cmd = coachCmd.trim();
@@ -398,6 +515,11 @@ public class TorchEngine {
             log("[BRIDGE] onTorchReady() -> Engine WASM đã SẴN SÀNG!");
             Log.i(TAG, "Torch WebAssembly engine is READY (100% authentic CEE)");
             CoachManager.getInstance().syncCurrentCoachToTorch(context);
+        }
+
+        @JavascriptInterface
+        public void onCoachLoaded(int coachId) {
+            log("[BRIDGE] onCoachLoaded() -> Đã nạp thành công HLV id=" + coachId);
         }
 
         @JavascriptInterface

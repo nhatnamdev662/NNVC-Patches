@@ -65,6 +65,20 @@ public class CoachManager {
             }
             return name;
         }
+
+        public String getGreetingAudioUrl() {
+            if (greetingHash == null || greetingHash.isEmpty()) return null;
+            String base = audioBase;
+            int idx = base.indexOf("/released/");
+            if (idx != -1) {
+                int slash2 = base.indexOf('/', idx + 10);
+                if (slash2 != -1) {
+                    String voicePrefix = base.substring(0, slash2);
+                    return voicePrefix + "/en-US/" + greetingHash + ".mp3";
+                }
+            }
+            return base + greetingHash + ".mp3";
+        }
     }
 
     private final List<CoachInfo> allCoaches;
@@ -108,11 +122,8 @@ public class CoachManager {
         try {
             CoachInfo coach = getCurrentCoach(context);
             if (coach != null) {
-                String cmd = coach.getCmd(context);
-                if (cmd != null && !cmd.trim().isEmpty()) {
-                    TorchEngine.log("[COACH SYNC] Đang nạp HLV: " + coach.getDisplayName() + " (id=" + coach.id + ")");
-                    TorchEngine.getInstance(context).loadCoachAsset(cmd);
-                }
+                TorchEngine.log("[COACH SYNC] Đang nạp HLV: " + coach.getDisplayName() + " (id=" + coach.id + ")");
+                TorchEngine.getInstance(context).loadCoachById(coach.id, coach.lang);
             }
         } catch (Throwable t) {
             Log.e(TAG, "Lỗi đồng bộ HLV sang Torch: " + t.getMessage());
@@ -184,148 +195,148 @@ public class CoachManager {
         // Standard Coach: Mae (12..23)
         list.add(new CoachInfo(12, "Mae", "English", "en_US", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/en-US/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Hi, I'm Coach Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Hi, I'm Coach Mae."));
         list.add(new CoachInfo(13, "Mae", "Français", "fr_FR", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/fr-FR/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Bonjour, je suis Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Bonjour, je suis Mae."));
         list.add(new CoachInfo(14, "Mae", "Español", "es_ES", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/es-ES/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Hola, soy la entrenadora Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Hola, soy la entrenadora Mae."));
         list.add(new CoachInfo(15, "Mae", "Português", "pt_PT", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/pt-PT/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Olá, sou a treinadora Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Olá, sou a treinadora Mae."));
         list.add(new CoachInfo(16, "Mae", "Deutsch", "de_DE", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/de-DE/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Hallo, ich bin Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Hallo, ich bin Mae."));
         list.add(new CoachInfo(17, "Mae", "Italiano", "it_IT", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/it-IT/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Ciao, sono l'allenatrice Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Ciao, sono l'allenatrice Mae."));
         list.add(new CoachInfo(18, "Mae", "Polski", "pl_PL", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/pl-PL/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Cześć, jestem Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Cześć, jestem Mae."));
         list.add(new CoachInfo(19, "Mae", "Русский", "ru_RU", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/ru-RU/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Привет, я тренер Мэй."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Привет, я тренер Мэй."));
         list.add(new CoachInfo(20, "Mae", "Türkçe", "tr_TR", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/tr-TR/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Merhaba, ben Koç Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Merhaba, ben Koç Mae."));
         list.add(new CoachInfo(21, "Mae", "Bahasa Indonesia", "id_ID", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/id-ID/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Halo, saya Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Halo, saya Mae."));
         list.add(new CoachInfo(22, "Mae", "Filipino", "fil_PH", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/fil-PH/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Kumusta, ako si Mae."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Kumusta, ako si Mae."));
         list.add(new CoachInfo(23, "Mae", "Українська", "uk_UA", "https://assets-coaches.chess.com/image/coachmae.png",
                 "https://text-and-audio.chess.com/prod/released/Mae_coach/uk-UA/",
-                "f9b73f8b056ea0e340b080f5ffec830cb3298c4d284a123eb412f80164c48bb5", "Привіт, я тренерка Мей."));
+                "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39", "Привіт, я тренерка Мей."));
 
         // Standard Coach: Dante (24..35)
         list.add(new CoachInfo(24, "Dante", "English", "en_US", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/en-US/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Hey there, I'm Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Hey there, I'm Dante."));
         list.add(new CoachInfo(25, "Dante", "Français", "fr_FR", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/fr-FR/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Salut, je m'appelle Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Salut, je m'appelle Dante."));
         list.add(new CoachInfo(26, "Dante", "Español", "es_ES", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/es-ES/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Hola, me llamo Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Hola, me llamo Dante."));
         list.add(new CoachInfo(27, "Dante", "Português", "pt_PT", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/pt-PT/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Olá, sou o Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Olá, sou o Dante."));
         list.add(new CoachInfo(28, "Dante", "Deutsch", "de_DE", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/de-DE/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Hallo, ich bin Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Hallo, ich bin Dante."));
         list.add(new CoachInfo(29, "Dante", "Italiano", "it_IT", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/it-IT/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Ciao a tutti, sono Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Ciao a tutti, sono Dante."));
         list.add(new CoachInfo(30, "Dante", "Polski", "pl_PL", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/pl-PL/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Hej, tu Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Hej, tu Dante."));
         list.add(new CoachInfo(31, "Dante", "Русский", "ru_RU", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/ru-RU/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Привет, я Данте."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Привет, я Данте."));
         list.add(new CoachInfo(32, "Dante", "Türkçe", "tr_TR", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/tr-TR/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Selam, ben Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Selam, ben Dante."));
         list.add(new CoachInfo(33, "Dante", "Bahasa Indonesia", "id_ID", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/id-ID/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Halo, saya Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Halo, saya Dante."));
         list.add(new CoachInfo(34, "Dante", "Filipino", "fil_PH", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/fil-PH/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Kamusta, ako si Dante."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Kamusta, ako si Dante."));
         list.add(new CoachInfo(35, "Dante", "Українська", "uk_UA", "https://assets-coaches.chess.com/image/coachdante.png",
                 "https://text-and-audio.chess.com/prod/released/Dante_coach/uk-UA/",
-                "033a25efee9466e3eb39e06180a5fb291fcddae252d627b0bb670fb4ef9e19d7", "Привіт, я Данте."));
+                "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0", "Привіт, я Данте."));
 
         // Standard Coach: Nadia (36..47)
         list.add(new CoachInfo(36, "Nadia", "English", "en_US", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/en-US/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Hello, I'm Coach Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Hello, I'm Coach Nadia."));
         list.add(new CoachInfo(37, "Nadia", "Français", "fr_FR", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/fr-FR/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Bonjour, je suis Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Bonjour, je suis Nadia."));
         list.add(new CoachInfo(38, "Nadia", "Español", "es_ES", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/es-ES/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Hola, soy Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Hola, soy Nadia."));
         list.add(new CoachInfo(39, "Nadia", "Português", "pt_PT", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/pt-PT/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Olá, sou a Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Olá, sou a Nadia."));
         list.add(new CoachInfo(40, "Nadia", "Deutsch", "de_DE", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/de-DE/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Guten Tag, ich bin Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Guten Tag, ich bin Nadia."));
         list.add(new CoachInfo(41, "Nadia", "Italiano", "it_IT", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/it-IT/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Ciao, sono Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Ciao, sono Nadia."));
         list.add(new CoachInfo(42, "Nadia", "Polski", "pl_PL", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/pl-PL/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Dzień dobry, jestem Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Dzień dobry, jestem Nadia."));
         list.add(new CoachInfo(43, "Nadia", "Русский", "ru_RU", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/ru-RU/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Здравствуйте, я Надя."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Здравствуйте, я Надя."));
         list.add(new CoachInfo(44, "Nadia", "Türkçe", "tr_TR", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/tr-TR/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Merhaba, ben Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Merhaba, ben Nadia."));
         list.add(new CoachInfo(45, "Nadia", "Bahasa Indonesia", "id_ID", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/id-ID/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Halo, saya Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Halo, saya Nadia."));
         list.add(new CoachInfo(46, "Nadia", "Filipino", "fil_PH", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/fil-PH/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Kumusta, ako si Nadia."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Kumusta, ako si Nadia."));
         list.add(new CoachInfo(47, "Nadia", "Українська", "uk_UA", "https://assets-coaches.chess.com/image/coachnadia.png",
                 "https://text-and-audio.chess.com/prod/released/Nadia_coach/uk-UA/",
-                "a19641416bb5a4fa9449339e0df34dc05796a32cbafc1ba61c28c8d8dd9e9fe8", "Привіт, я Надія."));
+                "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2", "Привіт, я Надія."));
 
         // Celebrities / Grandmasters (48..57)
         list.add(new CoachInfo(48, "Levy Rozman", "English", "en_US", "https://assets-coaches.chess.com/image/coachlevy.png",
                 "https://text-and-audio.chess.com/prod/released/Levy_coach/en-US/",
-                "e50efdf71cb14e21a8d0526e8555e09f5fc7c6a992cf63158e2bf65d491eb001", "Hey everyone, Levy Rozman here!"));
+                "", "Hey everyone, Levy Rozman here!"));
         list.add(new CoachInfo(49, "Magnus Carlsen", "English", "en_US", "https://assets-coaches.chess.com/image/coachmagnus.png",
                 "https://text-and-audio.chess.com/prod/released/Magnus_coach/en-US/",
-                "0fdb9b2518e9c0ba025c889be88a2455bebc6c3b652613dcf6fae9d72740751b", "Hey, I'm Magnus. Let's play some chess."));
+                "", "Hey, I'm Magnus. Let's play some chess."));
         list.add(new CoachInfo(50, "Hikaru Nakamura", "English", "en_US", "https://assets-coaches.chess.com/image/coachhikaru.png",
                 "https://text-and-audio.chess.com/prod/released/Hikaru_coach/en-US/",
-                "a5db2e67df144136934c1143a53e9ea7ea198f3b23e74151bc4bc8bc5440c949", "What's up guys, Hikaru here."));
+                "", "What's up guys, Hikaru here."));
         list.add(new CoachInfo(51, "Anna Cramling", "English", "en_US", "https://assets-coaches.chess.com/image/coachanna.png",
                 "https://text-and-audio.chess.com/prod/released/Anna_coach/en-US/",
-                "2dc34dfebf0eb34efcfcbfe6efbbf7efb123456789abcdef0123456789abcdef", "Hi, I'm Anna Cramling! Let's explore this game."));
+                "", "Hi, I'm Anna Cramling! Let's explore this game."));
         list.add(new CoachInfo(52, "James Canty III", "English", "en_US", "https://assets-coaches.chess.com/image/coachcanty.png",
                 "https://text-and-audio.chess.com/prod/released/Canty_coach/en-US/",
-                "3dc34dfebf0eb34efcfcbfe6efbbf7efb123456789abcdef0123456789abcdef", "What's good everybody! James Canty here."));
+                "", "What's good everybody! James Canty here."));
         list.add(new CoachInfo(53, "Vishy Anand", "English", "en_US", "https://assets-coaches.chess.com/image/coachanand.png",
                 "https://text-and-audio.chess.com/prod/released/Anand_coach/en-US/",
-                "4dc34dfebf0eb34efcfcbfe6efbbf7efb123456789abcdef0123456789abcdef", "Hello, I'm Vishy Anand. Let's study the position."));
+                "", "Hello, I'm Vishy Anand. Let's study the position."));
         list.add(new CoachInfo(54, "Tania Sachdev", "English", "en_US", "https://assets-coaches.chess.com/image/coachtania.png",
                 "https://text-and-audio.chess.com/prod/released/Tania_coach/en-US/",
-                "5dc34dfebf0eb34efcfcbfe6efbbf7efb123456789abcdef0123456789abcdef", "Hi, I'm Tania Sachdev. Ready for some chess?"));
+                "", "Hi, I'm Tania Sachdev. Ready for some chess?"));
         list.add(new CoachInfo(55, "Danny Rensch", "English", "en_US", "https://assets-coaches.chess.com/image/coachdanny.png",
                 "https://text-and-audio.chess.com/prod/released/Danny_coach/en-US/",
-                "6dc34dfebf0eb34efcfcbfe6efbbf7efb123456789abcdef0123456789abcdef", "Hey chess fans, Danny Rensch here!"));
+                "", "Hey chess fans, Danny Rensch here!"));
         list.add(new CoachInfo(56, "Botez Sisters", "English", "en_US", "https://assets-coaches.chess.com/image/coachbotez.png",
                 "https://text-and-audio.chess.com/prod/released/Botez_coach/en-US/",
-                "7dc34dfebf0eb34efcfcbfe6efbbf7efb123456789abcdef0123456789abcdef", "Hey guys, Botez sisters here! Let's play."));
+                "", "Hey guys, Botez sisters here! Let's play."));
         list.add(new CoachInfo(57, "Ben Finegold", "English", "en_US", "https://assets-coaches.chess.com/image/coachfinegold.png",
-                "https://text-and-audio.chess.com/prod/released/Finegold_coach/en-US/",
-                "8dc34dfebf0eb34efcfcbfe6efbbf7efb123456789abcdef0123456789abcdef", "Terrible. Very terrible. Let's see what you played."));
+                "https://text-and-audio.chess.com/prod/released/Ben_coach/en-US/",
+                "", "Terrible. Very terrible. Let's see what you played."));
 
         return list;
     }

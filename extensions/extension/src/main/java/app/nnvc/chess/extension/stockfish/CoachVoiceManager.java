@@ -124,14 +124,22 @@ public class CoachVoiceManager {
         if (coachId < 0) return;
 
         CoachManager.CoachInfo coach = CoachManager.getInstance().getCoach(coachId);
-        if (coach == null || coach.greetingHash == null || coach.greetingHash.isEmpty()) return;
+        if (coach == null) return;
+        String greetingUrl = coach.getGreetingAudioUrl();
+        if (greetingUrl == null || greetingUrl.isEmpty()) return;
 
         TorchEngine.log("[COACH GREETING] Nghe thử giọng chào của: " + coach.getDisplayName());
-        playAudioHash(coach, coach.greetingHash);
+        playAudioDirect(coach, coach.greetingHash, greetingUrl);
     }
 
     private void playAudioHash(CoachManager.CoachInfo coach, String hash) {
         if (coach == null || hash == null || hash.isEmpty()) return;
+        final String downloadUrl = coach.audioBase + hash + ".mp3";
+        playAudioDirect(coach, hash, downloadUrl);
+    }
+
+    private void playAudioDirect(CoachManager.CoachInfo coach, String hash, String downloadUrl) {
+        if (coach == null || hash == null || hash.isEmpty() || downloadUrl == null || downloadUrl.isEmpty()) return;
 
         final File cacheFile = new File(getVoiceCacheDir(), coach.id + "_" + hash + ".mp3");
 
@@ -142,7 +150,6 @@ public class CoachVoiceManager {
         }
 
         // 2. Chưa có trong cache -> tải từ CDN Chess.com trên luồng nền
-        final String downloadUrl = coach.audioBase + hash + ".mp3";
         networkExecutor.execute(() -> {
             boolean success = downloadMp3(downloadUrl, cacheFile);
             if (success && cacheFile.exists() && cacheFile.length() > 500) {
