@@ -1302,22 +1302,24 @@ public class SelfTest {
         check("computeBoardThreats safely handles null FEN without crashing", emptyThreats != null && emptyThreats.isEmpty());
 
         // =========================================================================
-        // Test 30: Distinct Threat Arrow Geometry & Universal Anti-Collision Clearance
+        // Test 30: Authentic NNVC Desktop Extension Threat Arrow SVG Geometry & Clearance
         // =========================================================================
         float mockSqSize = 100f;
 
-        // 30a. Threat arrow flared head geometry vs standard engine arrow
-        float engineHeadHalf = mockSqSize * 0.17f;
-        float threatHeadHalf = mockSqSize * 0.22f;
-        check("Threat arrow has wider flared arrowhead wings than engine arrow", threatHeadHalf > engineHeadHalf);
+        // 30a. Authentic Extension SVG dimensions (nnvc_main_bundle.js lines 14247-14251)
+        float threatHeadLen = mockSqSize * 0.22f;
+        float threatHeadWidth = mockSqSize * 0.17f;
+        float threatLineWidth = mockSqSize * 0.052f;
+        float threatStartOffset = mockSqSize * 0.22f;
+        float threatEndOffset = mockSqSize * 0.18f;
 
-        // 30b. Barbed head notch points validation
-        float headLen = mockSqSize * 0.25f;
-        float barbSweep = headLen * 0.16f;
-        float notchIndent = headLen * 0.14f;
-        check("Threat arrow includes swept-back barbed hooks", barbSweep > 0f && notchIndent > 0f);
+        check("Threat arrow head length matches extension 0.22 * sqSize", threatHeadLen == mockSqSize * 0.22f);
+        check("Threat arrow head width matches extension 0.17 * sqSize", threatHeadWidth == mockSqSize * 0.17f);
+        check("Threat arrow uses sleek cyber laser line (0.052 * sqSize)", threatLineWidth == mockSqSize * 0.052f);
+        check("Threat arrow leaves origin and target pieces visible (startOffset & endOffset >= 0.18 * sqSize)",
+                threatStartOffset >= mockSqSize * 0.20f && threatEndOffset >= mockSqSize * 0.18f);
 
-        // 30c. Collision clearance when Threat arrow & Engine arrow share same target square
+        // 30b. Collision clearance when Threat arrow & Engine arrow share same target square
         float threatTargetOffset = mockSqSize * 0.22f;
         float engineTargetOffset = 0f;
         float threatPerpOffset = mockSqSize * 0.12f;

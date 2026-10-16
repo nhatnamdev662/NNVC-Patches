@@ -103,7 +103,7 @@ public class StockfishBridge {
         synchronized (cache) {
             e = cache.get(key);
         }
-        if (e == null || e.depth != depth || e.multiPV < multiPV || e.limited != limited
+        if (e == null || e.depth < depth || e.multiPV < multiPV || e.limited != limited
                 || !e.engineChoice.equals(engineChoice != null ? engineChoice : "")
                 || !e.komodoStyle.equals(komodoStyle != null ? komodoStyle : "")) {
             return null;

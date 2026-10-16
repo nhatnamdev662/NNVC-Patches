@@ -433,7 +433,6 @@ public class StockfishExtension {
             return;
         }
 
-        OverlayManager.hideArrowOverlay();
         OverlayManager.clearClassificationBadge();
         lastArrowSignature = null;
 
@@ -561,6 +560,28 @@ public class StockfishExtension {
         if (!force && posKey != null && posKey.equals(lastScheduledKey) && running != null && !running.isDone()) {
             return;
         }
+        Context context = getContext();
+        if (context != null) {
+            int depth = StockfishSettings.isAutoDepthEnabled(context)
+                    ? StockfishSettings.autoDepthForElo(StockfishSettings.getElo(context))
+                    : StockfishSettings.getDepth(context);
+            int multiPV = StockfishSettings.getMultiPV(context);
+            int limited = StockfishSettings.isLimitStrength(context) ? StockfishSettings.getElo(context) : 0;
+            String engineChoice = StockfishSettings.getEngineChoice(context);
+            String komodoStyle = StockfishSettings.getKomodoStyle(context);
+            StockfishProcess.AnalysisResult cached = StockfishBridge.getCached(fen, depth, multiPV, limited, engineChoice, komodoStyle);
+            if (cached != null && !cached.moves.isEmpty()) {
+                lastScheduledKey = posKey;
+                Future<?> prev = currentJob;
+                if (prev != null && !prev.isDone()) {
+                    prev.cancel(true);
+                    StockfishBridge.stopSearch();
+                }
+                displayLiveResult(context, fen, cached, true);
+                return;
+            }
+        }
+
         lastScheduledKey = posKey;
         Future<?> prev = currentJob;
         if (prev != null && !prev.isDone()) {
@@ -571,15 +592,15 @@ public class StockfishExtension {
         final String jobKey = posKey;
         currentJob = executor.submit(() -> {
             try {
-                Context context = getContext();
-                if (context == null) return;
+                Context ctx = getContext();
+                if (ctx == null) return;
 
-                int depth = StockfishSettings.isAutoDepthEnabled(context)
-                        ? StockfishSettings.autoDepthForElo(StockfishSettings.getElo(context))
-                        : StockfishSettings.getDepth(context);
-                int multiPV = StockfishSettings.getMultiPV(context);
+                int depth = StockfishSettings.isAutoDepthEnabled(ctx)
+                        ? StockfishSettings.autoDepthForElo(StockfishSettings.getElo(ctx))
+                        : StockfishSettings.getDepth(ctx);
+                int multiPV = StockfishSettings.getMultiPV(ctx);
 
-                Log.d(TAG, "Analysing FEN with " + StockfishSettings.getEngineChoice(context) + " at depth " + depth + " with MultiPV=" + multiPV + "…");
+                Log.d(TAG, "Analysing FEN with " + StockfishSettings.getEngineChoice(ctx) + " at depth " + depth + " with MultiPV=" + multiPV + "…");
                 // Stream intermediate depths to the classifier, but NEVER paint intermediate arrows to UI.
                 // In NNVC Extension standard (nnvc_main_bundle.js lines 6138-6156 & 16474), arrows are painted
                 // atomically ONLY once after engine finishes full search (bestmove), preventing any jumping/jitter.
@@ -599,7 +620,7 @@ public class StockfishExtension {
                     if (result.terminal) {
                         OverlayManager.hideArrowOverlay(true);
                         ArrowInjector.clearEngineArrows(getStateImpl());
-                        TorchEngine.getInstance(context).cancelPendingRequests();
+                        TorchEngine.getInstance(ctx).cancelPendingRequests();
                         TorchEngine.log("[GAME OVER] Ván đấu kết thúc (terminal=true). Đã ẩn mũi tên và hủy hàng chờ Torch.");
                     }
                     Log.d(TAG, "Engine returned no best moves.");
@@ -607,7 +628,7 @@ public class StockfishExtension {
                 }
 
                 Log.i(TAG, "Best moves: " + result.moves + ", Score: " + result.score + ", depth " + result.depth);
-                displayLiveResult(context, fen, result, true);
+                displayLiveResult(ctx, fen, result, true);
 
             } catch (Throwable t) {
                 if (!Thread.currentThread().isInterrupted()) {
@@ -672,14 +693,18 @@ public class StockfishExtension {
         boolean threatEnabled = !disableOverlays && StockfishSettings.isThreatArrowsEnabled(context);
         List<BoardUtil.ThreatInfo> threatListToInject = Collections.emptyList();
         if (threatEnabled) {
-            // MŨI TÊN ĐE DỌA (THREAT ARROWS) - Màu Đỏ Neon chuẩn Extension:
-            // 1. Phân tích trực tiếp bàn cờ bằng Board Logic tĩnh siêu tốc (<0.2ms).
-            // 2. Quét các đòn đe dọa ăn quân trực tiếp từ đối thủ (quân bị treo, chênh lệch giá trị, đòn chiếu).
-            // 3. Màu sắc: Đỏ Neon (#EF4444) cảnh báo đối thủ đang uy hiếp quân ta.
+            // MŨI TÊN ĐE DỌA (THREAT ARROWS) - Màu Đỏ Neon chuẩn Extension (chỉ hiện đối thủ):
             boolean userIsWhiteSide = (userWhite != null) ? userWhite.booleanValue() : isWhiteTurn;
-            String threatMode = StockfishSettings.getThreatMode(context);
             String lastMove = MoveClassifier.getLastDeduceUciMove();
-            threatListToInject = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, threatMode);
+            List<BoardUtil.ThreatInfo> rawThreats = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, "enemy");
+            if (rawThreats != null && !rawThreats.isEmpty()) {
+                threatListToInject = new ArrayList<>();
+                for (BoardUtil.ThreatInfo ti : rawThreats) {
+                    if ("danger".equalsIgnoreCase(ti.type)) {
+                        threatListToInject.add(ti);
+                    }
+                }
+            }
         }
 
         boolean premoveEnabled = !disableOverlays && StockfishSettings.isPremoveArrowsEnabled(context);

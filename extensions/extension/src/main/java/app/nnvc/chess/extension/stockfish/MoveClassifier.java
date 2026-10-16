@@ -103,19 +103,26 @@ public class MoveClassifier {
         }
     }
 
+    private static volatile Method cachedHMethod = null;
+    private static volatile boolean hMethodResolved = false;
+
     public static List<String> extractMovesFromPosition(Object positionObject) {
         if (positionObject == null) return null;
         try {
-            Method hMethod = null;
-            try {
-                hMethod = positionObject.getClass().getMethod("h");
-            } catch (NoSuchMethodException e) {
-                for (Method m : positionObject.getClass().getMethods()) {
-                    if (m.getName().equals("h") && m.getParameterCount() == 0 && List.class.isAssignableFrom(m.getReturnType())) {
-                        hMethod = m;
-                        break;
+            Method hMethod = cachedHMethod;
+            if (!hMethodResolved) {
+                try {
+                    hMethod = positionObject.getClass().getMethod("h");
+                } catch (NoSuchMethodException e) {
+                    for (Method m : positionObject.getClass().getMethods()) {
+                        if (m.getName().equals("h") && m.getParameterCount() == 0 && List.class.isAssignableFrom(m.getReturnType())) {
+                            hMethod = m;
+                            break;
+                        }
                     }
                 }
+                cachedHMethod = hMethod;
+                hMethodResolved = true;
             }
             if (hMethod == null) return null;
 

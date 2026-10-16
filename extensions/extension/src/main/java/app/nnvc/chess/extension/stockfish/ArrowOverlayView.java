@@ -321,11 +321,11 @@ public class ArrowOverlayView extends View {
             float[] perpOffsets = cachedPerpOffsets;
             float[] targetOffsets = cachedTargetOffsets;
 
-            // Pass 1: Mũi tên Đe Dọa (Threat Arrows - Dạng ngạnh nhọn Barbed Spear riêng biệt, vẽ trước không đè Best Move)
+            // Pass 1: Mũi tên Đe Dọa (Threat Arrows - Chuẩn 100% SVG Cyber Line Desktop Extension)
             for (int i = 0; i < n; i++) {
                 ArrowData arrow = arrows.get(i);
                 if (arrow.isThreat) {
-                    drawSingleArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i]);
+                    drawThreatArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i]);
                 }
             }
 
@@ -419,6 +419,159 @@ public class ArrowOverlayView extends View {
         }
     }
 
+    /**
+     * Authentic 100% Port of NNVC Desktop Extension SVG Threat Arrow (nnvc_main_bundle.js lines 14247-14376):
+     * - Cyber Laser Line: lineWidth = 0.052 * sqSize with 2-pass GPU Neon Glow
+     * - Sharp Triangle Arrowhead: headLen = 0.22 * sqSize, headWidth = 0.17 * sqSize
+     * - High-contrast White Border on Triangle (1.1dp stroke)
+     * - Pure Danger Red #EF4444 with rgba(239, 68, 68, 0.45) glow aura
+     * - Clear Piece Visibility: startOffset = 0.22 * sqSize, endOffset = 0.18 * sqSize
+     * - L-Shape Knight elbow with round caps
+     */
+    private void drawThreatArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset) {
+        float[] fromCenter = getSquareCenter(arrow.from, flipped, sqSize);
+        float[] toCenter   = getSquareCenter(arrow.to,   flipped, sqSize);
+        if (fromCenter == null || toCenter == null) return;
+
+        float x1 = fromCenter[0], y1 = fromCenter[1];
+        float x2 = toCenter[0],   y2 = toCenter[1];
+        float dx = x2 - x1, dy = y2 - y1;
+        float dist = (float) Math.hypot(dx, dy);
+        if (dist < 2.0f) return;
+
+        int fileDelta = Math.abs(arrow.to.charAt(0) - arrow.from.charAt(0));
+        int rankDelta = Math.abs(arrow.to.charAt(1) - arrow.from.charAt(1));
+        boolean isKnight = (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1);
+
+        float headLen = sqSize * 0.22f;
+        float headWidth = sqSize * 0.17f;
+        float lineWidth = sqSize * 0.052f;
+        float startOffset = sqSize * 0.22f;
+        float endOffset = sqSize * 0.18f + targetOffset;
+
+        boolean isDanger = (arrow.threatType == null) || "danger".equalsIgnoreCase(arrow.threatType);
+        int shaftColor = isDanger ? 0xFFEF4444 : 0xFFF59E0B;
+        float opacity = (arrow.threatDepth == 2) ? 0.78f : 0.92f;
+
+        // 1. Quầng sáng Neon Aura (GPU accelerated 2-pass stroke)
+        glowPaint.setStyle(Paint.Style.STROKE);
+        glowPaint.setMaskFilter(null);
+        glowPaint.setColor(isDanger ? Color.argb((int)(0.45f * opacity * 255), 239, 68, 68) : Color.argb((int)(0.45f * opacity * 255), 245, 158, 11));
+        glowPaint.setStrokeWidth(lineWidth + Math.max(3.2f, sqSize * 0.032f));
+        glowPaint.setStrokeCap(Paint.Cap.ROUND);
+        glowPaint.setStrokeJoin(Paint.Join.ROUND);
+
+        // 2. Thân Cyber Laser Line
+        edgePaint.setStyle(Paint.Style.STROKE);
+        edgePaint.setShader(null);
+        edgePaint.setColor(shaftColor);
+        edgePaint.setStrokeWidth(lineWidth);
+        edgePaint.setStrokeCap(Paint.Cap.ROUND);
+        edgePaint.setStrokeJoin(Paint.Join.ROUND);
+        edgePaint.setAlpha((int)(opacity * 255));
+
+        if (arrow.threatDepth == 2) {
+            edgePaint.setPathEffect(new DashPathEffect(new float[]{sqSize * 0.06f, sqSize * 0.03f}, 0));
+        } else if (!isDanger) {
+            edgePaint.setPathEffect(new DashPathEffect(new float[]{sqSize * 0.05f, sqSize * 0.025f}, 0));
+        } else {
+            edgePaint.setPathEffect(null);
+        }
+
+        // 3. Đầu tam giác sắc nét có viền trắng tương phản
+        fillPaint.setStyle(Paint.Style.FILL);
+        fillPaint.setShader(null);
+        fillPaint.setColor(shaftColor);
+        fillPaint.setAlpha((int)(opacity * 255));
+
+        if (isKnight) {
+            float elbowX = (fileDelta == 2 && rankDelta == 1) ? x2 : x1;
+            float elbowY = (fileDelta == 2 && rankDelta == 1) ? y1 : y2;
+
+            float s1dx = elbowX - x1, s1dy = elbowY - y1;
+            float s1len = (float) Math.hypot(s1dx, s1dy);
+            if (s1len < 1e-3f) s1len = 1.0f;
+            float u1x = s1dx / s1len, u1y = s1dy / s1len;
+            float p1x = -u1y, p1y = u1x;
+
+            float s2dx = x2 - elbowX, s2dy = y2 - elbowY;
+            float s2len = (float) Math.hypot(s2dx, s2dy);
+            if (s2len < 1e-3f) s2len = 1.0f;
+            float u2x = s2dx / s2len, u2y = s2dy / s2len;
+            float p2x = -u2y, p2y = u2x;
+
+            float sx = x1 + u1x * startOffset + p1x * (perpOffset * 0.35f);
+            float sy = y1 + u1y * startOffset + p1y * (perpOffset * 0.35f);
+            float elbowShiftX = elbowX + p1x * perpOffset;
+            float elbowShiftY = elbowY + p1y * perpOffset;
+
+            float tipX = x2 + p2x * perpOffset - u2x * endOffset;
+            float tipY = y2 + p2y * perpOffset - u2y * endOffset;
+            float headBaseX = tipX - u2x * headLen;
+            float headBaseY = tipY - u2y * headLen;
+
+            float leftPtX = headBaseX + p2x * (headWidth / 2.0f);
+            float leftPtY = headBaseY + p2y * (headWidth / 2.0f);
+            float rightPtX = headBaseX - p2x * (headWidth / 2.0f);
+            float rightPtY = headBaseY - p2y * (headWidth / 2.0f);
+
+            Path linePath = new Path();
+            linePath.moveTo(sx, sy);
+            linePath.lineTo(elbowShiftX, elbowShiftY);
+            linePath.lineTo(headBaseX, headBaseY);
+
+            canvas.drawPath(linePath, glowPaint);
+            canvas.drawPath(linePath, edgePaint);
+
+            Path headPath = new Path();
+            headPath.moveTo(tipX, tipY);
+            headPath.lineTo(leftPtX, leftPtY);
+            headPath.lineTo(rightPtX, rightPtY);
+            headPath.close();
+
+            canvas.drawPath(headPath, fillPaint);
+
+            edgePaint.setColor(0xFFFFFFFF);
+            edgePaint.setStrokeWidth(Math.max(1.1f, sqSize * 0.012f));
+            edgePaint.setPathEffect(null);
+            canvas.drawPath(headPath, edgePaint);
+        } else {
+            float ux = dx / dist;
+            float uy = dy / dist;
+            float px = -uy;
+            float py = ux;
+            float shiftX = px * perpOffset;
+            float shiftY = py * perpOffset;
+
+            float lineStartX = x1 + ux * startOffset + shiftX;
+            float lineStartY = y1 + uy * startOffset + shiftY;
+            float tipX = x2 - ux * endOffset + shiftX;
+            float tipY = y2 - uy * endOffset + shiftY;
+            float headBaseX = tipX - ux * headLen;
+            float headBaseY = tipY - uy * headLen;
+            float leftPtX = headBaseX + px * (headWidth / 2.0f);
+            float leftPtY = headBaseY + py * (headWidth / 2.0f);
+            float rightPtX = headBaseX - px * (headWidth / 2.0f);
+            float rightPtY = headBaseY - py * (headWidth / 2.0f);
+
+            canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, glowPaint);
+            canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, edgePaint);
+
+            Path headPath = new Path();
+            headPath.moveTo(tipX, tipY);
+            headPath.lineTo(leftPtX, leftPtY);
+            headPath.lineTo(rightPtX, rightPtY);
+            headPath.close();
+
+            canvas.drawPath(headPath, fillPaint);
+
+            edgePaint.setColor(0xFFFFFFFF);
+            edgePaint.setStrokeWidth(Math.max(1.1f, sqSize * 0.012f));
+            edgePaint.setPathEffect(null);
+            canvas.drawPath(headPath, edgePaint);
+        }
+    }
+
     private void drawSingleArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset) {
         float[] fromCenter = getSquareCenter(arrow.from, flipped, sqSize);
         float[] toCenter   = getSquareCenter(arrow.to,   flipped, sqSize);
@@ -432,14 +585,10 @@ public class ArrowOverlayView extends View {
         boolean isKnight = (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1);
 
         float thicknessScale = 1.0f - 0.06f * (arrow.tier - 1);
-        float baseShaftHalf = arrow.isThreat ? 0.048f : 0.042f;
-        float baseHeadHalf = arrow.isThreat ? 0.22f : 0.17f;
-        float baseHeadLen = arrow.isThreat ? 0.25f : 0.24f;
-
-        float shaftHalf = sqSize * baseShaftHalf * thicknessScale;
+        float shaftHalf = sqSize * 0.042f * thicknessScale;
         float neckHalf = shaftHalf;
-        float headHalf = sqSize * baseHeadHalf * thicknessScale;
-        float headLen = sqSize * baseHeadLen * thicknessScale;
+        float headHalf = sqSize * 0.17f * thicknessScale;
+        float headLen = sqSize * 0.24f * thicknessScale;
 
         float dx = x2 - x1, dy = y2 - y1;
         float len = (float) Math.hypot(dx, dy);
@@ -455,40 +604,6 @@ public class ArrowOverlayView extends View {
                     startOffset, shaftHalf, neckHalf, headHalf, headLen, perpOffset, targetOffset, arrow.isThreat);
         }
         if (arrowPath == null) return;
-
-        if (arrow.isThreat) {
-            // DẠNG MŨI TÊN ĐE DỌA ĐỘC BẢN (DISTINCT DANGER BARBED SPEAR):
-            // 1. Quầng sáng đỏ rực cảnh báo (GPU accelerated 2-pass stroke)
-            glowPaint.setMaskFilter(null);
-            glowPaint.setColor(0x40FF1744);
-            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.042f);
-            canvas.drawPath(arrowPath, glowPaint);
-
-            glowPaint.setColor(0x80DC2626);
-            glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.018f);
-            canvas.drawPath(arrowPath, glowPaint);
-
-            // 2. Thân mũi tên ngạnh nhọn (Linear Gradient Đỏ Ruby đậm -> Đỏ Lửa Neon)
-            int threatTail = 0xFF991B1B;
-            int threatTip  = 0xFFFF1744;
-            fillPaint.setShader(new LinearGradient(x1, y1, x2, y2,
-                    new int[]{threatTail, threatTip},
-                    new float[]{0.0f, 1.0f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawPath(arrowPath, fillPaint);
-
-            // 3. Viền than tương phản cao (High-contrast Obsidian border)
-            edgePaint.setShader(null);
-            edgePaint.setColor(0xFF18181B);
-            edgePaint.setStrokeWidth(Math.max(2.0f, sqSize * 0.024f));
-            canvas.drawPath(arrowPath, edgePaint);
-
-            // 4. Viền trắng highlight tương phản cao ở đầu ngạnh tam giác
-            glowPaint.setColor(0xDDFFFFFF);
-            glowPaint.setStrokeWidth(Math.max(1.2f, sqSize * 0.012f));
-            canvas.drawPath(arrowPath, glowPaint);
-            return;
-        }
 
         if (arrow.isPremove) {
             // Style riêng biệt cho Mũi Tên Premove (Premove Arrow):
@@ -663,17 +778,6 @@ public class ArrowOverlayView extends View {
                                        float headHalf, float neckHalf, boolean isThreat) {
         float headBaseX = tipX - ux * headLen;
         float headBaseY = tipY - uy * headLen;
-        if (isThreat) {
-            float barbSweep = headLen * 0.16f;
-            float notchIndent = headLen * 0.14f;
-            return new HeadPoints(
-                    tipX, tipY,
-                    headBaseX + px * headHalf - ux * barbSweep, headBaseY + py * headHalf - uy * barbSweep,
-                    headBaseX - px * headHalf - ux * barbSweep, headBaseY - py * headHalf - uy * barbSweep,
-                    headBaseX + px * neckHalf + ux * notchIndent, headBaseY + py * neckHalf + uy * notchIndent,
-                    headBaseX - px * neckHalf + ux * notchIndent, headBaseY - py * neckHalf + uy * notchIndent
-            );
-        }
         return new HeadPoints(
                 tipX, tipY,
                 headBaseX + px * headHalf, headBaseY + py * headHalf,
