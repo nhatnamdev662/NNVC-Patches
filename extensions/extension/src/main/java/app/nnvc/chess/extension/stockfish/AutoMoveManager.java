@@ -199,22 +199,163 @@ public class AutoMoveManager {
     /**
      * Retrieves the native accessibilityContract (implements com.chess.chessboard.accessibility.b)
      * which controls square selection and move execution directly on the board.
+     * Searches by obfuscated field name 'o', named 'accessibilityContract', or by interface type.
      */
     private static Object getAccessibilityContract(View boardView) {
         if (boardView == null) return null;
         Class<?> c = boardView.getClass();
         while (c != null && c != Object.class) {
+            // 1. Direct field lookup by obfuscated names
+            for (String fName : new String[]{"o", "accessibilityContract"}) {
+                try {
+                    Field f = c.getDeclaredField(fName);
+                    f.setAccessible(true);
+                    Object val = f.get(boardView);
+                    if (val != null) return val;
+                } catch (NoSuchFieldException ignored) {
+                } catch (Throwable t) {
+                    NnvcLogger.w(TAG, "Error accessing field " + fName + ": " + t.getMessage());
+                }
+            }
+
+            // 2. Scan all fields for implementation of com.chess.chessboard.accessibility.b or ChessBoardView$b
             try {
-                Field f = c.getDeclaredField("accessibilityContract");
-                f.setAccessible(true);
-                return f.get(boardView);
-            } catch (NoSuchFieldException ignored) {
-                c = c.getSuperclass();
-            } catch (Throwable t) {
-                NnvcLogger.e(TAG, "Error getting accessibilityContract field: " + t.getMessage(), t);
-                return null;
+                for (Field f : c.getDeclaredFields()) {
+                    try {
+                        Class<?> fType = f.getType();
+                        if (fType.getName().endsWith("$b") || fType.getName().contains("accessibility")) {
+                            f.setAccessible(true);
+                            Object val = f.get(boardView);
+                            if (val != null) {
+                                for (Class<?> iface : val.getClass().getInterfaces()) {
+                                    if (iface.getName().contains("accessibility")) {
+                                        return val;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+
+            c = c.getSuperclass();
+        }
+        return null;
+    }
+
+    /**
+     * Direct Move Executor interface wrapping either:
+     * 1. accessibilityContract.b(square)
+     * 2. dependencies.k1().b(fE, f, action, squareSize, flipped)
+     */
+    public interface DirectMoveExecutor {
+        boolean executeTap(Object square, String sqCoord, boolean flipped) throws Exception;
+    }
+
+    /**
+     * Resolves the Direct Move Executor for the board view.
+     * Zero fallback: Only uses internal native controller / model logic.
+     */
+    private static DirectMoveExecutor resolveDirectMoveExecutor(final View boardView, final Class<?> squareClass) {
+        if (boardView == null || squareClass == null) return null;
+
+        // 1. First choice: Native Accessibility Contract (ChessBoardView$b / com.chess.chessboard.accessibility.b)
+        final Object contract = getAccessibilityContract(boardView);
+        if (contract != null) {
+            final Method tapMethod = getTapMethod(contract, squareClass);
+            if (tapMethod != null) {
+                NnvcLogger.d(TAG, "Using DirectMoveExecutor via AccessibilityContract: " + contract.getClass().getName());
+                return new DirectMoveExecutor() {
+                    @Override
+                    public boolean executeTap(Object square, String sqCoord, boolean flipped) throws Exception {
+                        tapMethod.invoke(contract, square);
+                        return true;
+                    }
+                };
             }
         }
+
+        // 2. Second choice: Direct MoveHandler via dependencies.k1()
+        // Replicates exact bytecode of ChessBoardView$b.b(Square square)
+        try {
+            Class<?> bvClass = boardView.getClass();
+            Object deps = null;
+            try {
+                Method getDepsMethod = bvClass.getMethod("getDependencies$cbview_release");
+                getDepsMethod.setAccessible(true);
+                deps = getDepsMethod.invoke(boardView);
+            } catch (Throwable ignored) {}
+
+            if (deps == null) {
+                try {
+                    Field uField = bvClass.getDeclaredField("u");
+                    uField.setAccessible(true);
+                    deps = uField.get(boardView);
+                } catch (Throwable ignored) {}
+            }
+
+            if (deps != null) {
+                final Method k1Method = deps.getClass().getMethod("k1");
+                k1Method.setAccessible(true);
+                final Object moveHandler = k1Method.invoke(deps);
+
+                // Method cVarK1.b(float fE, float f, int action, float squareSize, boolean flipped)
+                final Method moveActionMethod = moveHandler.getClass().getMethod("b", float.class, float.class, int.class, float.class, boolean.class);
+                moveActionMethod.setAccessible(true);
+
+                // Find square.e(flipped) and square.f(flipped)
+                final Method eMethod = squareClass.getMethod("e", boolean.class);
+                eMethod.setAccessible(true);
+                final Method fMethod = squareClass.getMethod("f", boolean.class);
+                fMethod.setAccessible(true);
+
+                // Find drawDelegate or compute squareSize directly from boardView.getWidth() / 8.0f
+                Method getDrawDelegateMethod = null;
+                try {
+                    getDrawDelegateMethod = bvClass.getMethod("getDrawDelegate");
+                    getDrawDelegateMethod.setAccessible(true);
+                } catch (Throwable ignored) {}
+
+                final Method finalGetDrawDelegate = getDrawDelegateMethod;
+                final Object finalDeps = deps;
+
+                NnvcLogger.d(TAG, "Using DirectMoveExecutor via MoveHandler (dependencies.k1()): " + moveHandler.getClass().getName());
+                return new DirectMoveExecutor() {
+                    @Override
+                    public boolean executeTap(Object square, String sqCoord, boolean flipped) throws Exception {
+                        float squareSize = 0f;
+                        if (finalGetDrawDelegate != null) {
+                            try {
+                                Object drawDelegate = finalGetDrawDelegate.invoke(boardView);
+                                if (drawDelegate != null) {
+                                    Method getSqSize = drawDelegate.getClass().getMethod("getSquareSize");
+                                    getSqSize.setAccessible(true);
+                                    squareSize = ((Number) getSqSize.invoke(drawDelegate)).floatValue();
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                        if (squareSize <= 0f) {
+                            int w = boardView.getWidth();
+                            squareSize = (w > 0) ? (w / 8.0f) : (boardView.getHeight() / 8.0f);
+                        }
+
+                        int fileIdx = ((Number) eMethod.invoke(square, flipped)).intValue();
+                        int rankIdx = ((Number) fMethod.invoke(square, flipped)).intValue();
+                        float fE = (fileIdx + 0.5f) * squareSize;
+                        float f = (rankIdx + 0.5f) * squareSize;
+
+                        // cVarK1.b(fE, f, 0, squareSize, flipped);
+                        // cVarK1.b(fE, f, 1, squareSize, flipped);
+                        moveActionMethod.invoke(moveHandler, fE, f, 0, squareSize, flipped);
+                        moveActionMethod.invoke(moveHandler, fE, f, 1, squareSize, flipped);
+                        return true;
+                    }
+                };
+            }
+        } catch (Throwable t) {
+            NnvcLogger.e(TAG, "Failed to resolve DirectMoveExecutor via MoveHandler: " + t.getMessage(), t);
+        }
+
         return null;
     }
 
@@ -369,16 +510,9 @@ public class AutoMoveManager {
                         return;
                     }
 
-                    final Object contract = getAccessibilityContract(boardView);
-                    if (contract == null) {
-                        NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: accessibilityContract not found on ChessBoardView. NO FALLBACK.");
-                        isExecutingMove = false;
-                        return;
-                    }
-
-                    final Method tapMethod = getTapMethod(contract, fromSquare.getClass());
-                    if (tapMethod == null) {
-                        NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: Tap method 'b(Square)' not found on controller. NO FALLBACK.");
+                    final DirectMoveExecutor moveExecutor = resolveDirectMoveExecutor(boardView, fromSquare.getClass());
+                    if (moveExecutor == null) {
+                        NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: No DirectMoveExecutor (neither accessibilityContract nor moveHandler) found on ChessBoardView. NO FALLBACK.");
                         isExecutingMove = false;
                         return;
                     }
@@ -391,7 +525,7 @@ public class AutoMoveManager {
                     NnvcLogger.i(TAG, "⚡ Direct Auto Move executing (Extension Style): " + uciMove + " (" + fromSq + " -> " + toSq + ", delay=" + fittsDelay + "ms, promo=" + isPromo + ")");
 
                     // Step 1: Select source square
-                    tapMethod.invoke(contract, fromSquare);
+                    moveExecutor.executeTap(fromSquare, fromSq, flipped);
                     NnvcLogger.d(TAG, "▶ [AUTO MOVE STEP 1] Đã chọn ô nguồn: " + fromSq);
 
                     // Step 2: Delay matching Fitts's Law before selecting destination square
@@ -404,7 +538,7 @@ public class AutoMoveManager {
                                 }
 
                                 // Step 3: Complete move to target square
-                                tapMethod.invoke(contract, toSquare);
+                                moveExecutor.executeTap(toSquare, toSq, flipped);
                                 NnvcLogger.d(TAG, "▶ [AUTO MOVE STEP 2] Đã chọn ô đích: " + toSq + " (hoàn tất nước đi)");
 
                                 if (isPromo) {
