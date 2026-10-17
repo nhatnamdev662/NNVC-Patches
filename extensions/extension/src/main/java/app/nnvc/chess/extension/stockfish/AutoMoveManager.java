@@ -149,9 +149,10 @@ public class AutoMoveManager {
     }
 
     /**
-     * Determines whether a UCI move represents a pawn promotion (e.g., e7e8q, c7c8, etc.)
+     * Determines whether a UCI move represents a pawn promotion (e.g., e7e8q, c7c8q, or pawn reaching last rank).
+     * If currentFen is provided, checks if the moving piece is actually a pawn ('p' or 'P').
      */
-    public static boolean isPromotion(String uciMove) {
+    public static boolean isPromotion(String uciMove, String currentFen) {
         if (uciMove == null || uciMove.length() < 4) return false;
         if (uciMove.length() >= 5) {
             char p = Character.toLowerCase(uciMove.charAt(4));
@@ -159,7 +160,21 @@ public class AutoMoveManager {
         }
         char fromRank = uciMove.charAt(1);
         char toRank = uciMove.charAt(3);
-        return (fromRank == '7' && toRank == '8') || (fromRank == '2' && toRank == '1');
+        boolean rankMatches = (fromRank == '7' && toRank == '8') || (fromRank == '2' && toRank == '1');
+        if (!rankMatches) return false;
+
+        // If FEN is available, ensure the piece moving is indeed a Pawn
+        if (currentFen != null && !currentFen.isEmpty()) {
+            char piece = StockfishExtension.getPieceAtSquare(currentFen, uciMove.substring(0, 2));
+            if (piece != '.' && piece != ' ') {
+                return piece == 'p' || piece == 'P';
+            }
+        }
+        return true;
+    }
+
+    public static boolean isPromotion(String uciMove) {
+        return isPromotion(uciMove, null);
     }
 
     /**
@@ -488,7 +503,7 @@ public class AutoMoveManager {
 
         final String fromSq = uciMove.substring(0, 2);
         final String toSq = uciMove.substring(2, 4);
-        final boolean isPromo = isPromotion(uciMove);
+        final boolean isPromo = isPromotion(uciMove, currentFen);
         final long fittsDelay = calculateFittsDelay(fromSq, toSq);
 
         isExecutingMove = true;

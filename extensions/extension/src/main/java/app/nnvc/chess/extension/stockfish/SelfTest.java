@@ -1466,6 +1466,12 @@ public class SelfTest {
         check("UCI d7d5 is NOT promotion", !AutoMoveManager.isPromotion("d7d5"));
         check("UCI null is NOT promotion", !AutoMoveManager.isPromotion(null));
 
+        // 35d-2. FEN-aware promotion check (Knight f7->h8 vs Pawn e7->e8)
+        String testFenKnight = "1rb2k1r/p2q1Npp/1nQ1pn2/3p1pN1/1p1P4/6P1/PPP1PPBP/1R3RK1 w - - 11 20";
+        check("f7h8 with Knight on f7 is NOT promotion", !AutoMoveManager.isPromotion("f7h8", testFenKnight));
+        String testFenPawn = "rnbqkbnr/pppp1Ppp/8/8/8/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1";
+        check("f7e8 with White Pawn on f7 is promotion", AutoMoveManager.isPromotion("f7e8", testFenPawn));
+
         // 35e. Direct Controller static squares indexing parity (com.chess.chessboard.w.b)
         check("sqToIndex a8 matches index 0", AutoMoveManager.sqToIndex("a8") == 0);
         check("sqToIndex h8 matches index 7", AutoMoveManager.sqToIndex("h8") == 7);
