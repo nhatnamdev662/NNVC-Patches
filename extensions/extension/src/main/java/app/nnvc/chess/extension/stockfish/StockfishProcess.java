@@ -359,7 +359,11 @@ public class StockfishProcess {
 
             line = readLineFromActiveEngine();
             if (line == null) {
-                NnvcLogger.w(TAG, "Engine output stream closed or timed out");
+                // If deadline not yet passed, engine is still calculating deeper lines, continue waiting
+                if (System.currentTimeMillis() <= deadline) {
+                    continue;
+                }
+                NnvcLogger.w(TAG, "Engine output stream closed or search deadline expired");
                 break;
             }
 
