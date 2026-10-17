@@ -118,6 +118,11 @@ public class SmartDelayManager {
             this.releaseMin = releaseMin;
             this.releaseMax = releaseMax;
         }
+
+        public String getLabel(boolean isVi) {
+            if (isVi) return label;
+            return label.replace("phút", "min");
+        }
     }
 
     public static final TCPreset[] TC_PRESETS = new TCPreset[] {
@@ -356,7 +361,7 @@ public class SmartDelayManager {
 
                                 info.mySec = (userWhite ? wMs : bMs) / 1000.0;
                                 info.oppSec = (userWhite ? bMs : wMs) / 1000.0;
-                                info.source = "Native ClocksState";
+                                info.source = "auto";
                                 info.isAutoDetected = true;
                             }
                         }
@@ -378,7 +383,7 @@ public class SmartDelayManager {
                                         Method mInc = gt.getClass().getMethod("getBonusSecPerMove");
                                         info.initBaseSec = ((Number) mSec.invoke(gt)).intValue();
                                         info.incrementSec = ((Number) mInc.invoke(gt)).intValue();
-                                        info.source = "Native GameSetup";
+                                        info.source = "auto";
                                         info.isAutoDetected = true;
                                         break;
                                     }
@@ -490,7 +495,7 @@ public class SmartDelayManager {
 
             info.mySec = bottomSec;
             info.oppSec = topSec;
-            info.source = "UI Clock View";
+            info.source = "clock";
             info.isAutoDetected = true;
 
             if (info.initBaseSec <= 0) {
@@ -565,8 +570,11 @@ public class SmartDelayManager {
 
         NnvcLogger.i(TAG, "⏳ [TIME CONTROL RECOGNIZED] " + preset.label + " (Base=" + baseSec + "s, Inc=" + incSec + "s, Nguồn=" + clockInfo.source + ")");
 
-        final String tcLabel = preset.label;
-        final String srcLabel = I18n.isVi(activity) ? "Tự động phát hiện (" + clockInfo.source + ")" : "Auto-detected (" + clockInfo.source + ")";
+        final String tcLabel = I18n.getTcPresetLabel(activity, bestIdx);
+        final String srcKey = "clock".equalsIgnoreCase(clockInfo.source) ? "tcp_src_clock" : "tcp_src_auto";
+        final String srcLabel = I18n.get(activity, srcKey);
+
+        NnvcLogger.i(TAG, "⏳ [TIME CONTROL RECOGNIZED] " + tcLabel + " (Base=" + baseSec + "s, Inc=" + incSec + "s, Source=" + clockInfo.source + ")");
 
         postToMain(() -> showTCPopup(activity, tcLabel, srcLabel));
     }
@@ -629,7 +637,7 @@ public class SmartDelayManager {
         body.setOrientation(LinearLayout.VERTICAL);
 
         TextView labelView = new TextView(activity);
-        labelView.setText(I18n.isVi(activity) ? "THỜI GIAN VÁN ĐẤU" : "TIME CONTROL");
+        labelView.setText(I18n.get(activity, "tcp_label"));
         labelView.setTextColor(Color.parseColor("#94A3B8"));
         labelView.setTextSize(10.5f);
         labelView.setTypeface(Typeface.DEFAULT_BOLD);

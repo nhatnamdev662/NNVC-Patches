@@ -1572,6 +1572,15 @@ public class SelfTest {
         check("parseClockText 1:15:30 equals 4530s", Math.abs(SmartDelayManager.parseClockText("1:15:30") - 4530.0) < 0.001);
         check("parseClockText invalid returns -1", SmartDelayManager.parseClockText("invalid") < 0);
 
+        // 37g. Time Control Bilingual Parity & Dev-Lingo Purge
+        check("TC preset 5 vi label is 5 phút", "5 phút".equals(SmartDelayManager.TC_PRESETS[5].getLabel(true)));
+        check("TC preset 5 en label is 5 min", "5 min".equals(SmartDelayManager.TC_PRESETS[5].getLabel(false)));
+        check("TC preset 0 en label is 1 min", "1 min".equals(SmartDelayManager.TC_PRESETS[0].getLabel(false)));
+        check("TC preset 6 en label is 10 min", "10 min".equals(SmartDelayManager.TC_PRESETS[6].getLabel(false)));
+        check("I18n tcp_label vi is THỜI GIAN VÁN ĐẤU", "THỜI GIAN VÁN ĐẤU".equals(I18n.get(null, "tcp_label")));
+        check("I18n tcp_src_auto vi is Tự động nhận diện", "Tự động nhận diện".equals(I18n.get(null, "tcp_src_auto")));
+        check("I18n tcp_src_clock vi is Từ đồng hồ", "Từ đồng hồ".equals(I18n.get(null, "tcp_src_clock")));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

@@ -236,8 +236,46 @@ public class I18n {
                 return isVi ? "ĐANG HOẠT ĐỘNG" : "ANALYSIS ACTIVE";
             case "status_off":
                 return isVi ? "ĐANG TẮT" : "ANALYSIS DISABLED";
+            case "tcp_label":
+                return isVi ? "THỜI GIAN VÁN ĐẤU" : "TIME CONTROL";
+            case "tcp_src_auto":
+                return isVi ? "Tự động nhận diện" : "Auto-detected";
+            case "tcp_src_clock":
+                return isVi ? "Từ đồng hồ" : "From clock";
             default:
                 return key;
+        }
+    }
+
+    public static String getTcPresetLabel(Context context, int tcIndex) {
+        boolean isVi = isVi(context);
+        switch (tcIndex) {
+            case 0: return isVi ? "1 phút" : "1 min";
+            case 1: return "1|1";
+            case 2: return "2|1";
+            case 3: return isVi ? "3 phút" : "3 min";
+            case 4: return "3|2";
+            case 5: return isVi ? "5 phút" : "5 min";
+            case 6: return isVi ? "10 phút" : "10 min";
+            case 7: return "15|10";
+            case 8: return isVi ? "30 phút" : "30 min";
+            default: return isVi ? "5 phút" : "5 min";
+        }
+    }
+
+    public static String getTcButtonLabel(Context context, int tcIndex) {
+        boolean isVi = isVi(context);
+        switch (tcIndex) {
+            case 0: return isVi ? "1ph" : "1m";
+            case 1: return "1|1";
+            case 2: return "2|1";
+            case 3: return isVi ? "3ph" : "3m";
+            case 4: return "3|2";
+            case 5: return isVi ? "5ph" : "5m";
+            case 6: return isVi ? "10ph" : "10m";
+            case 7: return "15|10";
+            case 8: return isVi ? "30ph" : "30m";
+            default: return isVi ? "5ph" : "5m";
         }
     }
 }

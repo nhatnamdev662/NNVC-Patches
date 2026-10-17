@@ -814,11 +814,10 @@ public class StockfishSettingsDialog {
         tcContainer.addView(tcSub);
 
         // 9 Presets Grid (_tcg): 3 hàng x 3 cột
-        final String[] presetLabels = new String[] {
-            "1ph", "1|1", "2|1",
-            "3ph", "3|2", "5ph",
-            "10ph", "15|10", "30ph"
-        };
+        final String[] presetLabels = new String[9];
+        for (int i = 0; i < 9; i++) {
+            presetLabels[i] = I18n.getTcButtonLabel(activity, i);
+        }
         final Button[] tcButtons = new Button[9];
         final int activeTc = SmartDelayManager.getActiveTcIndex();
 
@@ -852,7 +851,7 @@ public class StockfishSettingsDialog {
                         }
                     }
                     HapticHelper.pop(activity, v);
-                    SmartDelayManager.showTCPopup(activity, presetLabels[idx], I18n.isVi(activity) ? "Chọn thủ công (Preset " + presetLabels[idx] + ")" : "Manual selection");
+                    SmartDelayManager.showTCPopup(activity, I18n.getTcPresetLabel(activity, idx), I18n.isVi(activity) ? "Chọn thủ công" : "Manual selection");
                 });
 
                 tcButtons[idx] = btn;
