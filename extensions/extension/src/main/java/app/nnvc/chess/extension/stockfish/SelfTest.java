@@ -1543,6 +1543,35 @@ public class SelfTest {
         check("Active TC set to 3", SmartDelayManager.getActiveTcIndex() == 3);
         check("Active TC label is 3 phút", "3 phút".equals(SmartDelayManager.getActiveTcLabel()));
 
+        // 37e. Clock extraction 3-tier reflection verification
+        class DummyClocksStandard {
+            public long getWhiteMillis() { return 120000L; }
+            public long getBlackMillis() { return 115000L; }
+        }
+        long[] resStd = SmartDelayManager.extractClockMillis(new DummyClocksStandard());
+        check("extractClockMillis handles standard getters", resStd != null && resStd[0] == 120000L && resStd[1] == 115000L);
+
+        class DummyClocksObfuscated {
+            public long f() { return 45000L; }
+            public long c() { return 50000L; }
+        }
+        long[] resObf = SmartDelayManager.extractClockMillis(new DummyClocksObfuscated());
+        check("extractClockMillis handles obfuscated f()/c() getters", resObf != null && resObf[0] == 45000L && resObf[1] == 50000L);
+
+        class DummyClocksFieldsOnly {
+            private final long a = 6000L;
+            private final long b = 7500L;
+            private final String extra = "color";
+        }
+        long[] resFields = SmartDelayManager.extractClockMillis(new DummyClocksFieldsOnly());
+        check("extractClockMillis handles raw long fields reflection", resFields != null && resFields[0] == 6000L && resFields[1] == 7500L);
+
+        // 37f. Clock UI parsing verification
+        check("parseClockText 0:05.4 equals 5.4s", Math.abs(SmartDelayManager.parseClockText("0:05.4") - 5.4) < 0.001);
+        check("parseClockText 3:00 equals 180s", Math.abs(SmartDelayManager.parseClockText("3:00") - 180.0) < 0.001);
+        check("parseClockText 1:15:30 equals 4530s", Math.abs(SmartDelayManager.parseClockText("1:15:30") - 4530.0) < 0.001);
+        check("parseClockText invalid returns -1", SmartDelayManager.parseClockText("invalid") < 0);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

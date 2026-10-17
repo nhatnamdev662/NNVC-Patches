@@ -349,15 +349,16 @@ public class SmartDelayManager {
                         Method mVal = stateFlow.getClass().getMethod("getValue");
                         Object clocksState = mVal.invoke(stateFlow);
                         if (clocksState != null) {
-                            Method mWhite = clocksState.getClass().getMethod("getWhiteMillis");
-                            Method mBlack = clocksState.getClass().getMethod("getBlackMillis");
-                            long wMs = ((Number) mWhite.invoke(clocksState)).longValue();
-                            long bMs = ((Number) mBlack.invoke(clocksState)).longValue();
+                            long[] millis = extractClockMillis(clocksState);
+                            if (millis != null && millis[0] >= 0 && millis[1] >= 0) {
+                                long wMs = millis[0];
+                                long bMs = millis[1];
 
-                            info.mySec = (userWhite ? wMs : bMs) / 1000.0;
-                            info.oppSec = (userWhite ? bMs : wMs) / 1000.0;
-                            info.source = "Native ClocksState";
-                            info.isAutoDetected = true;
+                                info.mySec = (userWhite ? wMs : bMs) / 1000.0;
+                                info.oppSec = (userWhite ? bMs : wMs) / 1000.0;
+                                info.source = "Native ClocksState";
+                                info.isAutoDetected = true;
+                            }
                         }
                     }
                 }
@@ -403,6 +404,52 @@ public class SmartDelayManager {
         return info;
     }
 
+    public static long[] extractClockMillis(Object clocksState) {
+        if (clocksState == null) return null;
+        Class<?> cCls = clocksState.getClass();
+        long wMs = -1;
+        long bMs = -1;
+
+        // 1. Getter chuẩn Kotlin: getWhiteMillis() / getBlackMillis()
+        try {
+            Method mWhite = cCls.getMethod("getWhiteMillis");
+            Method mBlack = cCls.getMethod("getBlackMillis");
+            wMs = ((Number) mWhite.invoke(clocksState)).longValue();
+            bMs = ((Number) mBlack.invoke(clocksState)).longValue();
+            if (wMs >= 0 && bMs >= 0) return new long[] { wMs, bMs };
+        } catch (Throwable ignored) {}
+
+        // 2. Getter obfuscated R8: f() / c() (khớp 100% com.chess.realchess.ui.game.b)
+        try {
+            Method mF = cCls.getMethod("f");
+            Method mC = cCls.getMethod("c");
+            if (mF.getReturnType() == long.class && mC.getReturnType() == long.class) {
+                wMs = ((Number) mF.invoke(clocksState)).longValue();
+                bMs = ((Number) mC.invoke(clocksState)).longValue();
+                if (wMs >= 0 && bMs >= 0) return new long[] { wMs, bMs };
+            }
+        } catch (Throwable ignored) {}
+
+        // 3. Quét trực tiếp các trường long: ClocksState có 2 trường long đầu tiên (whiteMillis, blackMillis)
+        try {
+            List<Long> longFields = new ArrayList<>();
+            for (Field f : cCls.getDeclaredFields()) {
+                if (f.getType() == long.class || f.getType() == Long.class) {
+                    f.setAccessible(true);
+                    Object val = f.get(clocksState);
+                    if (val instanceof Number) {
+                        longFields.add(((Number) val).longValue());
+                    }
+                }
+            }
+            if (longFields.size() >= 2) {
+                return new long[] { longFields.get(0), longFields.get(1) };
+            }
+        } catch (Throwable ignored) {}
+
+        return null;
+    }
+
     private static Object resolveRealGameViewModel(Activity activity) {
         try {
             Method mX6 = activity.getClass().getMethod("X6");
@@ -423,7 +470,7 @@ public class SmartDelayManager {
         return null;
     }
 
-    private static final Pattern CLOCK_PATTERN = Pattern.compile("^(\\d{1,2}):(\\d{2})(?:\\.(\\d))?$");
+    private static final Pattern CLOCK_PATTERN = Pattern.compile("^(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})(?:\\.(\\d))?$");
 
     private static void scanClocksFromUi(Activity activity, boolean userWhite, LiveClockInfo info) {
         if (activity.getWindow() == null || activity.getWindow().getDecorView() == null) return;
@@ -484,10 +531,12 @@ public class SmartDelayManager {
         if (str == null) return -1;
         Matcher m = CLOCK_PATTERN.matcher(str.trim());
         if (m.matches()) {
-            int mins = Integer.parseInt(m.group(1));
-            int secs = Integer.parseInt(m.group(2));
-            double tenths = m.group(3) != null ? Double.parseDouble("0." + m.group(3)) : 0.0;
-            return mins * 60 + secs + tenths;
+            String hoursStr = m.group(1);
+            int hours = hoursStr != null ? Integer.parseInt(hoursStr) : 0;
+            int mins = Integer.parseInt(m.group(2));
+            int secs = Integer.parseInt(m.group(3));
+            double tenths = m.group(4) != null ? Double.parseDouble("0." + m.group(4)) : 0.0;
+            return hours * 3600 + mins * 60 + secs + tenths;
         }
         return -1;
     }
@@ -660,14 +709,13 @@ public class SmartDelayManager {
         double mySec = clocks.mySec;
         double oppSec = clocks.oppSec;
 
-        // A. Chế độ Dirty Flagging & Low Time Panic (Chống Rụng Kim Tức Thời)
-        boolean bulletMode = ctx != null && StockfishSettings.isBulletFlaggingMode(ctx);
-        boolean isDirtyFlagging = bulletMode && isBullet && ((oppSec >= 0 && oppSec <= 6.0) || (mySec >= 0 && mySec <= 6.5));
+        // A. Chế độ Dirty Flagging & Low Time Panic (Chống Rụng Kim Tức Thời - Chuẩn 100% Extension)
+        boolean isDirtyFlagging = isBullet && ((oppSec >= 0 && oppSec <= 6.0) || (mySec >= 0 && mySec <= 6.5));
         boolean isUnder6_5s = (mySec >= 0 && mySec <= 6.5);
 
         if (isDirtyFlagging || isUnder6_5s) {
-            lastScenarioLabel = "⚡ Dirty Flagging (<= 6s)";
-            NnvcLogger.d(TAG, "▶ [SMART DELAY] " + lastScenarioLabel + " -> 0ms");
+            lastScenarioLabel = isUnder6_5s ? "⚡ No Delay (<= 6.5s)" : "⚡ Dirty Flagging (<= 6s)";
+            NnvcLogger.d(TAG, "▶ [SMART DELAY] " + lastScenarioLabel + " -> 0ms (mySec=" + mySec + "s, oppSec=" + oppSec + "s)");
             return 0;
         }
 

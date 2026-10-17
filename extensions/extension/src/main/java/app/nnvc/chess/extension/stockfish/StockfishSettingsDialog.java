@@ -861,21 +861,6 @@ public class StockfishSettingsDialog {
             tcContainer.addView(rowLayout);
         }
 
-        addCardSeparator(delayCard, density);
-
-        // Switch Bullet Flagging (_dirtyFlagging)
-        final CyberSwitchView bulletFlaggingSwitch = addCyberSwitchRow(delayCard,
-                I18n.get(activity, "row_bullet_flagging"),
-                I18n.get(activity, "bullet_flagging_sub"),
-                StockfishSettings.isBulletFlaggingMode(activity),
-                density, activity);
-
-        bulletFlaggingSwitch.setOnCheckedChangeListener((view, isChecked) -> {
-            StockfishSettings.setBulletFlaggingMode(activity, isChecked);
-            HapticHelper.pop(activity, view);
-            Toast.makeText(activity, isChecked ? "Bullet Flagging ON" : "Bullet Flagging OFF", Toast.LENGTH_SHORT).show();
-        });
-
         // Switch listener cho Auto Smart Delay
         smartDelaySwitch.setOnCheckedChangeListener((view, isChecked) -> {
             StockfishSettings.setSmartDelayEnabled(activity, isChecked);

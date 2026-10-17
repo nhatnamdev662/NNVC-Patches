@@ -552,7 +552,7 @@ public class StockfishSettings {
     }
 
     public static float getFixedDelaySeconds(Context context) {
-        return getPrefs(context).getFloat(KEY_FIXED_DELAY_SEC, 0.3f);
+        return getPrefs(context).getFloat(KEY_FIXED_DELAY_SEC, 0.0f);
     }
 
     public static void setFixedDelaySeconds(Context context, float sec) {
