@@ -5,20 +5,22 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.PopupWindow;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
 
 /**
- * AutoMoveManager – In-Process Touch Injection & Chess Move Automation.
+ * AutoMoveManager – Direct Controller/Model Chess Move Automation.
  * 
  * 100% Parity with NNVC Desktop Extension Auto-Move mechanism.
- * Automatically executes engine recommended moves directly on ChessBoardView
- * via sequential dispatchTouchEvent without requiring Accessibility services or Root.
+ * Directly commands the native Chess.com board controller without touch event simulation,
+ * avoiding coordinate calculations, screen resolution discrepancies, and UI overlay blockage.
+ * 
+ * Strict Rule: FAIL-FAST. NO TOUCH FALLBACK.
  */
 public class AutoMoveManager {
 
@@ -29,9 +31,11 @@ public class AutoMoveManager {
     private static volatile String lastAttemptedUci = null;
     private static volatile long lastMoveTimestamp = 0;
 
-    /** Natural human mechanical touch intervals */
-    private static final long TAP_HOLD_MS = 25;
-    private static final long TAP_GAP_MS = 95;
+    /** Cached 64 static Square instances from com.chess.chessboard.w.b */
+    private static volatile List<?> cachedSquaresList = null;
+    private static volatile Method cachedTapMethod = null;
+
+    /** Minimum cooldown between moves (ms) */
     private static final long COOLDOWN_MS = 500;
 
     private static Handler getMainHandler() {
@@ -68,8 +72,65 @@ public class AutoMoveManager {
     }
 
     /**
-     * Calculates the exact pixel center coordinates (X, Y) for a chess square (e.g., "e2", "e4").
-     * Respects board orientation (flipped / unflipped).
+     * Converts chess coordinate notation (e.g. "a1", "e4", "h8") to the 0..63 index
+     * within the static squares list com.chess.chessboard.w.b.
+     * 
+     * Formula derived from com.chess.chessboard.w.c(file, rank):
+     * rankIdx = rank.ordinal() (0 for rank 1, 7 for rank 8)
+     * index = (7 - rankIdx) * 8 + fileIdx
+     */
+    public static int sqToIndex(String sq) {
+        if (sq == null || sq.length() < 2) return -1;
+        int fileIdx = sq.charAt(0) - 'a';
+        int rankIdx = sq.charAt(1) - '1';
+        if (fileIdx < 0 || fileIdx > 7 || rankIdx < 0 || rankIdx > 7) return -1;
+        return (7 - rankIdx) * 8 + fileIdx;
+    }
+
+    /**
+     * Resolves the native com.chess.chessboard.t (Square) instance for a coordinate.
+     */
+    public static Object getSquare(ClassLoader cl, String sq) {
+        int idx = sqToIndex(sq);
+        if (idx < 0 || idx >= 64 || cl == null) return null;
+        try {
+            if (cachedSquaresList == null) {
+                synchronized (AutoMoveManager.class) {
+                    if (cachedSquaresList == null) {
+                        Class<?> wClass = Class.forName("com.chess.chessboard.w", true, cl);
+                        Field bField = wClass.getDeclaredField("b");
+                        bField.setAccessible(true);
+                        cachedSquaresList = (List<?>) bField.get(null);
+                        Log.i(TAG, "Initialized cachedSquaresList: " + (cachedSquaresList != null ? cachedSquaresList.size() : "null"));
+                    }
+                }
+            }
+            if (cachedSquaresList != null && idx < cachedSquaresList.size()) {
+                return cachedSquaresList.get(idx);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to resolve Square object for " + sq + ": " + t.getMessage(), t);
+        }
+        return null;
+    }
+
+    /**
+     * Calculates authentic biometric delay based on Fitts's Law.
+     * Exact 100% parity with NNVC Desktop Extension (nnvc_main_bundle.js:16544):
+     * delay = 95 + dist * 18 + random * 45 ms
+     */
+    public static long calculateFittsDelay(String fromSq, String toSq) {
+        if (fromSq == null || toSq == null || fromSq.length() < 2 || toSq.length() < 2) {
+            return 120;
+        }
+        int dx = Math.abs(toSq.charAt(0) - fromSq.charAt(0));
+        int dy = Math.abs(toSq.charAt(1) - fromSq.charAt(1));
+        double dist = Math.hypot(dx, dy);
+        return (long) (95 + dist * 18 + Math.random() * 45);
+    }
+
+    /**
+     * Legacy pixel center coordinate calculation for test assertions & metrics.
      */
     public static float[] getSquareCenter(String sq, boolean flipped, float boardWidth, float boardHeight) {
         if (sq == null || sq.length() < 2 || boardWidth <= 0 || boardHeight <= 0) return null;
@@ -104,7 +165,7 @@ public class AutoMoveManager {
 
     /**
      * Configures ChessBoardView to promote directly to Queen without displaying a popup dialog.
-     * This matches the native Chess.com auto-queen mechanism:
+     * Native Chess.com auto-queen mechanism:
      * chessBoardView.setPromotionTargets(PromotionTargets.b)
      */
     public static boolean applyPromotionQueen(View boardView) {
@@ -134,6 +195,54 @@ public class AutoMoveManager {
             Log.w(TAG, "applyPromotionQueen failed: " + t.getMessage());
         }
         return false;
+    }
+
+    /**
+     * Retrieves the native accessibilityContract (implements com.chess.chessboard.accessibility.b)
+     * which controls square selection and move execution directly on the board.
+     */
+    private static Object getAccessibilityContract(View boardView) {
+        if (boardView == null) return null;
+        Class<?> c = boardView.getClass();
+        while (c != null && c != Object.class) {
+            try {
+                Field f = c.getDeclaredField("accessibilityContract");
+                f.setAccessible(true);
+                return f.get(boardView);
+            } catch (NoSuchFieldException ignored) {
+                c = c.getSuperclass();
+            } catch (Throwable t) {
+                Log.e(TAG, "Error getting accessibilityContract field: " + t.getMessage(), t);
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Finds the controller tap method: void b(com.chess.chessboard.t square)
+     */
+    private static Method getTapMethod(Object contract, Class<?> squareClass) {
+        if (contract == null || squareClass == null) return null;
+        if (cachedTapMethod != null) return cachedTapMethod;
+
+        try {
+            Method m = contract.getClass().getMethod("b", squareClass);
+            m.setAccessible(true);
+            cachedTapMethod = m;
+            return m;
+        } catch (Throwable ignored) {}
+
+        // Fallback search across declared methods for 1-arg matching squareClass
+        for (Method m : contract.getClass().getMethods()) {
+            Class<?>[] pTypes = m.getParameterTypes();
+            if (pTypes.length == 1 && pTypes[0].isAssignableFrom(squareClass)) {
+                m.setAccessible(true);
+                cachedTapMethod = m;
+                return m;
+            }
+        }
+        return null;
     }
 
     /**
@@ -201,7 +310,10 @@ public class AutoMoveManager {
     }
 
     /**
-     * Checks if Auto Move is eligible and executes the move asynchronously on the Main UI Thread.
+     * Executes Auto Move using Direct Controller/Model invocation (Extension Style).
+     * 
+     * STRICT REQUIREMENT: NO TOUCH SIMULATION FALLBACK.
+     * If the native controller or square instance cannot be found, it fails fast and logs the error.
      */
     public static void executeAutoMove(final Context context,
                                        final View boardView,
@@ -235,6 +347,7 @@ public class AutoMoveManager {
         final String fromSq = uciMove.substring(0, 2);
         final String toSq = uciMove.substring(2, 4);
         final boolean isPromo = isPromotion(uciMove);
+        final long fittsDelay = calculateFittsDelay(fromSq, toSq);
 
         isExecutingMove = true;
         lastAttemptedFen = currentFen;
@@ -245,100 +358,76 @@ public class AutoMoveManager {
             @Override
             public void run() {
                 try {
-                    float boardW = boardView.getWidth();
-                    float boardH = boardView.getHeight();
-                    if (boardW <= 0 || boardH <= 0) {
+                    ClassLoader cl = boardView.getContext().getClassLoader();
+                    final Object fromSquare = getSquare(cl, fromSq);
+                    final Object toSquare = getSquare(cl, toSq);
+
+                    if (fromSquare == null || toSquare == null) {
+                        Log.e(TAG, "❌ Direct Auto Move FAILED: Unable to resolve Square objects (" + fromSq + "=" + fromSquare + ", " + toSq + "=" + toSquare + "). NO FALLBACK.");
                         isExecutingMove = false;
                         return;
                     }
 
-                    float[] fromCoords = getSquareCenter(fromSq, flipped, boardW, boardH);
-                    float[] toCoords = getSquareCenter(toSq, flipped, boardW, boardH);
-                    if (fromCoords == null || toCoords == null) {
+                    final Object contract = getAccessibilityContract(boardView);
+                    if (contract == null) {
+                        Log.e(TAG, "❌ Direct Auto Move FAILED: accessibilityContract not found on ChessBoardView. NO FALLBACK.");
                         isExecutingMove = false;
                         return;
                     }
 
-                    // Nếu là nước cờ phong cấp (Promotion), tự động áp dụng cờ phong Hậu trực tiếp
+                    final Method tapMethod = getTapMethod(contract, fromSquare.getClass());
+                    if (tapMethod == null) {
+                        Log.e(TAG, "❌ Direct Auto Move FAILED: Tap method 'b(Square)' not found on controller. NO FALLBACK.");
+                        isExecutingMove = false;
+                        return;
+                    }
+
+                    // Pre-apply Auto-Queen promotion targets
                     if (isPromo) {
                         applyPromotionQueen(boardView);
                     }
 
-                    Log.i(TAG, "⚡ Auto Move executing: " + uciMove + " (" + fromSq + " -> " + toSq + ", flipped=" + flipped + ", promo=" + isPromo + ")");
+                    Log.i(TAG, "⚡ Direct Auto Move executing (Extension Style): " + uciMove + " (" + fromSq + " -> " + toSq + ", delay=" + fittsDelay + "ms, promo=" + isPromo + ")");
 
-                    // 1. Tap ô nguồn (From Square)
-                    long downTime1 = nowMs();
-                    MotionEvent down1 = MotionEvent.obtain(downTime1, downTime1, MotionEvent.ACTION_DOWN, fromCoords[0], fromCoords[1], 0);
-                    boardView.dispatchTouchEvent(down1);
-                    down1.recycle();
+                    // Step 1: Select source square
+                    tapMethod.invoke(contract, fromSquare);
 
+                    // Step 2: Delay matching Fitts's Law before selecting destination square
                     postDelayedToMain(new Runnable() {
                         @Override
                         public void run() {
                             try {
-                                long upTime1 = nowMs();
-                                MotionEvent up1 = MotionEvent.obtain(downTime1, upTime1, MotionEvent.ACTION_UP, fromCoords[0], fromCoords[1], 0);
-                                boardView.dispatchTouchEvent(up1);
-                                up1.recycle();
+                                if (isPromo) {
+                                    applyPromotionQueen(boardView);
+                                }
 
-                                // 2. Delay cơ học tự nhiên trước khi tap ô đích (To Square)
-                                postDelayedToMain(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        try {
-                                            long downTime2 = nowMs();
-                                            MotionEvent down2 = MotionEvent.obtain(downTime2, downTime2, MotionEvent.ACTION_DOWN, toCoords[0], toCoords[1], 0);
-                                            boardView.dispatchTouchEvent(down2);
-                                            down2.recycle();
+                                // Step 3: Complete move to target square
+                                tapMethod.invoke(contract, toSquare);
 
-                                            postDelayedToMain(new Runnable() {
-                                                @Override
-                                                public void run() {
-                                                    try {
-                                                        long upTime2 = nowMs();
-                                                        MotionEvent up2 = MotionEvent.obtain(downTime2, upTime2, MotionEvent.ACTION_UP, toCoords[0], toCoords[1], 0);
-                                                        boardView.dispatchTouchEvent(up2);
-                                                        up2.recycle();
-
-                                                        // 3. Nếu là nước cờ phong cấp, kiểm tra xử lý dialog dự phòng
-                                                        if (isPromo) {
-                                                            postDelayedToMain(new Runnable() {
-                                                                @Override
-                                                                public void run() {
-                                                                    try {
-                                                                        dismissOrResolvePromoDialog(boardView);
-                                                                    } catch (Throwable ignored) {
-                                                                    } finally {
-                                                                        isExecutingMove = false;
-                                                                    }
-                                                                }
-                                                            }, 120);
-                                                        } else {
-                                                            isExecutingMove = false;
-                                                        }
-                                                    } catch (Throwable t) {
-                                                        Log.e(TAG, "Error finishing toSquare tap: " + t.getMessage(), t);
-                                                        isExecutingMove = false;
-                                                    }
-                                                }
-                                            }, TAP_HOLD_MS);
-
-                                        } catch (Throwable t) {
-                                            Log.e(TAG, "Error executing toSquare tap: " + t.getMessage(), t);
-                                            isExecutingMove = false;
+                                if (isPromo) {
+                                    postDelayedToMain(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            try {
+                                                dismissOrResolvePromoDialog(boardView);
+                                            } catch (Throwable ignored) {
+                                            } finally {
+                                                isExecutingMove = false;
+                                            }
                                         }
-                                    }
-                                }, TAP_GAP_MS);
-
+                                    }, 120);
+                                } else {
+                                    isExecutingMove = false;
+                                }
                             } catch (Throwable t) {
-                                Log.e(TAG, "Error finishing fromSquare tap: " + t.getMessage(), t);
+                                Log.e(TAG, "❌ Direct Auto Move toSquare execution failed: " + t.getMessage(), t);
                                 isExecutingMove = false;
                             }
                         }
-                    }, TAP_HOLD_MS);
+                    }, fittsDelay);
 
                 } catch (Throwable t) {
-                    Log.e(TAG, "Failed to dispatch Auto Move touch events: " + t.getMessage(), t);
+                    Log.e(TAG, "❌ Direct Auto Move fromSquare execution failed: " + t.getMessage(), t);
                     isExecutingMove = false;
                 }
             }

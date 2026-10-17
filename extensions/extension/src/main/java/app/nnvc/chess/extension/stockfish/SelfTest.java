@@ -1466,6 +1466,22 @@ public class SelfTest {
         check("UCI d7d5 is NOT promotion", !AutoMoveManager.isPromotion("d7d5"));
         check("UCI null is NOT promotion", !AutoMoveManager.isPromotion(null));
 
+        // 35e. Direct Controller static squares indexing parity (com.chess.chessboard.w.b)
+        check("sqToIndex a8 matches index 0", AutoMoveManager.sqToIndex("a8") == 0);
+        check("sqToIndex h8 matches index 7", AutoMoveManager.sqToIndex("h8") == 7);
+        check("sqToIndex e4 matches index 36", AutoMoveManager.sqToIndex("e4") == 36);
+        check("sqToIndex e2 matches index 52", AutoMoveManager.sqToIndex("e2") == 52);
+        check("sqToIndex a1 matches index 56", AutoMoveManager.sqToIndex("a1") == 56);
+        check("sqToIndex h1 matches index 63", AutoMoveManager.sqToIndex("h1") == 63);
+        check("sqToIndex out of bound returns -1", AutoMoveManager.sqToIndex("z9") == -1);
+        check("sqToIndex null returns -1", AutoMoveManager.sqToIndex(null) == -1);
+
+        // 35f. Biometric Fitts's Law delay calculation parity (Desktop Extension: 95 + dist*18 + [0..45])
+        long fittsDelayE2E4 = AutoMoveManager.calculateFittsDelay("e2", "e4"); // dist = 2 -> min 131, max 176
+        check("Fitts delay for e2e4 is within [131, 176] ms", fittsDelayE2E4 >= 131 && fittsDelayE2E4 <= 176);
+        long fittsDelayA1H8 = AutoMoveManager.calculateFittsDelay("a1", "h8"); // dist = hypot(7,7) = 9.899 -> 95 + 178.19 = 273 min, max 318
+        check("Fitts delay for a1h8 is within [270, 325] ms", fittsDelayA1H8 >= 270 && fittsDelayA1H8 <= 325);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
