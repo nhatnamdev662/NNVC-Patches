@@ -835,16 +835,35 @@ public class StockfishExtension {
         OverlayManager.hideMateAnnouncement();
 
         // ── Auto Move Execution (100% Parity with NNVC Desktop Extension) ──
-        if (isFinal && isMyTurn && StockfishSettings.isAutoMoveEnabled(context) && activity != null
-                && !isGameOver(activity) && !isReviewOrAnalysisActivity(activity)) {
-            String bestMove = (result.moves != null && !result.moves.isEmpty()) ? result.moves.get(0) : null;
-            if (bestMove != null && bestMove.length() >= 4) {
-                android.view.Window win = activity.getWindow();
-                View decor = win != null ? win.getDecorView() : null;
-                View bv = OverlayManager.findChessBoardView(decor);
-                if (bv != null) {
-                    boolean flipped = OverlayManager.isBoardFlipped(bv, getStateImpl());
-                    AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen);
+        boolean autoMoveEnabled = StockfishSettings.isAutoMoveEnabled(context);
+        if (isFinal) {
+            if (!autoMoveEnabled) {
+                NnvcLogger.d("NNVC_AutoMove", "[AUTO MOVE] Bỏ qua: Tính năng Tự Động Đi (Auto Move) đang TẮT trong cài đặt.");
+            } else if (!isMyTurn) {
+                NnvcLogger.d("NNVC_AutoMove", "[AUTO MOVE] Bỏ qua: Không phải lượt đi của người chơi (isWhiteTurn=" + isWhiteTurn + ", userWhite=" + userWhite + ").");
+            } else {
+                boolean over = (activity != null && isGameOver(activity));
+                boolean review = (activity != null && isReviewOrAnalysisActivity(activity));
+                if (over || review) {
+                    NnvcLogger.d("NNVC_AutoMove", "[AUTO MOVE] Bỏ qua: gameOver=" + over + ", review=" + review);
+                } else {
+                    String bestMove = (result.moves != null && !result.moves.isEmpty()) ? result.moves.get(0) : null;
+                    if (bestMove != null && bestMove.length() >= 4) {
+                        View bv = null;
+                        if (activity != null && activity.getWindow() != null) {
+                            bv = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
+                        }
+                        if (bv == null) {
+                            bv = OverlayManager.getCachedBoardView();
+                        }
+                        if (bv != null) {
+                            boolean flipped = OverlayManager.isBoardFlipped(bv, getStateImpl());
+                            NnvcLogger.i("NNVC_AutoMove", "⚡ [AUTO MOVE TRIGGER] Chuẩn bị đi nước: " + bestMove + " (flipped=" + flipped + ")");
+                            AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen);
+                        } else {
+                            NnvcLogger.w("NNVC_AutoMove", "❌ [AUTO MOVE ERROR] Không tìm thấy ChessBoardView trên giao diện.");
+                        }
+                    }
                 }
             }
         }

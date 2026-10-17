@@ -4,7 +4,6 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.PopupWindow;
@@ -101,7 +100,7 @@ public class AutoMoveManager {
                         Field bField = wClass.getDeclaredField("b");
                         bField.setAccessible(true);
                         cachedSquaresList = (List<?>) bField.get(null);
-                        Log.i(TAG, "Initialized cachedSquaresList: " + (cachedSquaresList != null ? cachedSquaresList.size() : "null"));
+                        NnvcLogger.i(TAG, "Initialized cachedSquaresList: " + (cachedSquaresList != null ? cachedSquaresList.size() : "null"));
                     }
                 }
             }
@@ -109,7 +108,7 @@ public class AutoMoveManager {
                 return cachedSquaresList.get(idx);
             }
         } catch (Throwable t) {
-            Log.e(TAG, "Failed to resolve Square object for " + sq + ": " + t.getMessage(), t);
+            NnvcLogger.e(TAG, "Failed to resolve Square object for " + sq + ": " + t.getMessage(), t);
         }
         return null;
     }
@@ -187,12 +186,12 @@ public class AutoMoveManager {
                     Method m = boardView.getClass().getMethod("setPromotionTargets", promoTargetsClass);
                     m.setAccessible(true);
                     m.invoke(boardView, queenTarget);
-                    Log.i(TAG, "👑 Set PromotionTargets to QUEEN on ChessBoardView");
+                    NnvcLogger.i(TAG, "👑 Set PromotionTargets to QUEEN on ChessBoardView");
                     return true;
                 }
             }
         } catch (Throwable t) {
-            Log.w(TAG, "applyPromotionQueen failed: " + t.getMessage());
+            NnvcLogger.w(TAG, "applyPromotionQueen failed: " + t.getMessage());
         }
         return false;
     }
@@ -212,7 +211,7 @@ public class AutoMoveManager {
             } catch (NoSuchFieldException ignored) {
                 c = c.getSuperclass();
             } catch (Throwable t) {
-                Log.e(TAG, "Error getting accessibilityContract field: " + t.getMessage(), t);
+                NnvcLogger.e(TAG, "Error getting accessibilityContract field: " + t.getMessage(), t);
                 return null;
             }
         }
@@ -265,7 +264,7 @@ public class AutoMoveManager {
                 promoField.setAccessible(true);
                 Object promoDialog = promoField.get(boardView);
                 if (promoDialog != null) {
-                    Log.d(TAG, "Found active promoDialog: " + promoDialog);
+                    NnvcLogger.d(TAG, "Found active promoDialog: " + promoDialog);
                     for (Field f : promoDialog.getClass().getDeclaredFields()) {
                         f.setAccessible(true);
                         Object val = f.get(promoDialog);
@@ -283,7 +282,7 @@ public class AutoMoveManager {
                 }
             }
         } catch (Throwable t) {
-            Log.w(TAG, "dismissOrResolvePromoDialog error: " + t.getMessage());
+            NnvcLogger.w(TAG, "dismissOrResolvePromoDialog error: " + t.getMessage());
         }
     }
 
@@ -321,26 +320,28 @@ public class AutoMoveManager {
                                        final boolean flipped,
                                        final String currentFen) {
         if (context == null || boardView == null || uciMove == null || uciMove.length() < 4) {
+            NnvcLogger.w(TAG, "executeAutoMove aborted: invalid arguments (ctx=" + (context != null) + ", bv=" + (boardView != null) + ", move=" + uciMove + ")");
             return;
         }
 
         if (!StockfishSettings.isAutoMoveEnabled(context)) {
+            NnvcLogger.w(TAG, "executeAutoMove aborted: Auto Move is DISABLED in settings (Tab LIVE).");
             return;
         }
 
         if (isExecutingMove) {
-            Log.d(TAG, "Auto Move skipped: execution already in progress.");
+            NnvcLogger.d(TAG, "Auto Move skipped: execution already in progress.");
             return;
         }
 
         long now = nowMs();
         if (now - lastMoveTimestamp < COOLDOWN_MS) {
-            Log.d(TAG, "Auto Move skipped: inside cooldown window.");
+            NnvcLogger.d(TAG, "Auto Move skipped: inside cooldown window (" + (now - lastMoveTimestamp) + "ms < " + COOLDOWN_MS + "ms).");
             return;
         }
 
         if (currentFen != null && currentFen.equals(lastAttemptedFen) && uciMove.equals(lastAttemptedUci)) {
-            Log.d(TAG, "Auto Move skipped: already attempted on this position (" + uciMove + ").");
+            NnvcLogger.d(TAG, "Auto Move skipped: already attempted on this position (" + uciMove + ").");
             return;
         }
 
@@ -363,21 +364,21 @@ public class AutoMoveManager {
                     final Object toSquare = getSquare(cl, toSq);
 
                     if (fromSquare == null || toSquare == null) {
-                        Log.e(TAG, "❌ Direct Auto Move FAILED: Unable to resolve Square objects (" + fromSq + "=" + fromSquare + ", " + toSq + "=" + toSquare + "). NO FALLBACK.");
+                        NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: Unable to resolve Square objects (" + fromSq + "=" + fromSquare + ", " + toSq + "=" + toSquare + "). NO FALLBACK.");
                         isExecutingMove = false;
                         return;
                     }
 
                     final Object contract = getAccessibilityContract(boardView);
                     if (contract == null) {
-                        Log.e(TAG, "❌ Direct Auto Move FAILED: accessibilityContract not found on ChessBoardView. NO FALLBACK.");
+                        NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: accessibilityContract not found on ChessBoardView. NO FALLBACK.");
                         isExecutingMove = false;
                         return;
                     }
 
                     final Method tapMethod = getTapMethod(contract, fromSquare.getClass());
                     if (tapMethod == null) {
-                        Log.e(TAG, "❌ Direct Auto Move FAILED: Tap method 'b(Square)' not found on controller. NO FALLBACK.");
+                        NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: Tap method 'b(Square)' not found on controller. NO FALLBACK.");
                         isExecutingMove = false;
                         return;
                     }
@@ -387,10 +388,11 @@ public class AutoMoveManager {
                         applyPromotionQueen(boardView);
                     }
 
-                    Log.i(TAG, "⚡ Direct Auto Move executing (Extension Style): " + uciMove + " (" + fromSq + " -> " + toSq + ", delay=" + fittsDelay + "ms, promo=" + isPromo + ")");
+                    NnvcLogger.i(TAG, "⚡ Direct Auto Move executing (Extension Style): " + uciMove + " (" + fromSq + " -> " + toSq + ", delay=" + fittsDelay + "ms, promo=" + isPromo + ")");
 
                     // Step 1: Select source square
                     tapMethod.invoke(contract, fromSquare);
+                    NnvcLogger.d(TAG, "▶ [AUTO MOVE STEP 1] Đã chọn ô nguồn: " + fromSq);
 
                     // Step 2: Delay matching Fitts's Law before selecting destination square
                     postDelayedToMain(new Runnable() {
@@ -403,6 +405,7 @@ public class AutoMoveManager {
 
                                 // Step 3: Complete move to target square
                                 tapMethod.invoke(contract, toSquare);
+                                NnvcLogger.d(TAG, "▶ [AUTO MOVE STEP 2] Đã chọn ô đích: " + toSq + " (hoàn tất nước đi)");
 
                                 if (isPromo) {
                                     postDelayedToMain(new Runnable() {
@@ -420,14 +423,14 @@ public class AutoMoveManager {
                                     isExecutingMove = false;
                                 }
                             } catch (Throwable t) {
-                                Log.e(TAG, "❌ Direct Auto Move toSquare execution failed: " + t.getMessage(), t);
+                                NnvcLogger.e(TAG, "❌ Direct Auto Move toSquare execution failed: " + t.getMessage(), t);
                                 isExecutingMove = false;
                             }
                         }
                     }, fittsDelay);
 
                 } catch (Throwable t) {
-                    Log.e(TAG, "❌ Direct Auto Move fromSquare execution failed: " + t.getMessage(), t);
+                    NnvcLogger.e(TAG, "❌ Direct Auto Move fromSquare execution failed: " + t.getMessage(), t);
                     isExecutingMove = false;
                 }
             }

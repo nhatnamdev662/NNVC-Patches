@@ -30,6 +30,16 @@ public class OverlayManager {
     private static java.lang.ref.WeakReference<View> cachedBoardViewRef = null;
     private static BoardMetrics cachedBoardMetrics = null;
 
+    public static View getCachedBoardView() {
+        if (cachedBoardViewRef != null) {
+            View v = cachedBoardViewRef.get();
+            if (v != null && v.isAttachedToWindow()) {
+                return v;
+            }
+        }
+        return null;
+    }
+
     private static java.lang.ref.WeakReference<ArrowOverlayView> cachedArrowOverlayRef = null;
     private static java.lang.ref.WeakReference<EvalBarView> cachedEvalBarRef = null;
     private static java.lang.ref.WeakReference<TextView> cachedEngineInfoRef = null;
