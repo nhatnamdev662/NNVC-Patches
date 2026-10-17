@@ -25,6 +25,7 @@ import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
@@ -710,6 +711,178 @@ public class StockfishSettingsDialog {
             if (StockfishSettings.isEngineEnabled(activity)) {
                 StockfishExtension.triggerPlayAnalysisOnly();
             }
+        });
+
+        addDialogSpacer(panelEngine, 10, density);
+
+        // Card 3: Smart Delay (100% Parity với Desktop Extension Card Delay #_cb_delay trong Tab ENGINE)
+        LinearLayout delayCard = createGlassCard(activity, density);
+        panelEngine.addView(delayCard);
+
+        TextView delayTitle = new TextView(activity);
+        delayTitle.setText("⏳ " + (I18n.isVi(activity) ? "Smart Delay" : "Smart Delay"));
+        delayTitle.setTextColor(COLOR_TEXT_PRIMARY);
+        delayTitle.setTextSize(13.5f);
+        delayTitle.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        delayCard.addView(delayTitle);
+
+        TextView delayHint = new TextView(activity);
+        delayHint.setText(I18n.isVi(activity)
+                ? "Mô phỏng nhịp nghĩ sinh trắc học theo thể loại cờ, tự động trừ thời gian tính toán của engine."
+                : "Human-like delays adapted to game time control, auto-deducting engine search time.");
+        delayHint.setTextColor(COLOR_TEXT_MUTED);
+        delayHint.setTextSize(10.5f);
+        LinearLayout.LayoutParams dhParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dhParams.topMargin = (int) (2 * density);
+        dhParams.bottomMargin = (int) (8 * density);
+        delayHint.setLayoutParams(dhParams);
+        delayCard.addView(delayHint);
+
+        // 1. Switch Auto Smart Delay (_s5)
+        boolean isSmartDelay = StockfishSettings.isSmartDelayEnabled(activity);
+        final CyberSwitchView smartDelaySwitch = addCyberSwitchRow(delayCard,
+                I18n.get(activity, "row_smart_delay"),
+                I18n.get(activity, "smart_delay_sub"),
+                isSmartDelay,
+                density, activity);
+
+        // Container cho Fixed Delay (_d1)
+        final LinearLayout fixedDelayContainer = new LinearLayout(activity);
+        fixedDelayContainer.setOrientation(LinearLayout.VERTICAL);
+        fixedDelayContainer.setVisibility(isSmartDelay ? View.GONE : View.VISIBLE);
+        delayCard.addView(fixedDelayContainer);
+
+        addCardSeparator(fixedDelayContainer, density);
+
+        // Slider Delay Cố Định (_r2 & _t1)
+        float currentFixed = StockfishSettings.getFixedDelaySeconds(activity);
+        int fixedProg = Math.round(currentFixed * 10);
+        final TextView[] fixedBadgeHolder = new TextView[1];
+        String initialFixedBadge = currentFixed <= 0.05f
+                ? (I18n.isVi(activity) ? "Không delay (0s)" : "No delay (0s)")
+                : String.format(java.util.Locale.US, "%.1fs", currentFixed);
+
+        addDepthSeekBarWithBadge(fixedDelayContainer,
+                I18n.isVi(activity) ? "Delay Cố Định" : "Fixed Delay",
+                initialFixedBadge,
+                fixedProg, 100, 1,
+                I18n.isVi(activity) ? "Dùng khi tắt Auto Smart Delay." : "Applied when Auto Smart Delay is disabled.",
+                density, activity, fixedBadgeHolder,
+                new OnValueChangeListener() {
+                    @Override
+                    public void onValueChanged(int newValue) {
+                        float sec = newValue / 10.0f;
+                        StockfishSettings.setFixedDelaySeconds(activity, sec);
+                        if (fixedBadgeHolder[0] != null) {
+                            fixedBadgeHolder[0].setText(sec <= 0.05f
+                                    ? (I18n.isVi(activity) ? "Không delay (0s)" : "No delay (0s)")
+                                    : String.format(java.util.Locale.US, "%.1fs", sec));
+                        }
+                    }
+                    @Override
+                    public void onValueCommitted(int finalValue) {
+                        float sec = finalValue / 10.0f;
+                        StockfishSettings.setFixedDelaySeconds(activity, sec);
+                    }
+                });
+
+        // Container cho Time Control Presets (_d2 & _tcg)
+        final LinearLayout tcContainer = new LinearLayout(activity);
+        tcContainer.setOrientation(LinearLayout.VERTICAL);
+        tcContainer.setVisibility(isSmartDelay ? View.VISIBLE : View.GONE);
+        delayCard.addView(tcContainer);
+
+        addCardSeparator(tcContainer, density);
+
+        TextView tcHeader = new TextView(activity);
+        tcHeader.setText(I18n.isVi(activity) ? "Time Control (Thể Loại Cờ)" : "Time Control");
+        tcHeader.setTextColor(COLOR_TEXT_PRIMARY);
+        tcHeader.setTextSize(12.5f);
+        tcHeader.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        tcContainer.addView(tcHeader);
+
+        TextView tcSub = new TextView(activity);
+        tcSub.setText(I18n.isVi(activity)
+                ? "Tự động nhận diện qua dữ liệu ván cờ, hoặc bấm chọn để ép preset:"
+                : "Auto-detected from game clocks, or tap to override preset:");
+        tcSub.setTextColor(COLOR_TEXT_MUTED);
+        tcSub.setTextSize(10f);
+        LinearLayout.LayoutParams tcSubLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tcSubLp.topMargin = (int) (2 * density);
+        tcSubLp.bottomMargin = (int) (6 * density);
+        tcSub.setLayoutParams(tcSubLp);
+        tcContainer.addView(tcSub);
+
+        // 9 Presets Grid (_tcg): 3 hàng x 3 cột
+        final String[] presetLabels = new String[] {
+            "1ph", "1|1", "2|1",
+            "3ph", "3|2", "5ph",
+            "10ph", "15|10", "30ph"
+        };
+        final Button[] tcButtons = new Button[9];
+        final int activeTc = SmartDelayManager.getActiveTcIndex();
+
+        for (int row = 0; row < 3; row++) {
+            LinearLayout rowLayout = new LinearLayout(activity);
+            rowLayout.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rowParams.topMargin = (int) (4 * density);
+            rowLayout.setLayoutParams(rowParams);
+
+            for (int col = 0; col < 3; col++) {
+                final int idx = row * 3 + col;
+                Button btn = new Button(activity);
+                btn.setText(presetLabels[idx]);
+                btn.setTextSize(11.5f);
+                btn.setTypeface(Typeface.create("monospace", Typeface.BOLD));
+                btn.setPadding(0, (int) (6 * density), 0, (int) (6 * density));
+
+                LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+                if (col > 0) btnParams.leftMargin = (int) (6 * density);
+                btn.setLayoutParams(btnParams);
+
+                final boolean isActive = (idx == activeTc);
+                applyTcButtonStyle(btn, isActive, density);
+
+                btn.setOnClickListener(v -> {
+                    SmartDelayManager.setActiveTcIndex(idx);
+                    for (int i = 0; i < 9; i++) {
+                        if (tcButtons[i] != null) {
+                            applyTcButtonStyle(tcButtons[i], i == idx, density);
+                        }
+                    }
+                    HapticHelper.pop(activity, v);
+                    SmartDelayManager.showTCPopup(activity, presetLabels[idx], I18n.isVi(activity) ? "Chọn thủ công (Preset " + presetLabels[idx] + ")" : "Manual selection");
+                });
+
+                tcButtons[idx] = btn;
+                rowLayout.addView(btn);
+            }
+            tcContainer.addView(rowLayout);
+        }
+
+        addCardSeparator(delayCard, density);
+
+        // Switch Bullet Flagging (_dirtyFlagging)
+        final CyberSwitchView bulletFlaggingSwitch = addCyberSwitchRow(delayCard,
+                I18n.get(activity, "row_bullet_flagging"),
+                I18n.get(activity, "bullet_flagging_sub"),
+                StockfishSettings.isBulletFlaggingMode(activity),
+                density, activity);
+
+        bulletFlaggingSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setBulletFlaggingMode(activity, isChecked);
+            HapticHelper.pop(activity, view);
+            Toast.makeText(activity, isChecked ? "Bullet Flagging ON" : "Bullet Flagging OFF", Toast.LENGTH_SHORT).show();
+        });
+
+        // Switch listener cho Auto Smart Delay
+        smartDelaySwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setSmartDelayEnabled(activity, isChecked);
+            fixedDelayContainer.setVisibility(isChecked ? View.GONE : View.VISIBLE);
+            tcContainer.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+            HapticHelper.pop(activity, view);
+            Toast.makeText(activity, isChecked ? "Smart Delay ON" : "Fixed Delay ON", Toast.LENGTH_SHORT).show();
         });
 
         // ─── TAB 3: COACH (Torch WebAssembly Coach Engine) ───
@@ -2455,6 +2628,22 @@ public class StockfishSettingsDialog {
         if (coachDialog.getWindow() != null) {
             coachDialog.getWindow().setLayout(dialogWidth, dialogHeight);
         }
+    }
+
+    private static void applyTcButtonStyle(Button btn, boolean active, float density) {
+        if (btn == null) return;
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(8 * density);
+        if (active) {
+            bg.setColor(Color.parseColor("#1E293B")); // Slate dark
+            bg.setStroke((int) (1.5f * density), Color.parseColor("#38BDF8")); // Cyan highlight
+            btn.setTextColor(Color.parseColor("#38BDF8"));
+        } else {
+            bg.setColor(Color.parseColor("#0F172A")); // Deep Slate
+            bg.setStroke((int) (1f * density), Color.parseColor("#334155"));
+            btn.setTextColor(Color.parseColor("#94A3B8"));
+        }
+        btn.setBackground(bg);
     }
 }
 

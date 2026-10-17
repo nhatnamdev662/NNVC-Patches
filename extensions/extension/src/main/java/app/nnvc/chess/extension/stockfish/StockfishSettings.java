@@ -529,6 +529,35 @@ public class StockfishSettings {
     public static void setAutoMoveEnabled(Context context, boolean enabled) {
         getPrefs(context).edit().putBoolean(KEY_AUTO_MOVE_ENABLED, enabled).apply();
     }
+
+    // ── Smart Delay Settings (100% Parity with NNVC Desktop Extension) ────────
+    private static final String KEY_SMART_DELAY_ENABLED = "smart_delay_enabled";
+    private static final String KEY_BULLET_FLAGGING_MODE = "smart_delay_bullet_mode";
+    private static final String KEY_FIXED_DELAY_SEC = "fixed_delay_seconds";
+
+    public static boolean isSmartDelayEnabled(Context context) {
+        return getPrefs(context).getBoolean(KEY_SMART_DELAY_ENABLED, true);
+    }
+
+    public static void setSmartDelayEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_SMART_DELAY_ENABLED, enabled).apply();
+    }
+
+    public static boolean isBulletFlaggingMode(Context context) {
+        return getPrefs(context).getBoolean(KEY_BULLET_FLAGGING_MODE, false);
+    }
+
+    public static void setBulletFlaggingMode(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_BULLET_FLAGGING_MODE, enabled).apply();
+    }
+
+    public static float getFixedDelaySeconds(Context context) {
+        return getPrefs(context).getFloat(KEY_FIXED_DELAY_SEC, 0.3f);
+    }
+
+    public static void setFixedDelaySeconds(Context context, float sec) {
+        getPrefs(context).edit().putFloat(KEY_FIXED_DELAY_SEC, Math.max(0f, sec)).apply();
+    }
 }
 
 

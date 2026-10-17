@@ -1,5 +1,6 @@
 package app.nnvc.chess.extension.stockfish;
 
+import android.app.Activity;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -475,6 +476,22 @@ public class AutoMoveManager {
                                        final String uciMove,
                                        final boolean flipped,
                                        final String currentFen) {
+        executeAutoMove(context, boardView, uciMove, flipped, currentFen, 0.0f, 0L, true, null);
+    }
+
+    /**
+     * Executes Auto Move using Direct Controller/Model invocation (Extension Style)
+     * with Smart Delay biometric human-like pacing and think time deduction.
+     */
+    public static void executeAutoMove(final Context context,
+                                       final View boardView,
+                                       final String uciMove,
+                                       final boolean flipped,
+                                       final String currentFen,
+                                       final float evalScore,
+                                       final long engineThinkMs,
+                                       final boolean userWhite,
+                                       final Activity activity) {
         if (context == null || boardView == null || uciMove == null || uciMove.length() < 4) {
             NnvcLogger.w(TAG, "executeAutoMove aborted: invalid arguments (ctx=" + (context != null) + ", bv=" + (boardView != null) + ", move=" + uciMove + ")");
             return;
@@ -506,12 +523,24 @@ public class AutoMoveManager {
         final boolean isPromo = isPromotion(uciMove, currentFen);
         final long fittsDelay = calculateFittsDelay(fromSq, toSq);
 
+        // Tính toán độ trễ thông minh Smart Delay (chuẩn 100% Desktop Extension)
+        long calculatedDelay = 0;
+        if (StockfishSettings.isSmartDelayEnabled(context)) {
+            calculatedDelay = SmartDelayManager.calculateSmartDelay(currentFen, uciMove, evalScore, engineThinkMs, activity, userWhite);
+        } else {
+            float fixed = StockfishSettings.getFixedDelaySeconds(context);
+            if (fixed > 0) {
+                calculatedDelay = Math.round(fixed * 1000.0f);
+            }
+        }
+        final long preMoveDelayMs = calculatedDelay;
+
         isExecutingMove = true;
         lastAttemptedFen = currentFen;
         lastAttemptedUci = uciMove;
         lastMoveTimestamp = now;
 
-        postToMain(new Runnable() {
+        final Runnable moveExecutionTask = new Runnable() {
             @Override
             public void run() {
                 try {
@@ -583,7 +612,14 @@ public class AutoMoveManager {
                     isExecutingMove = false;
                 }
             }
-        });
+        };
+
+        if (preMoveDelayMs > 0) {
+            NnvcLogger.i(TAG, "⏳ [SMART DELAY SCHEDULER] Chờ " + preMoveDelayMs + "ms trước khi kích hoạt nước đi " + uciMove);
+            postDelayedToMain(moveExecutionTask, preMoveDelayMs);
+        } else {
+            postToMain(moveExecutionTask);
+        }
     }
 
     public static boolean isExecuting() {

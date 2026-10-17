@@ -52,6 +52,14 @@ public class I18n {
                 return isVi ? "Tự Động Đi" : "Auto Move";
             case "automove_sub":
                 return isVi ? "Auto-move khi có nước tốt" : "Auto-move best move";
+            case "row_smart_delay":
+                return isVi ? "Độ Trễ Thông Minh (Smart Delay)" : "Auto Smart Delay";
+            case "smart_delay_sub":
+                return isVi ? "Mô phỏng nhịp nghĩ sinh trắc học theo thể loại cờ" : "Human-like delays adapted to game time control";
+            case "row_bullet_flagging":
+                return isVi ? "Xả Nước Nhanh (Bullet Flagging)" : "Bullet Flagging";
+            case "bullet_flagging_sub":
+                return isVi ? "Đi ngay lập tức (0ms) khi thời gian còn <= 6s" : "Instantly move (0ms) when clock is under 6s";
             case "card_elo":
                 return isVi ? "Sức Mạnh Engine" : "Engine Strength";
             case "row_elo":

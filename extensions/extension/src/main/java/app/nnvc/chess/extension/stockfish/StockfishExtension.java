@@ -110,6 +110,7 @@ public class StockfishExtension {
     private static android.view.ViewTreeObserver.OnGlobalLayoutListener globalLayoutListener = null;
     private static WeakReference<View> currentDecorViewRef = new WeakReference<>(null);
     private static volatile boolean lastGameOverHandled = false;
+    private static volatile long lastEngineThinkMs = 0;
 
     public static void registerChessBoardView(Object view) {
         // no-op, kept for compatibility
@@ -589,6 +590,7 @@ public class StockfishExtension {
                     prev.cancel(true);
                     StockfishBridge.stopSearch();
                 }
+                lastEngineThinkMs = 0;
                 displayLiveResult(context, fen, cached, true);
                 return;
             }
@@ -616,10 +618,12 @@ public class StockfishExtension {
                 // Stream intermediate depths to the classifier, but NEVER paint intermediate arrows to UI.
                 // In NNVC Extension standard (nnvc_main_bundle.js lines 6138-6156 & 16474), arrows are painted
                 // atomically ONLY once after engine finishes full search (bestmove), preventing any jumping/jitter.
+                long searchStartMs = System.currentTimeMillis();
                 StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV,
                         partial -> {
                             MoveClassifier.recordResult(fen, partial);
                         });
+                lastEngineThinkMs = Math.max(0, System.currentTimeMillis() - searchStartMs);
 
                 MoveClassifier.recordResult(fen, result);
 
@@ -869,8 +873,9 @@ public class StockfishExtension {
                         }
                         if (bv != null) {
                             boolean flipped = OverlayManager.isBoardFlipped(bv, getStateImpl());
-                            NnvcLogger.i("NNVC_AutoMove", "⚡ [AUTO MOVE TRIGGER] Chuẩn bị đi nước: " + bestMove + " (flipped=" + flipped + ")");
-                            AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen);
+                            boolean finalUserIsWhite = (userWhite != null) ? userWhite.booleanValue() : true;
+                            NnvcLogger.i("NNVC_AutoMove", "⚡ [AUTO MOVE TRIGGER] Chuẩn bị đi nước: " + bestMove + " (flipped=" + flipped + ", thinkMs=" + lastEngineThinkMs + "ms)");
+                            AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen, result.score, lastEngineThinkMs, finalUserIsWhite, activity);
                         } else {
                             NnvcLogger.w("NNVC_AutoMove", "❌ [AUTO MOVE ERROR] Không tìm thấy ChessBoardView trên giao diện.");
                         }

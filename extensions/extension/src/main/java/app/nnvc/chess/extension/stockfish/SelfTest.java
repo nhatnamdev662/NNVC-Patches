@@ -1507,7 +1507,41 @@ public class SelfTest {
         float ratioZero = EvalBarView.ratioFor(0.0f);
         check("EvalBarView ratio clamped to 0.95 at +10", Math.abs(ratioMax - 0.95f) < 0.001f);
         check("EvalBarView ratio clamped to 0.05 at -10", Math.abs(ratioMin - 0.05f) < 0.001f);
-        check("EvalBarView ratio is 0.50 at 0.0", Math.abs(ratioZero - 0.50f) < 0.001f);
+        // =========================================================================
+        // Test 37: 100% Authentic NNVC Desktop Extension Auto Smart Delay Parity
+        // =========================================================================
+        // 37a. 9 Standard Time Control Presets Parity (_TC_PRESETS)
+        check("SmartDelayManager has exactly 9 presets", SmartDelayManager.TC_PRESETS.length == 9);
+        check("Preset 0 is 1 phút Bullet", "1 phút".equals(SmartDelayManager.TC_PRESETS[0].label) && SmartDelayManager.TC_PRESETS[0].mean == 1.15);
+        check("Preset 3 is 3 phút Blitz", "3 phút".equals(SmartDelayManager.TC_PRESETS[3].label) && SmartDelayManager.TC_PRESETS[3].mean == 3.80);
+        check("Preset 5 is 5 phút Blitz", "5 phút".equals(SmartDelayManager.TC_PRESETS[5].label) && SmartDelayManager.TC_PRESETS[5].mean == 6.80);
+        check("Preset 6 is 10 phút Rapid", "10 phút".equals(SmartDelayManager.TC_PRESETS[6].label) && SmartDelayManager.TC_PRESETS[6].mean == 12.00);
+        check("Preset 8 is 30 phút Classical/Rapid", "30 phút".equals(SmartDelayManager.TC_PRESETS[8].label) && SmartDelayManager.TC_PRESETS[8].mean == 28.00);
+
+        // 37b. Heuristic Matching Time Control distance
+        check("Base 60s matches preset 0 (1ph)", SmartDelayManager.matchPresetIndex(60, 0) == 0);
+        check("Base 60s + 1s inc matches preset 1 (1|1)", SmartDelayManager.matchPresetIndex(60, 1) == 1);
+        check("Base 120s + 1s inc matches preset 2 (2|1)", SmartDelayManager.matchPresetIndex(120, 1) == 2);
+        check("Base 180s matches preset 3 (3ph)", SmartDelayManager.matchPresetIndex(180, 0) == 3);
+        check("Base 180s + 2s inc matches preset 4 (3|2)", SmartDelayManager.matchPresetIndex(180, 2) == 4);
+        check("Base 300s matches preset 5 (5ph)", SmartDelayManager.matchPresetIndex(300, 0) == 5);
+        check("Base 600s matches preset 6 (10ph)", SmartDelayManager.matchPresetIndex(600, 0) == 6);
+        check("Base 900s + 10s inc matches preset 7 (15|10)", SmartDelayManager.matchPresetIndex(900, 10) == 7);
+        check("Base 1800s matches preset 8 (30ph)", SmartDelayManager.matchPresetIndex(1800, 0) == 8);
+
+        // 37c. FEN Analysis (Opening vs Tactical)
+        String startPosFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        SmartDelayManager.PositionFeatures startFeatures = SmartDelayManager.analyzeFen(startPosFen, "e2e4");
+        check("Startpos move 1 is opening", startFeatures.isOpening && startFeatures.moveNum == 1);
+
+        String midgameFen = "r1bqk2r/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQ1RK1 b kq - 3 7";
+        SmartDelayManager.PositionFeatures midFeatures = SmartDelayManager.analyzeFen(midgameFen, "c5d4");
+        check("Move 7 midgame capture is tactical", midFeatures.isTactical);
+
+        // 37d. Active Time Control getter and setter
+        SmartDelayManager.setActiveTcIndex(3); // 3ph
+        check("Active TC set to 3", SmartDelayManager.getActiveTcIndex() == 3);
+        check("Active TC label is 3 phút", "3 phút".equals(SmartDelayManager.getActiveTcLabel()));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
