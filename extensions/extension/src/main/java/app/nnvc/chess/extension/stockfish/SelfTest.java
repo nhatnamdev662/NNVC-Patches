@@ -1455,6 +1455,17 @@ public class SelfTest {
         check("Null square returns null", AutoMoveManager.getSquareCenter(null, false, boardW, boardH) == null);
         check("Out of bound square returns null", AutoMoveManager.getSquareCenter("z9", false, boardW, boardH) == null);
 
+        // 35d. Pawn promotion detection
+        check("UCI e7e8q is promotion", AutoMoveManager.isPromotion("e7e8q"));
+        check("UCI c7c8q is promotion", AutoMoveManager.isPromotion("c7c8q"));
+        check("UCI a2a1q is promotion", AutoMoveManager.isPromotion("a2a1q"));
+        check("UCI e7e8n is promotion", AutoMoveManager.isPromotion("e7e8n"));
+        check("UCI e7e8 (rank 7 to 8) is promotion", AutoMoveManager.isPromotion("e7e8"));
+        check("UCI a2a1 (rank 2 to 1) is promotion", AutoMoveManager.isPromotion("a2a1"));
+        check("UCI e2e4 is NOT promotion", !AutoMoveManager.isPromotion("e2e4"));
+        check("UCI d7d5 is NOT promotion", !AutoMoveManager.isPromotion("d7d5"));
+        check("UCI null is NOT promotion", !AutoMoveManager.isPromotion(null));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

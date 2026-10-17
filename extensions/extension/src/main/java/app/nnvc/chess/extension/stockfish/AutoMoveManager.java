@@ -7,6 +7,11 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.PopupWindow;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 /**
  * AutoMoveManager – In-Process Touch Injection & Chess Move Automation.
@@ -84,6 +89,118 @@ public class AutoMoveManager {
     }
 
     /**
+     * Determines whether a UCI move represents a pawn promotion (e.g., e7e8q, c7c8, etc.)
+     */
+    public static boolean isPromotion(String uciMove) {
+        if (uciMove == null || uciMove.length() < 4) return false;
+        if (uciMove.length() >= 5) {
+            char p = Character.toLowerCase(uciMove.charAt(4));
+            if (p == 'q' || p == 'r' || p == 'b' || p == 'n') return true;
+        }
+        char fromRank = uciMove.charAt(1);
+        char toRank = uciMove.charAt(3);
+        return (fromRank == '7' && toRank == '8') || (fromRank == '2' && toRank == '1');
+    }
+
+    /**
+     * Configures ChessBoardView to promote directly to Queen without displaying a popup dialog.
+     * This matches the native Chess.com auto-queen mechanism:
+     * chessBoardView.setPromotionTargets(PromotionTargets.b)
+     */
+    public static boolean applyPromotionQueen(View boardView) {
+        if (boardView == null) return false;
+        try {
+            ClassLoader cl = boardView.getContext().getClassLoader();
+            Class<?> promoTargetsClass = Class.forName("com.chess.chessboard.variants.PromotionTargets", true, cl);
+            Field queenField = null;
+            for (Field f : promoTargetsClass.getDeclaredFields()) {
+                if (f.getType().equals(promoTargetsClass) && ("b".equals(f.getName()) || "QUEEN".equals(f.getName()))) {
+                    queenField = f;
+                    break;
+                }
+            }
+            if (queenField != null) {
+                queenField.setAccessible(true);
+                Object queenTarget = queenField.get(null);
+                if (queenTarget != null) {
+                    Method m = boardView.getClass().getMethod("setPromotionTargets", promoTargetsClass);
+                    m.setAccessible(true);
+                    m.invoke(boardView, queenTarget);
+                    Log.i(TAG, "👑 Set PromotionTargets to QUEEN on ChessBoardView");
+                    return true;
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "applyPromotionQueen failed: " + t.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Secondary fallback: If a promo popup or dialog is present, dismiss or select Queen directly.
+     */
+    public static void dismissOrResolvePromoDialog(View boardView) {
+        if (boardView == null) return;
+        try {
+            Field promoField = null;
+            Class<?> c = boardView.getClass();
+            while (c != null && c != Object.class) {
+                try {
+                    promoField = c.getDeclaredField("promoDialog");
+                    break;
+                } catch (NoSuchFieldException ignored) {
+                    c = c.getSuperclass();
+                }
+            }
+            if (promoField != null) {
+                promoField.setAccessible(true);
+                Object promoDialog = promoField.get(boardView);
+                if (promoDialog != null) {
+                    Log.d(TAG, "Found active promoDialog: " + promoDialog);
+                    for (Field f : promoDialog.getClass().getDeclaredFields()) {
+                        f.setAccessible(true);
+                        Object val = f.get(promoDialog);
+                        if (val instanceof WeakReference) {
+                            Object ref = ((WeakReference<?>) val).get();
+                            if (ref instanceof PopupWindow) {
+                                PopupWindow pw = (PopupWindow) ref;
+                                View content = pw.getContentView();
+                                if (content != null) {
+                                    clickFirstClickable(content);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "dismissOrResolvePromoDialog error: " + t.getMessage());
+        }
+    }
+
+    private static boolean clickFirstClickable(View v) {
+        if (v == null) return false;
+        if (v instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                View child = vg.getChildAt(i);
+                if (child.isClickable() || child.hasOnClickListeners()) {
+                    child.performClick();
+                    return true;
+                }
+                if (child instanceof ViewGroup) {
+                    if (clickFirstClickable(child)) return true;
+                }
+            }
+            if (vg.getChildCount() > 0) {
+                vg.getChildAt(0).performClick();
+                return true;
+            }
+        }
+        return v.performClick();
+    }
+
+    /**
      * Checks if Auto Move is eligible and executes the move asynchronously on the Main UI Thread.
      */
     public static void executeAutoMove(final Context context,
@@ -117,7 +234,7 @@ public class AutoMoveManager {
 
         final String fromSq = uciMove.substring(0, 2);
         final String toSq = uciMove.substring(2, 4);
-        final char promo = uciMove.length() >= 5 ? uciMove.charAt(4) : 0;
+        final boolean isPromo = isPromotion(uciMove);
 
         isExecutingMove = true;
         lastAttemptedFen = currentFen;
@@ -142,7 +259,12 @@ public class AutoMoveManager {
                         return;
                     }
 
-                    Log.i(TAG, "⚡ Auto Move executing: " + uciMove + " (" + fromSq + " -> " + toSq + ", flipped=" + flipped + ")");
+                    // Nếu là nước cờ phong cấp (Promotion), tự động áp dụng cờ phong Hậu trực tiếp
+                    if (isPromo) {
+                        applyPromotionQueen(boardView);
+                    }
+
+                    Log.i(TAG, "⚡ Auto Move executing: " + uciMove + " (" + fromSq + " -> " + toSq + ", flipped=" + flipped + ", promo=" + isPromo + ")");
 
                     // 1. Tap ô nguồn (From Square)
                     long downTime1 = nowMs();
@@ -178,26 +300,19 @@ public class AutoMoveManager {
                                                         boardView.dispatchTouchEvent(up2);
                                                         up2.recycle();
 
-                                                        // 3. Nếu là nước cờ phong cấp (Promotion), tự động tap chọn Hậu
-                                                        if (promo != 0) {
+                                                        // 3. Nếu là nước cờ phong cấp, kiểm tra xử lý dialog dự phòng
+                                                        if (isPromo) {
                                                             postDelayedToMain(new Runnable() {
                                                                 @Override
                                                                 public void run() {
                                                                     try {
-                                                                        // Chạm tiếp vào ô đích để chọn quân Hậu mặc định
-                                                                        long pDownTime = nowMs();
-                                                                        MotionEvent pDown = MotionEvent.obtain(pDownTime, pDownTime, MotionEvent.ACTION_DOWN, toCoords[0], toCoords[1], 0);
-                                                                        boardView.dispatchTouchEvent(pDown);
-                                                                        pDown.recycle();
-                                                                        MotionEvent pUp = MotionEvent.obtain(pDownTime, pDownTime + 20, MotionEvent.ACTION_UP, toCoords[0], toCoords[1], 0);
-                                                                        boardView.dispatchTouchEvent(pUp);
-                                                                        pUp.recycle();
+                                                                        dismissOrResolvePromoDialog(boardView);
                                                                     } catch (Throwable ignored) {
                                                                     } finally {
                                                                         isExecutingMove = false;
                                                                     }
                                                                 }
-                                                            }, 150);
+                                                            }, 120);
                                                         } else {
                                                             isExecutingMove = false;
                                                         }
