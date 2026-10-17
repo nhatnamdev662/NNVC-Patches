@@ -1429,6 +1429,32 @@ public class SelfTest {
         int komodoMaxErr2100 = testElo2100 < 2000 ? Math.round((2000f - testElo2100) / 70f) + 2 : 0;
         check("Komodo Skill Error at 2100 Elo disables to 0", komodoMaxErr2100 == 0);
 
+        // =========================================================================
+        // Test 35: 100% Authentic NNVC Desktop Extension Auto Move Parity
+        // =========================================================================
+        float boardW = 800f;
+        float boardH = 800f;
+
+        // 35a. Unflipped board: e2 (file=4, rank=1 -> col=4, row=6 -> cx=450, cy=650)
+        float[] unflippedE2 = AutoMoveManager.getSquareCenter("e2", false, boardW, boardH);
+        check("Unflipped e2 center matches cx=450, cy=650", unflippedE2 != null && Math.abs(unflippedE2[0] - 450f) < 1e-3f && Math.abs(unflippedE2[1] - 650f) < 1e-3f);
+
+        // e4 (file=4, rank=3 -> col=4, row=4 -> cx=450, cy=450)
+        float[] unflippedE4 = AutoMoveManager.getSquareCenter("e4", false, boardW, boardH);
+        check("Unflipped e4 center matches cx=450, cy=450", unflippedE4 != null && Math.abs(unflippedE4[0] - 450f) < 1e-3f && Math.abs(unflippedE4[1] - 450f) < 1e-3f);
+
+        // 35b. Flipped board (Black perspective): e2 (file=4, rank=1 -> col=7-4=3, row=1 -> cx=350, cy=150)
+        float[] flippedE2 = AutoMoveManager.getSquareCenter("e2", true, boardW, boardH);
+        check("Flipped e2 center matches cx=350, cy=150", flippedE2 != null && Math.abs(flippedE2[0] - 350f) < 1e-3f && Math.abs(flippedE2[1] - 150f) < 1e-3f);
+
+        // e7 (file=4, rank=6 -> col=3, row=6 -> cx=350, cy=650)
+        float[] flippedE7 = AutoMoveManager.getSquareCenter("e7", true, boardW, boardH);
+        check("Flipped e7 center matches cx=350, cy=650", flippedE7 != null && Math.abs(flippedE7[0] - 350f) < 1e-3f && Math.abs(flippedE7[1] - 650f) < 1e-3f);
+
+        // 35c. Invalid square handling
+        check("Null square returns null", AutoMoveManager.getSquareCenter(null, false, boardW, boardH) == null);
+        check("Out of bound square returns null", AutoMoveManager.getSquareCenter("z9", false, boardW, boardH) == null);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

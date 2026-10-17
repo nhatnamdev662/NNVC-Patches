@@ -518,6 +518,17 @@ public class StockfishSettings {
     public static void setSoundMasterEnabled(Context context, boolean enabled) {
         setBrilliantSoundEnabled(context, enabled);
     }
+
+    // ── Auto Move Settings (100% Parity with NNVC Desktop Extension) ──────────
+    private static final String KEY_AUTO_MOVE_ENABLED = "auto_move_enabled";
+
+    public static boolean isAutoMoveEnabled(Context context) {
+        return getPrefs(context).getBoolean(KEY_AUTO_MOVE_ENABLED, false);
+    }
+
+    public static void setAutoMoveEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_AUTO_MOVE_ENABLED, enabled).apply();
+    }
 }
 
 

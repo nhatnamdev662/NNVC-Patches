@@ -833,6 +833,21 @@ public class StockfishExtension {
             }
         }
         OverlayManager.hideMateAnnouncement();
+
+        // ── Auto Move Execution (100% Parity with NNVC Desktop Extension) ──
+        if (isFinal && isMyTurn && StockfishSettings.isAutoMoveEnabled(context) && activity != null
+                && !isGameOver(activity) && !isReviewOrAnalysisActivity(activity)) {
+            String bestMove = (result.moves != null && !result.moves.isEmpty()) ? result.moves.get(0) : null;
+            if (bestMove != null && bestMove.length() >= 4) {
+                android.view.Window win = activity.getWindow();
+                View decor = win != null ? win.getDecorView() : null;
+                View bv = OverlayManager.findChessBoardView(decor);
+                if (bv != null) {
+                    boolean flipped = OverlayManager.isBoardFlipped(bv, getStateImpl());
+                    AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen);
+                }
+            }
+        }
     }
 
     public static char getPieceAtSquare(String fen, String square) {

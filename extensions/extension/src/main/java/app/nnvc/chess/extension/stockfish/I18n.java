@@ -48,6 +48,10 @@ public class I18n {
                 return isVi ? "Bật Engine" : "Enable Engine";
             case "panic_hint":
                 return isVi ? "Chạm đúp vào thanh trên để bật/tắt ngay lập tức (chế độ ẩn)." : "Double-tap the top bar to switch it off or on instantly (panic mode).";
+            case "row_automove":
+                return isVi ? "Tự Động Đi" : "Auto Move";
+            case "automove_sub":
+                return isVi ? "Auto-move khi có nước tốt" : "Auto-move best move";
             case "card_elo":
                 return isVi ? "Sức Mạnh Engine" : "Engine Strength";
             case "row_elo":
