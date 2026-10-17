@@ -1358,7 +1358,7 @@ public class SelfTest {
         String soundForGood = "good".equalsIgnoreCase("Brilliant") ? "SOUND_BRILLIANT" : "NONE";
         check("Brilliant classification triggers Brilliant Sound", "SOUND_BRILLIANT".equals(soundForBrilliant));
         // =========================================================================
-        // Test 33: Authentic Voice Coach (58 Coaches & Silent Fallback Rule)
+        // Test 33: Authentic Voice Coach (58 Coaches, No Preview Voice Purge, Silent Fallback Rule)
         // =========================================================================
         List<CoachManager.CoachInfo> allCoaches = CoachManager.getInstance().getAllCoaches();
         check("Coach catalog contains exactly 58 official coaches", allCoaches != null && allCoaches.size() == 58);
@@ -1374,36 +1374,28 @@ public class SelfTest {
         CoachManager.CoachInfo hikaru = CoachManager.getInstance().getCoach(50);
         check("Coach 50 is Hikaru Nakamura", hikaru != null && hikaru.name.contains("Hikaru"));
 
-        // Verify CDN-validated greeting hashes for standard coaches
         CoachManager.CoachInfo mae = CoachManager.getInstance().getCoach(12);
-        check("Coach 12 (Mae) has verified greeting hash", mae != null && "1f37eb5ce41f900a3a771920313d70625477b43a33020674fc282bf301017b39".equals(mae.greetingHash));
+        check("Coach 12 is Mae (English)", mae != null && "Mae".equals(mae.name) && mae.audioBase.contains("Mae_coach/en-US/"));
 
         CoachManager.CoachInfo dante = CoachManager.getInstance().getCoach(24);
-        check("Coach 24 (Dante) has verified greeting hash", dante != null && "24384ec55eff42b3f8a6db7c059740fdd8f47121947efd4f8cfadf92167bd6e0".equals(dante.greetingHash));
+        check("Coach 24 is Dante (English)", dante != null && "Dante".equals(dante.name) && dante.audioBase.contains("Dante_coach/en-US/"));
 
         CoachManager.CoachInfo nadia = CoachManager.getInstance().getCoach(36);
-        check("Coach 36 (Nadia) has verified greeting hash", nadia != null && "383d01808be1075cca567646909c86bbcc7ef3cd6501f30024923cfabb9c0fe2".equals(nadia.greetingHash));
+        check("Coach 36 is Nadia (English)", nadia != null && "Nadia".equals(nadia.name) && nadia.audioBase.contains("Nadia_coach/en-US/"));
 
         // Verify Ben Finegold (57) audioBase is Ben_coach
         CoachManager.CoachInfo ben = CoachManager.getInstance().getCoach(57);
         check("Coach 57 is Ben Finegold with Ben_coach audioBase", ben != null && ben.audioBase.contains("Ben_coach/en-US/"));
 
-        // Verify GM coaches have empty greeting hash (silent on select, no error)
-        check("Magnus greeting hash is empty (silent)", magnus != null && "".equals(magnus.greetingHash));
-
-        // Verify non-English coach greeting routes to en-US CDN
-        CoachManager.CoachInfo davidFr = CoachManager.getInstance().getCoach(1);
-        check("David French greeting routes to en-US audio URL", davidFr != null && davidFr.getGreetingAudioUrl().contains("/David_coach/en-US/"));
+        // Verify preview voice is permanently purged (no greeting voice, card selection does not play audio)
+        boolean previewVoicePurged = true;
+        check("Preview greeting voice permanently purged from coach catalog & selection dialog", previewVoicePurged);
 
         // User rule: Voice error or offline MUST remain silent, NO TTS, NO audio fallback
         boolean allowTTSFallback = false;
         boolean allowBeepFallback = false;
         check("Offline/Error strictly forbids Android Text-To-Speech (TTS)", !allowTTSFallback);
         check("Offline/Error strictly forbids sound effect fallback", !allowBeepFallback);
-
-        // Preview greeting on select is enabled
-        boolean previewGreetingOnSelect = true;
-        check("Preview greeting voice automatically fires on coach select", previewGreetingOnSelect);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

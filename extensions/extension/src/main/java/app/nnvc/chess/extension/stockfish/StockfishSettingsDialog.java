@@ -2372,30 +2372,6 @@ public class StockfishSettingsDialog {
 
                     card.addView(infoCol);
 
-                    // Nút Loa Nghe Thử 🔊
-                    TextView previewBtn = new TextView(activity);
-                    previewBtn.setText("🔊");
-                    previewBtn.setTextSize(14);
-                    previewBtn.setGravity(Gravity.CENTER);
-                    int prevPad = (int) (8 * density);
-                    previewBtn.setPadding(prevPad, (int) (6 * density), prevPad, (int) (6 * density));
-
-                    GradientDrawable prevBg = new GradientDrawable();
-                    prevBg.setColor(0x22FFFFFF);
-                    prevBg.setCornerRadius(8 * density);
-                    prevBg.setStroke((int) (1 * density), 0x33FFFFFF);
-                    previewBtn.setBackground(prevBg);
-
-                    previewBtn.setOnClickListener(v -> {
-                        HapticHelper.pop(activity, v);
-                        CoachVoiceManager.getInstance(activity).playGreeting(coach.id, activity);
-                    });
-
-                    LinearLayout.LayoutParams prevParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                    prevParams.leftMargin = (int) (8 * density);
-                    previewBtn.setLayoutParams(prevParams);
-                    card.addView(previewBtn);
-
                     // Nút Chọn HLV
                     TextView selectBtn = new TextView(activity);
                     selectBtn.setText(isSelected ? (I18n.isVi(activity) ? "ĐANG CHỌN" : "ACTIVE") : (I18n.isVi(activity) ? "CHỌN" : "SELECT"));
@@ -2424,8 +2400,6 @@ public class StockfishSettingsDialog {
                             selectRow.selectBtn.setText(coach.getDisplayName() + "  ▾");
                             selectRow.subtitle.setText(coach.greetingText != null ? coach.greetingText : "");
                         }
-                        // Tự động phát câu chào HLV khi chọn (theo quyết định người dùng)
-                        CoachVoiceManager.getInstance(activity).playGreeting(coach.id, activity);
                         // Đồng bộ kịch bản sang Torch WASM
                         CoachManager.getInstance().syncCurrentCoachToTorch(activity);
                         coachDialog.dismiss();

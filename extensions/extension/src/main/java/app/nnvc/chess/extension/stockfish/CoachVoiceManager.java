@@ -116,21 +116,6 @@ public class CoachVoiceManager {
         playAudioHash(coach, audioUrlHash.trim());
     }
 
-    /**
-     * Phát câu chào mừng mở đầu của HLV khi chọn trong menu hoặc bấm nghe thử.
-     */
-    public void playGreeting(int coachId, Context ctx) {
-        Context c = (ctx != null) ? ctx : context;
-        if (coachId < 0) return;
-
-        CoachManager.CoachInfo coach = CoachManager.getInstance().getCoach(coachId);
-        if (coach == null) return;
-        String greetingUrl = coach.getGreetingAudioUrl();
-        if (greetingUrl == null || greetingUrl.isEmpty()) return;
-
-        TorchEngine.log("[COACH GREETING] Nghe thử giọng chào của: " + coach.getDisplayName());
-        playAudioDirect(coach, coach.greetingHash, greetingUrl);
-    }
 
     private void playAudioHash(CoachManager.CoachInfo coach, String hash) {
         if (coach == null || hash == null || hash.isEmpty()) return;
