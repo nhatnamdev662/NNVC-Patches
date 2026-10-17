@@ -78,8 +78,8 @@ public class EloScanner {
         if (activity == null) return;
 
         long now = System.currentTimeMillis();
-        // Tránh quét dồn dập: giãn cách tối thiểu 3 giây
-        if (now - lastScanTimeMs < 3000) {
+        // Tránh quét dồn dập: giãn cách tối thiểu 10 giây
+        if (now - lastScanTimeMs < 10000) {
             return;
         }
         // Nếu đã nhận diện thành công cho ván đấu hiện tại, không quét lại để tiết kiệm CPU
@@ -570,24 +570,15 @@ public class EloScanner {
     private static void collectSnapshots(View root, List<ViewSnapshot> out) {
         if (root == null || root.getVisibility() != View.VISIBLE) return;
 
-        // 1. Quét sâu qua Jetpack Compose Semantics (Nếu view là ComposeView hoặc AndroidComposeView)
-        try {
-            collectComposeSnapshots(root, out);
-        } catch (Throwable ignored) {}
-
-        // 2. Quét sâu qua AccessibilityNodeInfo
-        try {
-            AccessibilityNodeInfo rootNode = root.createAccessibilityNodeInfo();
-            if (rootNode != null) {
-                collectAccessibilitySnapshots(rootNode, out);
-                try {
-                    rootNode.recycle();
-                } catch (Throwable ignored) {}
-            }
-        } catch (Throwable ignored) {}
-
-        // 3. Dự phòng: Quét qua cây View/TextView Android truyền thống
+        // 1. Quét nhanh qua cây View/TextView Android truyền thống (nhẹ nhất, O(N) không allocation)
         collectViewSnapshots(root, out);
+
+        // 2. Nếu chưa tìm thấy text và root là ComposeView, quét nhẹ qua Compose Semantics
+        if (out.isEmpty()) {
+            try {
+                collectComposeSnapshots(root, out);
+            } catch (Throwable ignored) {}
+        }
     }
 
     private static void collectComposeSnapshots(View view, List<ViewSnapshot> out) {

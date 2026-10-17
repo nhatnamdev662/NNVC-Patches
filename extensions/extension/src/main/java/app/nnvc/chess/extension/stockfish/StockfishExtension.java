@@ -481,8 +481,14 @@ public class StockfishExtension {
         }
 
         // 1. Independent Eval Bar: Dedicated Stockfish 18 classify instance (Depth 10, MultiPV 3, Hash 64)
+        // Khi Play Engine là Stockfish 18 và đang BẬT engine, playWorker đã tự đánh giá Eval Bar ở displayLiveResult,
+        // bỏ qua evaluateClassifyPosition để tránh chạy 2 worker Stockfish 18 song song gây giật lag
         if (ctx != null && StockfishSettings.isEvalBarEnabled(ctx)) {
-            WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, MoveClassifier.getCurrentPositionMoves());
+            String playEngine = StockfishSettings.getEngineChoice(ctx);
+            boolean engineOn = StockfishSettings.isEngineEnabled(ctx);
+            if (!("stockfish18".equalsIgnoreCase(playEngine) && engineOn)) {
+                WasmEngineManager.getInstance(ctx).evaluateClassifyPosition(fen, MoveClassifier.getCurrentPositionMoves());
+            }
         }
 
         // 2. Independent Move Classification: Torch CEE with 100ms debounce
@@ -810,6 +816,11 @@ public class StockfishExtension {
 
         if (disableOverlays || !StockfishSettings.isEvalBarEnabled(context)) {
             OverlayManager.hideEvalBar();
+        } else {
+            String engineChoice = StockfishSettings.getEngineChoice(context);
+            if ("stockfish18".equalsIgnoreCase(engineChoice) && result != null && result.depth >= 6) {
+                OverlayManager.updateEvalBar(result.score, result.hasMate, result.mateIn, getStateImpl());
+            }
         }
 
         if (!disableOverlays && StockfishSettings.isEngineInfoEnabled(context)) {

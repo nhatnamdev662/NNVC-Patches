@@ -1488,6 +1488,27 @@ public class SelfTest {
         long fittsDelayA1H8 = AutoMoveManager.calculateFittsDelay("a1", "h8"); // dist = hypot(7,7) = 9.899 -> 95 + 178.19 = 273 min, max 318
         check("Fitts delay for a1h8 is within [270, 325] ms", fittsDelayA1H8 >= 270 && fittsDelayA1H8 <= 325);
 
+        // === 36. Performance Optimizations (Zero-Allocation & Ring Buffer Verification) ===
+        // 36a. NnvcLogger ArrayDeque Ring Buffer O(1) behavior & cap check
+        NnvcLogger.clear();
+        for (int i = 0; i < 1100; i++) {
+            NnvcLogger.i("Test", "Log line " + i);
+        }
+        java.util.List<String> testLogs = NnvcLogger.getRecentLogs();
+        check("NnvcLogger caps at 1000 lines", testLogs.size() == 1000);
+        check("Oldest log polled first", testLogs.get(0).contains("Log line 100"));
+        check("Newest log at tail", testLogs.get(testLogs.size() - 1).contains("Log line 1099"));
+        NnvcLogger.clear();
+        check("NnvcLogger clear resets memoryLogs", NnvcLogger.getRecentLogs().isEmpty());
+
+        // 36b. EvalBarView ratio calculation boundaries
+        float ratioMax = EvalBarView.ratioFor(10.0f);
+        float ratioMin = EvalBarView.ratioFor(-10.0f);
+        float ratioZero = EvalBarView.ratioFor(0.0f);
+        check("EvalBarView ratio clamped to 0.95 at +10", Math.abs(ratioMax - 0.95f) < 0.001f);
+        check("EvalBarView ratio clamped to 0.05 at -10", Math.abs(ratioMin - 0.05f) < 0.001f);
+        check("EvalBarView ratio is 0.50 at 0.0", Math.abs(ratioZero - 0.50f) < 0.001f);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

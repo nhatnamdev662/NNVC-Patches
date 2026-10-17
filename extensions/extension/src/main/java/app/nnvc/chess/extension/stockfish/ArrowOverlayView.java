@@ -152,6 +152,9 @@ public class ArrowOverlayView extends View {
     private float lastSqSizeForOffsets = -1f;
     private int lastArrowsHash = 0;
 
+    private final Path reusableArrowPath = new Path();
+    private final Path reusableThreatHeadPath = new Path();
+
     public ArrowOverlayView(Context context) {
         super(context);
         setClickable(false);
@@ -556,18 +559,18 @@ public class ArrowOverlayView extends View {
             canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, glowPaint);
             canvas.drawLine(lineStartX, lineStartY, headBaseX, headBaseY, edgePaint);
 
-            Path headPath = new Path();
-            headPath.moveTo(tipX, tipY);
-            headPath.lineTo(leftPtX, leftPtY);
-            headPath.lineTo(rightPtX, rightPtY);
-            headPath.close();
+            reusableThreatHeadPath.reset();
+            reusableThreatHeadPath.moveTo(tipX, tipY);
+            reusableThreatHeadPath.lineTo(leftPtX, leftPtY);
+            reusableThreatHeadPath.lineTo(rightPtX, rightPtY);
+            reusableThreatHeadPath.close();
 
-            canvas.drawPath(headPath, fillPaint);
+            canvas.drawPath(reusableThreatHeadPath, fillPaint);
 
             edgePaint.setColor(0xFFFFFFFF);
             edgePaint.setStrokeWidth(Math.max(1.1f, sqSize * 0.012f));
             edgePaint.setPathEffect(null);
-            canvas.drawPath(headPath, edgePaint);
+            canvas.drawPath(reusableThreatHeadPath, edgePaint);
         }
     }
 
@@ -702,16 +705,16 @@ public class ArrowOverlayView extends View {
         float rightStartX = startX - px * shaftHalf;
         float rightStartY = startY - py * shaftHalf;
 
-        Path p = new Path();
-        p.moveTo(leftStartX, leftStartY);
-        p.lineTo(h.leftNotchX, h.leftNotchY);
-        p.lineTo(h.leftOuterX, h.leftOuterY);
-        p.lineTo(h.tipX, h.tipY);
-        p.lineTo(h.rightOuterX, h.rightOuterY);
-        p.lineTo(h.rightNotchX, h.rightNotchY);
-        p.lineTo(rightStartX, rightStartY);
-        p.close();
-        return p;
+        reusableArrowPath.reset();
+        reusableArrowPath.moveTo(leftStartX, leftStartY);
+        reusableArrowPath.lineTo(h.leftNotchX, h.leftNotchY);
+        reusableArrowPath.lineTo(h.leftOuterX, h.leftOuterY);
+        reusableArrowPath.lineTo(h.tipX, h.tipY);
+        reusableArrowPath.lineTo(h.rightOuterX, h.rightOuterY);
+        reusableArrowPath.lineTo(h.rightNotchX, h.rightNotchY);
+        reusableArrowPath.lineTo(rightStartX, rightStartY);
+        reusableArrowPath.close();
+        return reusableArrowPath;
     }
 
     private Path buildKnightPath(float x1, float y1, float x2, float y2,
@@ -758,18 +761,18 @@ public class ArrowOverlayView extends View {
         float[] rightElbow = lineIntersect(rightStartX, rightStartY, u1x, u1y,
                 shiftedElbowX - p2x * shaftHalf, shiftedElbowY - p2y * shaftHalf, u2x, u2y);
 
-        Path p = new Path();
-        p.moveTo(leftStartX, leftStartY);
-        p.lineTo(leftElbow[0], leftElbow[1]);
-        p.lineTo(h.leftNotchX, h.leftNotchY);
-        p.lineTo(h.leftOuterX, h.leftOuterY);
-        p.lineTo(h.tipX, h.tipY);
-        p.lineTo(h.rightOuterX, h.rightOuterY);
-        p.lineTo(h.rightNotchX, h.rightNotchY);
-        p.lineTo(rightElbow[0], rightElbow[1]);
-        p.lineTo(rightStartX, rightStartY);
-        p.close();
-        return p;
+        reusableArrowPath.reset();
+        reusableArrowPath.moveTo(leftStartX, leftStartY);
+        reusableArrowPath.lineTo(leftElbow[0], leftElbow[1]);
+        reusableArrowPath.lineTo(h.leftNotchX, h.leftNotchY);
+        reusableArrowPath.lineTo(h.leftOuterX, h.leftOuterY);
+        reusableArrowPath.lineTo(h.tipX, h.tipY);
+        reusableArrowPath.lineTo(h.rightOuterX, h.rightOuterY);
+        reusableArrowPath.lineTo(h.rightNotchX, h.rightNotchY);
+        reusableArrowPath.lineTo(rightElbow[0], rightElbow[1]);
+        reusableArrowPath.lineTo(rightStartX, rightStartY);
+        reusableArrowPath.close();
+        return reusableArrowPath;
     }
 
     private HeadPoints buildHeadPoints(float tipX, float tipY, float ux, float uy,
@@ -1392,6 +1395,8 @@ public class ArrowOverlayView extends View {
         }
     }
 
+    private static final java.util.Map<String, Drawable.ConstantState> BADGE_STATE_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
     public static Drawable getClassificationDrawable(Context context, String classificationName) {
         if (context == null || classificationName == null) return null;
         String resName;
@@ -1442,12 +1447,23 @@ public class ArrowOverlayView extends View {
                 break;
         }
 
+        Drawable.ConstantState state = BADGE_STATE_CACHE.get(resName);
+        if (state != null) {
+            return state.newDrawable(context.getResources()).mutate();
+        }
+
         try {
             int resId = context.getResources().getIdentifier(resName, "drawable", context.getPackageName());
             if (resId != 0) {
                 if (Build.VERSION.SDK_INT >= 21) {
                     Drawable d = context.getDrawable(resId);
-                    return d != null ? d.mutate() : null;
+                    if (d != null) {
+                        Drawable.ConstantState cs = d.getConstantState();
+                        if (cs != null) {
+                            BADGE_STATE_CACHE.put(resName, cs);
+                        }
+                        return d.mutate();
+                    }
                 }
             }
         } catch (Throwable t) {

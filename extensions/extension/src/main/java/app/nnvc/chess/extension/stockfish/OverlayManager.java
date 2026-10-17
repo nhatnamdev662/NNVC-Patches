@@ -129,29 +129,24 @@ public class OverlayManager {
                 arrowView.setElevation(2f);
             }
             View evalBar = getOrFindTaggedView(decorView, "stockfish_eval_bar", cachedEvalBarRef);
-            if (evalBar != null && evalBar.getVisibility() == View.VISIBLE) {
+            if (evalBar != null) {
                 evalBar.setElevation(10f);
-                evalBar.bringToFront();
             }
             View info = getOrFindTaggedView(decorView, "stockfish_engine_info", cachedEngineInfoRef);
-            if (info != null && info.getVisibility() == View.VISIBLE) {
+            if (info != null) {
                 info.setElevation(10f);
-                info.bringToFront();
-            }
-            View widget = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
-            if (widget != null && widget.getVisibility() == View.VISIBLE) {
-                widget.setElevation(25f);
-                widget.bringToFront();
             }
             View topPill = getOrFindTaggedView(decorView, "nnvc_accuracy_top_pill", cachedTopPillRef);
-            if (topPill != null && topPill.getVisibility() == View.VISIBLE) {
+            if (topPill != null) {
                 topPill.setElevation(15f);
-                topPill.bringToFront();
             }
             View botPill = getOrFindTaggedView(decorView, "nnvc_accuracy_bot_pill", cachedBotPillRef);
-            if (botPill != null && botPill.getVisibility() == View.VISIBLE) {
+            if (botPill != null) {
                 botPill.setElevation(15f);
-                botPill.bringToFront();
+            }
+            View widget = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
+            if (widget != null) {
+                widget.setElevation(25f);
             }
         } catch (Throwable ignored) {}
     }

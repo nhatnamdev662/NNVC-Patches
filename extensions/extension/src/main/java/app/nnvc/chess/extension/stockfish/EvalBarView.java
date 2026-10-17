@@ -104,20 +104,25 @@ public class EvalBarView extends View {
         this.hasValue = true;
         animateTo(target, firstShow);
 
+        boolean sizeChanged = (getWidth() != width || getHeight() != height);
         ViewGroup.LayoutParams lp = getLayoutParams();
         if (lp == null) {
             lp = new FrameLayout.LayoutParams(width, height);
-        } else {
+            if (lp instanceof FrameLayout.LayoutParams) {
+                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
+            }
+            setLayoutParams(lp);
+        } else if (sizeChanged || lp.width != width || lp.height != height) {
             lp.width  = width;
             lp.height = height;
+            if (lp instanceof FrameLayout.LayoutParams) {
+                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
+            }
+            setLayoutParams(lp);
         }
-        if (lp instanceof FrameLayout.LayoutParams) {
-            ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
-        }
-        setLayoutParams(lp);
+
         setTranslationX(x);
         setTranslationY(y);
-        bringToFront();
         invalidate();
     }
 

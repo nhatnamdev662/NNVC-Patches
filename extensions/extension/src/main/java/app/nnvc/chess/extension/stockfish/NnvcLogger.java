@@ -39,7 +39,8 @@ public class NnvcLogger {
     private static volatile File logFile = null;
     private static final Object fileLock = new Object();
 
-    private static final List<String> memoryLogs = new CopyOnWriteArrayList<>();
+    private static final java.util.ArrayDeque<String> memoryLogs = new java.util.ArrayDeque<>(MAX_MEMORY_LINES);
+    private static final Object memoryLock = new Object();
 
     private static final ExecutorService fileExecutor =
             Executors.newSingleThreadExecutor(r -> {
@@ -187,10 +188,12 @@ public class NnvcLogger {
 
         final String formattedLine = sb.toString();
 
-        // 1. Add to memory circular buffer
-        memoryLogs.add(formattedLine);
-        while (memoryLogs.size() > MAX_MEMORY_LINES) {
-            memoryLogs.remove(0);
+        // 1. Add to memory circular buffer (O(1) with ArrayDeque)
+        synchronized (memoryLock) {
+            if (memoryLogs.size() >= MAX_MEMORY_LINES) {
+                memoryLogs.pollFirst();
+            }
+            memoryLogs.addLast(formattedLine);
         }
 
         // 2. Dispatch to UI listeners
@@ -233,22 +236,28 @@ public class NnvcLogger {
     }
 
     public static List<String> getRecentLogs() {
-        return new ArrayList<>(memoryLogs);
+        synchronized (memoryLock) {
+            return new ArrayList<>(memoryLogs);
+        }
     }
 
     public static String getFormattedLogs() {
-        if (memoryLogs.isEmpty()) {
-            return "Chưa có log nào được ghi nhận.\nFile log: " + getLogFilePath();
+        synchronized (memoryLock) {
+            if (memoryLogs.isEmpty()) {
+                return "Chưa có log nào được ghi nhận.\nFile log: " + getLogFilePath();
+            }
+            StringBuilder sb = new StringBuilder();
+            for (String l : memoryLogs) {
+                sb.append(l).append("\n");
+            }
+            return sb.toString();
         }
-        StringBuilder sb = new StringBuilder();
-        for (String l : memoryLogs) {
-            sb.append(l).append("\n");
-        }
-        return sb.toString();
     }
 
     public static void clear() {
-        memoryLogs.clear();
+        synchronized (memoryLock) {
+            memoryLogs.clear();
+        }
         fileExecutor.execute(() -> {
             synchronized (fileLock) {
                 if (logFile != null && logFile.exists()) {
