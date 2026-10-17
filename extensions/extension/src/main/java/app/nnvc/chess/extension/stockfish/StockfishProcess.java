@@ -43,6 +43,7 @@ public class StockfishProcess {
     private int curSkillErr = -1;
     private int curSkillProb = -1;
     private int curContempt = -999;
+    private Integer curSlowMover = null;
     private String curEngineChoice = null;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -259,19 +260,42 @@ public class StockfishProcess {
             }
             sendUciCommand(pos.toString());
 
-            // Soft Movetime standard NNVC Extension: fast responsiveness at Depth 12
-            int softMs = movetimeMs > 0 ? movetimeMs : Math.max(700, Math.min(2100, effectiveDepth * 175));
-            String goCmd = "go depth " + effectiveDepth + " movetime " + softMs;
+            String goCmd = buildGoCommand(isAutoDepth, honorLimit, effectiveDepth, movetimeMs);
+            int timeoutForSearch = calculateSearchTimeout(isAutoDepth, honorLimit, effectiveDepth, movetimeMs);
             sendUciCommand(goCmd);
             NnvcLogger.d(TAG, "Search started [wasm]: " + goCmd + " (Elo=" + elo + ")");
 
             int targetMpv = Math.max(1, Math.min(8, multiPV));
             return readSearchOutput(targetMpv, whiteToMove,
-                    softMs + BESTMOVE_GRACE_MS,
+                    timeoutForSearch,
                     effectiveDepth, progress);
         } catch (Throwable e) {
             NnvcLogger.e(TAG, "Search error in mode wasm: " + e.getMessage(), e);
             return AnalysisResult.empty();
+        }
+    }
+
+    /**
+     * Exact 100% parity with NNVC Extension search dispatch (nnvc_main_bundle.js line 6857):
+     * const goCmd = profile.manualDepth ? `go depth ${depth}` : `go depth ${depth} movetime ${softMs}`;
+     */
+    public static String buildGoCommand(boolean isAutoDepth, boolean honorLimit, int effectiveDepth, int movetimeMs) {
+        boolean manualDepth = !isAutoDepth || !honorLimit;
+        if (manualDepth && movetimeMs <= 0) {
+            return "go depth " + effectiveDepth;
+        } else {
+            int softMs = movetimeMs > 0 ? movetimeMs : Math.max(700, Math.min(2100, effectiveDepth * 175));
+            return "go depth " + effectiveDepth + " movetime " + softMs;
+        }
+    }
+
+    public static int calculateSearchTimeout(boolean isAutoDepth, boolean honorLimit, int effectiveDepth, int movetimeMs) {
+        boolean manualDepth = !isAutoDepth || !honorLimit;
+        if (manualDepth && movetimeMs <= 0) {
+            return Math.max(15_000, effectiveDepth * 1_200);
+        } else {
+            int softMs = movetimeMs > 0 ? movetimeMs : Math.max(700, Math.min(2100, effectiveDepth * 175));
+            return softMs + BESTMOVE_GRACE_MS;
         }
     }
 
@@ -612,6 +636,7 @@ public class StockfishProcess {
         curSkillErr = -1;
         curSkillProb = -1;
         curContempt = -999;
+        curSlowMover = null;
     }
 
     private void applyPlayEngineOptions(Context context, int elo, int multiPV, boolean honorLimit) {
@@ -634,6 +659,12 @@ public class StockfishProcess {
         }
 
         sendUciCommand("setoption name Ponder value false");
+
+        // NNVC Extension standard: Slow Mover 100
+        if (curSlowMover == null || curSlowMover != 100) {
+            sendUciCommand("setoption name Slow Mover value 100");
+            curSlowMover = 100;
+        }
 
         if (isKomodo) {
             // Komodo Dragon 3.3 UCI options

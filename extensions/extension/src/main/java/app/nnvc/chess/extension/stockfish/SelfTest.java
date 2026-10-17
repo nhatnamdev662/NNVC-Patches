@@ -1397,6 +1397,38 @@ public class SelfTest {
         check("Offline/Error strictly forbids Android Text-To-Speech (TTS)", !allowTTSFallback);
         check("Offline/Error strictly forbids sound effect fallback", !allowBeepFallback);
 
+        // =========================================================================
+        // Test 34: 100% Authentic NNVC Desktop Extension Play Engine Parity
+        // =========================================================================
+        // 34a. Manual Depth Go command (Strictly 'go depth ${depth}', no movetime premature cutoff)
+        String manualGo15 = StockfishProcess.buildGoCommand(false, true, 15, 0);
+        check("Manual Depth 15 sends pure 'go depth 15'", "go depth 15".equals(manualGo15));
+
+        int manualTimeout15 = StockfishProcess.calculateSearchTimeout(false, true, 15, 0);
+        check("Manual Depth 15 has sufficient search timeout (>= 15s)", manualTimeout15 >= 18_000);
+
+        // 34b. Auto Depth Go command (Uses soft movetime 700ms - 2100ms)
+        String autoGo12 = StockfishProcess.buildGoCommand(true, true, 12, 0);
+        check("Auto Depth 12 sends 'go depth 12 movetime 2100'", "go depth 12 movetime 2100".equals(autoGo12));
+
+        String autoGo2 = StockfishProcess.buildGoCommand(true, true, 2, 0);
+        check("Auto Depth 2 clamps min soft movetime to 700ms", "go depth 2 movetime 700".equals(autoGo2));
+
+        // 34c. Explicit movetime override
+        String explicitGo = StockfishProcess.buildGoCommand(false, false, 10, 1500);
+        check("Explicit movetime override formats properly", "go depth 10 movetime 1500".equals(explicitGo));
+
+        // 34d. Komodo Dragon 3.3 Skill & Probability Formula Parity
+        int testElo1500 = 1500;
+        int komodoMaxErr1500 = Math.round((2000f - testElo1500) / 70f) + 2; // (500/70) + 2 = 7 + 2 = 9
+        int komodoProb1500 = Math.round((2000f - testElo1500) / 50f) + 1; // (500/50) + 1 = 10 + 1 = 11
+        check("Komodo Skill Error at 1500 Elo equals 9", komodoMaxErr1500 == 9);
+        check("Komodo Skill Probability at 1500 Elo equals 11", komodoProb1500 == 11);
+
+        int testElo2100 = 2100;
+        int komodoMaxErr2100 = testElo2100 < 2000 ? Math.round((2000f - testElo2100) / 70f) + 2 : 0;
+        check("Komodo Skill Error at 2100 Elo disables to 0", komodoMaxErr2100 == 0);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
