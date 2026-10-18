@@ -456,9 +456,14 @@ public class StockfishExtension {
             AutoFindManager.onNewGameStarted();
         }
         Activity curAct = getCurrentActivity();
-        if (curAct != null && lastGameOverHandled && !isGameOver(curAct)) {
-            lastGameOverHandled = false;
-            AutoFindManager.onNewGameStarted();
+        if (curAct != null) {
+            if (lastGameOverHandled && !isGameOver(curAct)) {
+                lastGameOverHandled = false;
+                AutoFindManager.onNewGameStarted();
+            }
+            if (checkAndHandleGameOver(curAct)) {
+                return;
+            }
         }
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
@@ -1139,22 +1144,37 @@ public class StockfishExtension {
             Log.w(TAG, "Failed to register OnGlobalLayoutListener: " + t.getMessage());
         }
 
-        // 2. Periodic watchdog Runnable (300ms)
+        // 2. Periodic watchdog Runnable (300ms) with indestructible resilient loop
         gameOverWatchdogRunnable = new Runnable() {
             @Override
             public void run() {
+                boolean over = false;
                 try {
-                    if (activity.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
+                    Activity act = activity;
+                    if (act == null || act.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && act.isDestroyed())) {
+                        act = getCurrentActivity();
+                    }
+                    if (act == null || act.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && act.isDestroyed())) {
                         return;
                     }
-                    unlockScreenshots(activity);
-                    boolean over = checkAndHandleGameOver(activity);
-                    if (!over && !isReviewOrAnalysisActivity(activity)) {
-                        checkAndTriggerMove0Watchdog(activity);
+                    unlockScreenshots(act);
+                    over = checkAndHandleGameOver(act);
+                    if (!over && !isReviewOrAnalysisActivity(act)) {
+                        checkAndTriggerMove0Watchdog(act);
                     }
-                    android.os.Handler wh = getWatchdogHandler();
-                    if (wh != null) wh.postDelayed(this, over ? 500 : 300);
-                } catch (Throwable ignored) {}
+                } catch (Throwable t) {
+                    Log.w(TAG, "GameOverWatchdog error: " + t.getMessage());
+                } finally {
+                    try {
+                        Activity cur = getCurrentActivity();
+                        if (cur != null && !cur.isFinishing() && !(android.os.Build.VERSION.SDK_INT >= 17 && cur.isDestroyed())) {
+                            android.os.Handler wh = getWatchdogHandler();
+                            if (wh != null) {
+                                wh.postDelayed(this, over ? 500 : 300);
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
             }
         };
         android.os.Handler wh = getWatchdogHandler();

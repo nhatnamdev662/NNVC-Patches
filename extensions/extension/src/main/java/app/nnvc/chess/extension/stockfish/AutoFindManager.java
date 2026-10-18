@@ -52,6 +52,7 @@ public class AutoFindManager {
     private static Handler mainHandler = null;
     private static Runnable countdownRunnable = null;
     private static WeakReference<Activity> activeActivityRef = new WeakReference<>(null);
+    private static volatile Object lastHandledGameEndData = null;
 
     private static final Pattern NEW_GAME_BTN_PATTERN = Pattern.compile(
             "(?i)(v[áa]n m[ớo]i|ch[ơo]i l[ạa]i|ch[ơo]i ti[ếe]p|t[ìi]m tr[ậa]n|new game|play again|find opponent|next game)"
@@ -91,6 +92,18 @@ public class AutoFindManager {
             return; // Already in progress
         }
 
+        // Record handled gameEndData to ensure each unique game end is processed cleanly
+        try {
+            Object vm = getRealGameViewModel(activity);
+            if (vm != null) {
+                Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
+                if (fEndData != null) {
+                    fEndData.setAccessible(true);
+                    lastHandledGameEndData = fEndData.get(vm);
+                }
+            }
+        } catch (Throwable ignored) {}
+
         activeActivityRef = new WeakReference<>(activity);
         currentState = State.COUNTDOWN;
         remainingSeconds = 2;
@@ -103,6 +116,10 @@ public class AutoFindManager {
             }
             startCountdownTimer(activity);
         });
+    }
+
+    public static void resetHandledGameEndData() {
+        lastHandledGameEndData = null;
     }
 
     /**
@@ -420,26 +437,17 @@ public class AutoFindManager {
                 } catch (Throwable ignored) {}
             }
 
-            // 3. Inspect gameEndData matched against active gameId
-            // In Chess.com, vm.gameEndData persists between games on the same ViewModel instance.
-            // It MUST be checked against vm.gameId (field U / gameId) to verify it belongs to the CURRENT game!
+            // 3. Inspect gameEndData matched against lastHandledGameEndData
+            // In Chess.com, vm.gameEndData is assigned IMMEDIATELY when the game concludes (0ms delay).
+            // Each completed game produces a new GameEndData object instance.
+            // If endData != null and is NOT the instance already handled, the game is freshly over!
             try {
                 Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
-                Field fGameId = findFieldByName(vm.getClass(), "gameId", "U", "b");
-                if (fEndData != null && fGameId != null) {
+                if (fEndData != null) {
                     fEndData.setAccessible(true);
-                    fGameId.setAccessible(true);
                     Object endData = fEndData.get(vm);
-                    Object currGameId = fGameId.get(vm);
-                    if (endData != null && currGameId != null) {
-                        Method getEndGameId = findMethodByName(endData.getClass(), "getGameId");
-                        if (getEndGameId != null) {
-                            getEndGameId.setAccessible(true);
-                            Object endId = getEndGameId.invoke(endData);
-                            if (endId != null && endId.equals(currGameId)) {
-                                return true;
-                            }
-                        }
+                    if (endData != null && endData != lastHandledGameEndData) {
+                        return true;
                     }
                 }
             } catch (Throwable ignored) {}
