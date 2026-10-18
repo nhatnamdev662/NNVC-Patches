@@ -734,9 +734,7 @@ public class StockfishSettingsDialog {
                     }
                 }
             } catch (Throwable ignored) {}
-            String toastMsg = I18n.isVi(activity)
-                    ? (isChecked ? "🛡️ Chế độ Safe: BẬT (Đánh tự nhiên)" : "⚡ Chế độ Safe: TẮT (Đánh hết sức)")
-                    : (isChecked ? "🛡️ Safe Mode: ON (Natural play)" : "⚡ Safe Mode: OFF (Max strength)");
+            String toastMsg = I18n.get(activity, isChecked ? "safemode_toast_on" : "safemode_toast_off");
             android.widget.Toast.makeText(activity, toastMsg, android.widget.Toast.LENGTH_SHORT).show();
             if (StockfishSettings.isEngineEnabled(activity)) {
                 StockfishBridge.clearCache();

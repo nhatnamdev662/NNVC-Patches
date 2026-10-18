@@ -67,6 +67,10 @@ public class I18n {
                 return isVi ? "🛡️ Chế Độ Safe" : "🛡️ Safe Mode";
             case "safemode_sub":
                 return isVi ? "Đánh tự nhiên như người thật, an toàn tránh bị phát hiện (Tắt để đánh hết sức)" : "Play human-like & safe from bans (Disable to play at full strength)";
+            case "safemode_toast_on":
+                return isVi ? "🛡️ Chế độ Safe: BẬT (Đánh tự nhiên)" : "🛡️ Safe Mode: ON (Natural play)";
+            case "safemode_toast_off":
+                return isVi ? "⚡ Chế độ Safe: TẮT (Đánh hết sức)" : "⚡ Safe Mode: OFF (Max strength)";
             case "card_elo":
                 return isVi ? "Sức Mạnh Engine" : "Engine Strength";
             case "row_elo":

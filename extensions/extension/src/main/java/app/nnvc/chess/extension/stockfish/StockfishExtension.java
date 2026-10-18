@@ -801,10 +801,29 @@ public class StockfishExtension {
 
         boolean showThreat = (threatListToInject != null && !threatListToInject.isEmpty());
         boolean showPremove = (premoveMoveToInject != null);
+        // Ensure result is a safe local copy before Safe Mode reordering to prevent cache contamination
+        StockfishProcess.AnalysisResult liveResult = new StockfishProcess.AnalysisResult(
+                new java.util.ArrayList<>(result.moves),
+                result.score,
+                result.hasMate,
+                result.mateIn,
+                result.wdlWin,
+                result.wdlDraw,
+                result.wdlLoss,
+                result.ponder,
+                result.pv != null ? new java.util.ArrayList<>(result.pv) : new java.util.ArrayList<>(),
+                result.lineScores != null ? result.lineScores.clone() : new float[0],
+                result.sideToMoveScores != null ? result.sideToMoveScores.clone() : new float[0],
+                result.lineMates != null ? result.lineMates.clone() : new boolean[0],
+                result.lineMateIn != null ? result.lineMateIn.clone() : new int[0],
+                result.depth,
+                result.terminal
+        );
+        result = liveResult;
 
         // ── Safe Mode Move Selection & Synchronization (100% Extension Parity) ──
         String safeChosenMove = null;
-        if (result.moves != null && !result.moves.isEmpty()) {
+        if (isMyTurn && result.moves != null && !result.moves.isEmpty()) {
             boolean isSafeMode = StockfishSettings.isSafeModeEnabled(context);
             int arrowLimit = StockfishSettings.getMultiPV(context);
             boolean finalUserIsWhite = (userWhite != null) ? userWhite.booleanValue() : isWhiteTurn;
@@ -935,7 +954,7 @@ public class StockfishExtension {
                 if (over || review) {
                     NnvcLogger.d("NNVC_AutoMove", "[AUTO MOVE] Bỏ qua: gameOver=" + over + ", review=" + review);
                 } else {
-                    String bestMove = (result.moves != null && !result.moves.isEmpty()) ? result.moves.get(0) : null;
+                    String bestMove = safeChosenMove != null ? safeChosenMove : ((result.moves != null && !result.moves.isEmpty()) ? result.moves.get(0) : null);
                     if (bestMove != null && bestMove.length() >= 4) {
                         View bv = null;
                         if (activity != null && activity.getWindow() != null) {

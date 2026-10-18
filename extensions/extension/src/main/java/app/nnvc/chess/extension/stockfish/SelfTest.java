@@ -1708,6 +1708,66 @@ public class SelfTest {
         check("Mũi tên 1 re-ordering shifts previous best move to index 1", "e2e4".equals(liveMoves.get(1)));
         check("Mũi tên 1 re-ordering synchronizes side scores correctly", Math.abs(sideScores[0] - 0.30f) < 0.001f);
 
+        // 39i. Human Imperfection Simulation: When eval >= +4.0, occasional inaccuracy pick (gap 24-42)
+        List<String> hiMoves = java.util.Arrays.asList("e2e4", "d2d4");
+        float[] hiScores = new float[]{4.50f, 4.20f}; // gap = 30 cp (within 24-42, evalCp - gap >= 320)
+        boolean[] hiMates = new boolean[]{false, false};
+        int[] hiMateIn = new int[]{0, 0};
+        int hiPickedCount = 0;
+        for (int i = 0; i < 500; i++) {
+            SafeMoveSelector.MoveDecision dHI = SafeMoveSelector.selectMove(
+                    hiMoves, hiScores, hiMates, hiMateIn, 2, 60000L, 60000L, startFen, true, true);
+            if ("human_imperfection".equals(dHI.reason)) {
+                hiPickedCount++;
+            }
+        }
+        check("Human imperfection triggers on decisive winning positions (picked > 0 out of 500 trials)", hiPickedCount > 0);
+
+        // 39j. Endgame / Few Candidates handling (1 move or 2 moves with blunder)
+        List<String> singleMove = java.util.Collections.singletonList("e2e4");
+        SafeMoveSelector.MoveDecision dSingle = SafeMoveSelector.selectMove(
+                singleMove, new float[]{0.5f}, new boolean[]{false}, new int[]{0}, 3, 60000L, 60000L, startFen, true, true);
+        check("Single candidate returns Top 1 with single_candidate", "e2e4".equals(dSingle.chosenMove) && "single_candidate".equals(dSingle.reason));
+
+        List<String> blunderMoves = java.util.Arrays.asList("e2e4", "e2e3");
+        float[] blunderScores = new float[]{0.50f, -1.00f}; // gap = 150 cp (exceeds maxAllowedGap = 45)
+        SafeMoveSelector.MoveDecision dBlunder = SafeMoveSelector.selectMove(
+                blunderMoves, blunderScores, new boolean[]{false, false}, new int[]{0, 0}, 2, 60000L, 60000L, startFen, true, true);
+        check("Candidate 2 blunder (> maxAllowedGap) filtered out, returns only_top1_safe", "e2e4".equals(dBlunder.chosenMove) && "only_top1_safe".equals(dBlunder.reason));
+
+        // 39k. Dirty Flagging Promotion Prioritization: When clock <= 6.0s, prioritize promotion within 30 cp gap
+        String promoFen = "4k3/4P3/8/8/8/8/8/4K3 w - - 0 1";
+        List<String> promoMoves = java.util.Arrays.asList("e1f2", "e7e8q");
+        float[] promoScores = new float[]{2.0f, 1.80f}; // gap = 20 cp (within 30 cp)
+        SafeMoveSelector.MoveDecision dPromo = SafeMoveSelector.selectMove(
+                promoMoves, promoScores, new boolean[]{false, false}, new int[]{0, 0}, 2, 4000L, 4000L, promoFen, true, true);
+        check("Dirty Flagging <= 6s prioritizes promotion candidate within 30 cp gap",
+                "e7e8q".equals(dPromo.chosenMove) && dPromo.chosenIndex == 1 && "dirty_flagging_promo".equals(dPromo.reason));
+
+        // 39l. StockfishBridge.trimLines Trimming & sideToMoveScores Preservation
+        StockfishProcess.AnalysisResult originalResult = new StockfishProcess.AnalysisResult(
+                new java.util.ArrayList<>(java.util.Arrays.asList("c7c5", "e7e5", "g8f6")),
+                -1.5f, false, 0, 0, 0, 0, null, null,
+                new float[]{-1.5f, -1.8f, -2.0f}, // lineScores (White POV: Black winning -> negative for White)
+                new float[]{1.5f, 1.2f, 1.0f},   // sideToMoveScores (Black POV: Black winning -> positive for Black)
+                new boolean[]{false, false, false},
+                new int[]{0, 0, 0},
+                12, false
+        );
+        StockfishProcess.AnalysisResult trimmed = StockfishBridge.trimLines(originalResult, 2);
+        check("trimLines trims moves to requested count", trimmed.moves.size() == 2);
+        check("trimLines creates isolated copy when trimming", trimmed != originalResult);
+        check("trimLines preserves sideToMoveScores from Black POV", trimmed.sideToMoveScores != null && Math.abs(trimmed.sideToMoveScores[0] - 1.5f) < 0.001f);
+        // Mutating trimmed moves must not affect originalResult moves
+        trimmed.moves.remove(0);
+        check("Mutating trimmed moves does not mutate original cached moves", originalResult.moves.size() == 3 && "c7c5".equals(originalResult.moves.get(0)));
+
+        // 39m. Safe Mode Toast I18n Verification
+        check("I18n safemode_toast_on vi is correct", "🛡️ Chế độ Safe: BẬT (Đánh tự nhiên)".equals(I18n.get("safemode_toast_on", true)));
+        check("I18n safemode_toast_on en is correct", "🛡️ Safe Mode: ON (Natural play)".equals(I18n.get("safemode_toast_on", false)));
+        check("I18n safemode_toast_off vi is correct", "⚡ Chế độ Safe: TẮT (Đánh hết sức)".equals(I18n.get("safemode_toast_off", true)));
+        check("I18n safemode_toast_off en is correct", "⚡ Safe Mode: OFF (Max strength)".equals(I18n.get("safemode_toast_off", false)));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
