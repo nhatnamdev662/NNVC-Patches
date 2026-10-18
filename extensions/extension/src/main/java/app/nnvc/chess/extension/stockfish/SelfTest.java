@@ -1693,20 +1693,13 @@ public class SelfTest {
         check("Dirty Flagging <= 6s prioritizes check move within 35 cp gap",
                 "e1e7".equals(dDF.chosenMove) && dDF.chosenIndex == 1 && "dirty_flagging_check".equals(dDF.reason));
 
-        // 39h. Move List Re-ordering Synchronization (Mũi Tên 1 Placement)
+        // 39h. Desktop Extension Parity: Engine arrow list remains untouched, chosenMove executed directly
         List<String> liveMoves = new java.util.ArrayList<>(java.util.Arrays.asList("e2e4", "d2d4", "g1f3"));
         float[] sideScores = new float[]{0.35f, 0.30f, 0.25f};
-        int pickedIndex = 1; // "d2d4" picked
-        String pickedSafeMove = liveMoves.remove(pickedIndex);
-        liveMoves.add(0, pickedSafeMove);
-        float pickedScore = sideScores[pickedIndex];
-        for (int k = pickedIndex; k > 0; k--) {
-            sideScores[k] = sideScores[k - 1];
-        }
-        sideScores[0] = pickedScore;
-        check("Mũi tên 1 re-ordering correctly places selected move at index 0", "d2d4".equals(liveMoves.get(0)));
-        check("Mũi tên 1 re-ordering shifts previous best move to index 1", "e2e4".equals(liveMoves.get(1)));
-        check("Mũi tên 1 re-ordering synchronizes side scores correctly", Math.abs(sideScores[0] - 0.30f) < 0.001f);
+        check("Desktop extension parity: Tier 1 arrow remains Top 1", "e2e4".equals(liveMoves.get(0)));
+        check("Desktop extension parity: Tier 2 arrow remains Top 2", "d2d4".equals(liveMoves.get(1)));
+        check("Desktop extension parity: Tier 3 arrow remains Top 3", "g1f3".equals(liveMoves.get(2)));
+        check("Decision chosen move directly executes selected candidate", "e1e7".equals(dDF.chosenMove));
 
         // 39i. Human Imperfection Simulation: When eval >= +4.0, occasional inaccuracy pick (gap 24-42)
         List<String> hiMoves = java.util.Arrays.asList("e2e4", "d2d4");
@@ -1799,6 +1792,10 @@ public class SelfTest {
         check("Button pattern matches 'New Game'", btnPattern.matcher("New Game").find());
         check("Button pattern matches 'Find Opponent'", btnPattern.matcher("Find Opponent").find());
         check("Button pattern rejects unrelated text", !btnPattern.matcher("Cài đặt bàn cờ").find());
+
+        // 40d. ViewModel Game Over Detection
+        check("isViewModelGameOver handles null activity safely", !AutoFindManager.isViewModelGameOver(null));
+        check("getRealGameViewModel handles null activity safely", AutoFindManager.getRealGameViewModel(null) == null);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

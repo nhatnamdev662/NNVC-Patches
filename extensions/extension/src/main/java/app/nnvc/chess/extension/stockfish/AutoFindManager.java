@@ -210,13 +210,38 @@ public class AutoFindManager {
         return false;
     }
 
-    private static Object getRealGameViewModel(Activity activity) {
+    public static Object getRealGameViewModel(Activity activity) {
+        if (activity == null) return null;
         try {
             Method x6 = findMethodByName(activity.getClass(), "X6");
             if (x6 != null) {
                 x6.setAccessible(true);
                 Object vm = x6.invoke(activity);
                 if (vm != null) return vm;
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Method i8 = findMethodByName(activity.getClass(), "I8");
+            if (i8 != null) {
+                i8.setAccessible(true);
+                Object vm = i8.invoke(activity);
+                if (vm != null) return vm;
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Field fB = activity.getClass().getDeclaredField("B");
+            fB.setAccessible(true);
+            Object val = fB.get(activity);
+            if (val != null) {
+                try {
+                    Method getValue = val.getClass().getMethod("getValue");
+                    Object lazyVal = getValue.invoke(val);
+                    if (lazyVal != null) return lazyVal;
+                } catch (Throwable ignored) {
+                    return val;
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -248,6 +273,65 @@ public class AutoFindManager {
             }
         } catch (Throwable ignored) {}
         return null;
+    }
+
+    /**
+     * Checks if the active game is in Game Over state via RealGameViewModel reflection.
+     * Works natively on modern Jetpack Compose Chess.com (4.10.20) where legacy Dialogs are absent.
+     */
+    public static boolean isViewModelGameOver(Activity activity) {
+        if (activity == null) return false;
+        try {
+            Object vm = getRealGameViewModel(activity);
+            if (vm == null) return false;
+
+            // 1. Direct Ca() call -> returns this.gameEndData != null
+            Method ca = findMethodByName(vm.getClass(), "Ca");
+            if (ca != null) {
+                ca.setAccessible(true);
+                Object res = ca.invoke(vm);
+                if (res instanceof Boolean && (Boolean) res) {
+                    return true;
+                }
+            }
+
+            // 2. Direct gameEndData inspection
+            Class<?> curr = vm.getClass();
+            while (curr != null && curr != Object.class) {
+                for (Field f : curr.getDeclaredFields()) {
+                    String fn = f.getName();
+                    if (fn.equals("gameEndData") || fn.equals("i0")) {
+                        f.setAccessible(true);
+                        if (f.get(vm) != null) {
+                            return true;
+                        }
+                    }
+                }
+                curr = curr.getSuperclass();
+            }
+
+            // 3. StateFlow gameOver / _gameOver inspection
+            curr = vm.getClass();
+            while (curr != null && curr != Object.class) {
+                for (Field f : curr.getDeclaredFields()) {
+                    String fn = f.getName().toLowerCase(java.util.Locale.US);
+                    if (fn.equals("gameover") || fn.equals("b1") || fn.equals("_gameover") || fn.equals("a1")) {
+                        try {
+                            f.setAccessible(true);
+                            Object flow = f.get(vm);
+                            if (flow != null) {
+                                Method getValue = flow.getClass().getMethod("getValue");
+                                if (getValue.invoke(flow) != null) {
+                                    return true;
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+                curr = curr.getSuperclass();
+            }
+        } catch (Throwable ignored) {}
+        return false;
     }
 
     /**

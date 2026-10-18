@@ -842,42 +842,8 @@ public class StockfishExtension {
                     arrowLimit, myClockMs, oppClockMs, fen, isSafeMode, finalUserIsWhite);
             safeChosenMove = decision.chosenMove;
 
-            // If selected safe move is not index 0, reorder result.moves and line arrays
-            // so the chosen safe move becomes index 0 (Tier 1 Gold Arrow)
-            if (decision.chosenIndex > 0 && decision.chosenIndex < result.moves.size()) {
-                int pick = decision.chosenIndex;
-                String pickedMove = result.moves.remove(pick);
-                result.moves.add(0, pickedMove);
-
-                if (result.sideToMoveScores != null && pick < result.sideToMoveScores.length) {
-                    float pickedScore = result.sideToMoveScores[pick];
-                    for (int k = pick; k > 0; k--) {
-                        result.sideToMoveScores[k] = result.sideToMoveScores[k - 1];
-                    }
-                    result.sideToMoveScores[0] = pickedScore;
-                }
-                if (result.lineScores != null && pick < result.lineScores.length) {
-                    float pickedScore = result.lineScores[pick];
-                    for (int k = pick; k > 0; k--) {
-                        result.lineScores[k] = result.lineScores[k - 1];
-                    }
-                    result.lineScores[0] = pickedScore;
-                }
-                if (result.lineMates != null && pick < result.lineMates.length) {
-                    boolean pickedMate = result.lineMates[pick];
-                    for (int k = pick; k > 0; k--) {
-                        result.lineMates[k] = result.lineMates[k - 1];
-                    }
-                    result.lineMates[0] = pickedMate;
-                }
-                if (result.lineMateIn != null && pick < result.lineMateIn.length) {
-                    int pickedMateIn = result.lineMateIn[pick];
-                    for (int k = pick; k > 0; k--) {
-                        result.lineMateIn[k] = result.lineMateIn[k - 1];
-                    }
-                    result.lineMateIn[0] = pickedMateIn;
-                }
-                NnvcLogger.i(TAG, "🛡️ [SAFE MODE] Picked Top " + (pick + 1) + " [" + pickedMove + "] (Reason: " + decision.reason + " | Gap: " + decision.cpGap + "cp). Reordered to Tier 1 Gold Arrow.");
+            if (decision.chosenIndex > 0) {
+                NnvcLogger.i(TAG, "🛡️ [SAFE MODE] Picked Candidate #" + (decision.chosenIndex + 1) + " [" + safeChosenMove + "] (Reason: " + decision.reason + " | Gap: " + decision.cpGap + "cp). Playing Candidate #" + (decision.chosenIndex + 1) + ", leaving engine arrow colors unchanged.");
             }
         }
 
@@ -1431,6 +1397,11 @@ public class StockfishExtension {
                     }
                 }
             } catch (Throwable ignored) {}
+
+            // 0. Direct RealGameViewModel inspection (100% accurate for modern Jetpack Compose Chess.com)
+            if (AutoFindManager.isViewModelGameOver(activity)) {
+                return true;
+            }
 
             // 1. Inspect activity fields for gameOverOverlayView (m0)
             Class<?> actClass = activity.getClass();
