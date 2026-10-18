@@ -695,6 +695,7 @@ public class OverlayManager {
         }
         if (board != null) {
             cachedBoardViewRef = new java.lang.ref.WeakReference<>(board);
+            AutoMoveManager.attachPassiveTouchWatcher(board);
             if (hookedBoardViews.add(System.identityHashCode(board))) {
                 board.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
                     @Override

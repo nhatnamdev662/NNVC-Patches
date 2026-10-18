@@ -81,6 +81,14 @@ public class I18n {
                 return isVi ? "🎮 Tìm trận sau %ds... [Chạm để hủy]" : "🎮 New game in %ds... [Tap to cancel]";
             case "toast_cd_cancel":
                 return isVi ? "Đã hủy tự động tìm trận" : "Auto find game cancelled";
+            case "cd_label":
+                return isVi ? "TÌM TRẬN MỚI" : "FIND NEW MATCH";
+            case "cd_sub":
+                return isVi ? "%d giây nữa tự tìm trận..." : "auto find match in %ds...";
+            case "cd_cancel":
+                return isVi ? "⏹ HỦY" : "⏹ CANCEL";
+            case "cd_now":
+                return isVi ? "⚡ TÌM NGAY" : "⚡ FIND NOW";
             case "autostart_toast_on":
                 return isVi ? "🎮 Tự động tìm trận: BẬT" : "🎮 Auto find game: ON";
             case "autostart_toast_off":

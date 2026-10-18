@@ -1698,6 +1698,11 @@ public class SelfTest {
         check("Dirty Flagging <= 6s prioritizes check move within 35 cp gap",
                 "e1e7".equals(dDF.chosenMove) && dDF.chosenIndex == 1 && "dirty_flagging_check".equals(dDF.reason));
 
+        SafeMoveSelector.MoveDecision d8s = SafeMoveSelector.selectMove(
+                dfMoves, dfScores, dfMates, dfMateIn, 2, 7500L, 20000L, checkFen, true, true);
+        check("Dirty Flagging <= 8.0s player clock prioritizes check move within 35 cp gap",
+                "e1e7".equals(d8s.chosenMove) && d8s.chosenIndex == 1 && "dirty_flagging_check".equals(d8s.reason));
+
         // 39h. Desktop Extension Parity: Engine arrow list remains untouched, chosenMove executed directly
         List<String> liveMoves = new java.util.ArrayList<>(java.util.Arrays.asList("e2e4", "d2d4", "g1f3"));
         float[] sideScores = new float[]{0.35f, 0.30f, 0.25f};
@@ -1953,6 +1958,22 @@ public class SelfTest {
         } catch (Throwable t) {
             check("StockfishExtension onGameOverNative hook exists", false);
         }
+
+        // 40i. 5-Second Cooldown & Extension Parity Cyber Card & Touch Interception
+        check("AutoFindManager COUNTDOWN_DURATION_SEC is 5s", AutoFindManager.COUNTDOWN_DURATION_SEC == 5);
+        check("I18n cd_label exists", I18n.get(null, "cd_label").length() > 0);
+        check("I18n cd_sub exists", I18n.get(null, "cd_sub").length() > 0);
+        check("I18n cd_cancel exists", I18n.get(null, "cd_cancel").length() > 0);
+        check("I18n cd_now exists", I18n.get(null, "cd_now").length() > 0);
+
+        // Passive touch watcher null-safety
+        boolean touchWatcherSafe = true;
+        try {
+            AutoMoveManager.attachPassiveTouchWatcher(null);
+        } catch (Throwable t) {
+            touchWatcherSafe = false;
+        }
+        check("AutoMoveManager attachPassiveTouchWatcher is null-safe", touchWatcherSafe);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

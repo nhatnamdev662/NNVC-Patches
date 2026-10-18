@@ -2,7 +2,10 @@ package app.nnvc.chess.extension.stockfish;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -29,10 +32,11 @@ import java.util.regex.Pattern;
  * 
  * Follows NNVC Desktop Extension AutoFindController architecture:
  *  - State Machine: IDLE -> COUNTDOWN -> SEEKING -> PLAYING
- *  - 2-second user-cancelable countdown banner with haptic feedback
+ *  - 5-second user-cancelable Cyber Countdown Card with Ring indicator
  *  - Dual Direct Execution Architecture:
  *      Tầng 1: Direct RealGameViewModel.Ka() [newGame(isRematch=false)]
  *      Tầng 2: UI View Button Scanner [Fallback]
+ *  - Auto Re-queue / Re-seek when match search drops or cancels
  *  - Zero dev-lingo, 100% I18n bilingual support.
  */
 public class AutoFindManager {
@@ -47,8 +51,10 @@ public class AutoFindManager {
         PLAYING
     }
 
+    public static final int COUNTDOWN_DURATION_SEC = 5;
+
     private static volatile State currentState = State.IDLE;
-    private static volatile int remainingSeconds = 2;
+    private static volatile int remainingSeconds = COUNTDOWN_DURATION_SEC;
     private static Handler mainHandler = null;
     private static Runnable countdownRunnable = null;
     private static WeakReference<Activity> activeActivityRef = new WeakReference<>(null);
@@ -56,6 +62,11 @@ public class AutoFindManager {
     private static volatile String lastHandledGameUuid = null;
     private static volatile Object lastHandledGameEndData = null;
     private static volatile WeakReference<Object> lastNativeViewModelRef = null;
+
+    private static volatile boolean userExplicitlyCancelled = false;
+    private static volatile int seekRetryCount = 0;
+    private static final int MAX_SEEK_RETRIES = 5;
+    private static Runnable seekingWatchdogRunnable = null;
 
     private static final Pattern NEW_GAME_BTN_PATTERN = Pattern.compile(
             "(?i)(v[áa]n m[ớo]i|ch[ơo]i l[ạa]i|ch[ơo]i ti[ếe]p|t[ìi]m tr[ậa]n|new game|play again|find opponent|next game)"
@@ -206,7 +217,8 @@ public class AutoFindManager {
 
         activeActivityRef = new WeakReference<>(activity);
         currentState = State.COUNTDOWN;
-        remainingSeconds = 2;
+        remainingSeconds = COUNTDOWN_DURATION_SEC;
+        userExplicitlyCancelled = false;
 
         getMainHandler().post(() -> {
             try {
@@ -228,6 +240,12 @@ public class AutoFindManager {
      * Called when a new game starts (FEN startpos or board reset).
      */
     public static void onNewGameStarted() {
+        userExplicitlyCancelled = false;
+        seekRetryCount = 0;
+        if (seekingWatchdogRunnable != null) {
+            getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+            seekingWatchdogRunnable = null;
+        }
         cancelCountdown("New game started");
         resetHandledGameEndData();
         currentState = State.PLAYING;
@@ -240,6 +258,10 @@ public class AutoFindManager {
         if (countdownRunnable != null) {
             getMainHandler().removeCallbacks(countdownRunnable);
             countdownRunnable = null;
+        }
+        if (seekingWatchdogRunnable != null) {
+            getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+            seekingWatchdogRunnable = null;
         }
 
         Activity activity = activeActivityRef.get();
@@ -287,6 +309,7 @@ public class AutoFindManager {
 
     private static void triggerAutoFind(final Activity activity) {
         currentState = State.SEEKING;
+        seekRetryCount = 0;
         vibrate(activity, 25);
 
         try {
@@ -295,57 +318,89 @@ public class AutoFindManager {
 
         NnvcLogger.i(TAG, "Triggering Auto Find match...");
 
-        // Safety watchdog: auto-reset SEEKING to IDLE after 15 seconds if no match or board change occurred
-        getMainHandler().postDelayed(() -> {
-            if (currentState == State.SEEKING) {
-                NnvcLogger.d(TAG, "Safety watchdog: auto-resetting lingering SEEKING state to IDLE");
-                currentState = State.IDLE;
-            }
-        }, 15000L);
+        // Start Auto Re-queue / Re-seek watchdog when matchmaking drops or is cancelled
+        scheduleSeekingWatchdog(activity);
 
-        getMainHandler().post(() -> {
-            // Tầng 0: Direct Cached Native ViewModel (highest priority, 100% reliable)
-            boolean triggered = false;
-            if (lastNativeViewModelRef != null) {
-                Object vm = lastNativeViewModelRef.get();
-                if (vm != null) {
-                    triggered = triggerViaViewModelInstance(vm);
-                    if (triggered) {
-                        NnvcLogger.i(TAG, "Auto Find triggered via cached native ViewModel!");
+        getMainHandler().post(() -> executeTrigger(activity));
+    }
+
+    private static void scheduleSeekingWatchdog(final Activity activity) {
+        if (seekingWatchdogRunnable != null) {
+            getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+        }
+
+        seekingWatchdogRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (currentState != State.SEEKING || userExplicitlyCancelled) {
+                    return;
+                }
+                if (activity == null || activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
+                    currentState = State.IDLE;
+                    return;
+                }
+
+                // If match is still over without starting a new game (cancelled by Chess.com or user or dropped)
+                if (isViewModelGameOver(activity)) {
+                    if (seekRetryCount < MAX_SEEK_RETRIES) {
+                        seekRetryCount++;
+                        NnvcLogger.i(TAG, "⚡ [AUTO RE-QUEUE] Seeking dropped or cancelled without new game. Re-queuing match (attempt " + seekRetryCount + "/" + MAX_SEEK_RETRIES + ")...");
+                        executeTrigger(activity);
+                        getMainHandler().postDelayed(this, 2500L);
+                    } else {
+                        NnvcLogger.i(TAG, "Max seeking retries reached (" + MAX_SEEK_RETRIES + "). Resetting to IDLE.");
+                        currentState = State.IDLE;
                     }
+                } else {
+                    currentState = State.PLAYING;
                 }
             }
+        };
 
-            // Tầng 1: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
-            if (!triggered) {
-                triggered = triggerViaViewModel(activity);
+        getMainHandler().postDelayed(seekingWatchdogRunnable, 2500L);
+    }
+
+    private static boolean executeTrigger(final Activity activity) {
+        if (activity == null) return false;
+        // Tầng 0: Direct Cached Native ViewModel (highest priority, 100% reliable)
+        boolean triggered = false;
+        if (lastNativeViewModelRef != null) {
+            Object vm = lastNativeViewModelRef.get();
+            if (vm != null) {
+                triggered = triggerViaViewModelInstance(vm);
+                if (triggered) {
+                    NnvcLogger.i(TAG, "Auto Find triggered via cached native ViewModel!");
+                }
             }
+        }
 
-            // Tầng 2: UI View Button Scanner
-            if (!triggered) {
-                triggered = triggerViaButtonScan(activity);
-            }
+        // Tầng 1: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
+        if (!triggered) {
+            triggered = triggerViaViewModel(activity);
+        }
 
-            if (triggered) {
-                NnvcLogger.i(TAG, "Auto Find match triggered successfully!");
-            } else {
-                NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller or action button on first attempt. Scheduling retry in 400ms...");
-                getMainHandler().postDelayed(() -> {
-                    if (currentState == State.SEEKING) {
-                        boolean retry = triggerViaButtonScan(activity);
-                        if (!retry) {
-                            retry = triggerViaViewModel(activity);
-                        }
-                        if (retry) {
-                            NnvcLogger.i(TAG, "Auto Find match triggered on retry!");
-                        } else {
-                            NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller or action button after retry.");
-                            currentState = State.IDLE;
-                        }
+        // Tầng 2: UI View Button Scanner
+        if (!triggered) {
+            triggered = triggerViaButtonScan(activity);
+        }
+
+        if (triggered) {
+            NnvcLogger.i(TAG, "Auto Find match triggered successfully!");
+        } else {
+            NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller or action button on first attempt. Scheduling retry in 400ms...");
+            getMainHandler().postDelayed(() -> {
+                if (currentState == State.SEEKING && !userExplicitlyCancelled) {
+                    boolean retry = triggerViaButtonScan(activity);
+                    if (!retry) {
+                        retry = triggerViaViewModel(activity);
                     }
-                }, 400L);
-            }
-        });
+                    if (retry) {
+                        NnvcLogger.i(TAG, "Auto Find match triggered on retry!");
+                    }
+                }
+            }, 400L);
+        }
+        return triggered;
     }
 
     /**
@@ -1147,7 +1202,70 @@ public class AutoFindManager {
         return false;
     }
 
-    // ── UI Countdown Banner ──────────────────────────────────────────────────
+    // ── UI Countdown Card (Extension Parity) ──────────────────────────────────
+
+    public static class CountdownRingView extends View {
+        private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint progressPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF arcRect = new RectF();
+        private int currentSeconds = COUNTDOWN_DURATION_SEC;
+        private int maxSeconds = COUNTDOWN_DURATION_SEC;
+
+        public CountdownRingView(Context context) {
+            super(context);
+            init(context);
+        }
+
+        private void init(Context context) {
+            float density = context.getResources().getDisplayMetrics().density;
+            bgPaint.setStyle(Paint.Style.STROKE);
+            bgPaint.setColor(0x33787880);
+            bgPaint.setStrokeWidth(5f * density);
+
+            progressPaint.setStyle(Paint.Style.STROKE);
+            progressPaint.setColor(0xFF30D158); // Neon Emerald (#30d158)
+            progressPaint.setStrokeWidth(5f * density);
+            progressPaint.setStrokeCap(Paint.Cap.ROUND);
+
+            textPaint.setColor(Color.WHITE);
+            textPaint.setTextAlign(Paint.Align.CENTER);
+            textPaint.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            textPaint.setTextSize(30f * density);
+        }
+
+        public void setProgress(int current, int max) {
+            this.currentSeconds = current;
+            this.maxSeconds = max;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float w = getWidth();
+            float h = getHeight();
+            if (w <= 0 || h <= 0) return;
+
+            float density = getResources().getDisplayMetrics().density;
+            float stroke = 5f * density;
+            float pad = stroke / 2f + 2f * density;
+            arcRect.set(pad, pad, w - pad, h - pad);
+
+            // Background circular track
+            canvas.drawOval(arcRect, bgPaint);
+
+            // Progress arc (starts at 12 o'clock = -90 deg)
+            float sweep = (maxSeconds > 0) ? ((float) currentSeconds / maxSeconds) * 360f : 0f;
+            canvas.drawArc(arcRect, -90f, sweep, false, progressPaint);
+
+            // Center number
+            String numText = String.valueOf(currentSeconds);
+            Paint.FontMetrics fm = textPaint.getFontMetrics();
+            float textY = (h / 2f) - ((fm.ascent + fm.descent) / 2f);
+            canvas.drawText(numText, w / 2f, textY, textPaint);
+        }
+    }
 
     private static void showCountdownBanner(final Activity activity, int seconds) {
         if (activity == null || activity.getWindow() == null) return;
@@ -1159,32 +1277,92 @@ public class AutoFindManager {
 
         float density = activity.getResources().getDisplayMetrics().density;
 
-        final LinearLayout banner = new LinearLayout(activity);
-        banner.setTag(BANNER_TAG);
-        banner.setOrientation(LinearLayout.VERTICAL);
-        banner.setGravity(Gravity.CENTER);
-        banner.setPadding((int) (18 * density), (int) (10 * density), (int) (18 * density), (int) (10 * density));
+        final LinearLayout card = new LinearLayout(activity);
+        card.setTag(BANNER_TAG);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        int padH = (int) (22 * density);
+        int padV = (int) (18 * density);
+        card.setPadding(padH, padV, padH, padV);
 
+        // Cyber glass card background matching Extension
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xEE141923); // Cyber dark glass
-        bg.setCornerRadius(16 * density);
-        bg.setStroke((int) (1.5f * density), 0x990A84FF); // Cyber blue accent
-        banner.setBackground(bg);
+        bg.setColor(0xF2161922); // Deep Cyber glass 95%
+        bg.setCornerRadius(20 * density);
+        bg.setStroke((int) (1.5f * density), 0x4D30D158); // Subtle emerald border
+        card.setBackground(bg);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            banner.setElevation(50f);
+            card.setElevation(50f);
         }
 
+        // 1. Header Title: "TÌM TRẬN MỚI" / "FIND NEW MATCH"
         TextView titleText = new TextView(activity);
-        titleText.setId(View.generateViewId());
         titleText.setTag("banner_title");
         titleText.setTextColor(Color.WHITE);
-        titleText.setTextSize(13.5f);
-        titleText.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        titleText.setText(String.format(java.util.Locale.US, I18n.get(activity, "toast_cd_countdown"), seconds));
-        banner.addView(titleText);
+        titleText.setTextSize(12.5f);
+        titleText.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        titleText.setText(I18n.get(activity, "cd_label"));
+        titleText.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams lpTitle = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        lpTitle.bottomMargin = (int) (12 * density);
+        card.addView(titleText, lpTitle);
 
-        banner.setOnClickListener(v -> {
+        // 2. Countdown Ring View (86dp x 86dp)
+        CountdownRingView ringView = new CountdownRingView(activity);
+        ringView.setTag("banner_ring");
+        ringView.setProgress(seconds, COUNTDOWN_DURATION_SEC);
+        int ringSize = (int) (86 * density);
+        LinearLayout.LayoutParams lpRing = new LinearLayout.LayoutParams(ringSize, ringSize);
+        lpRing.bottomMargin = (int) (12 * density);
+        card.addView(ringView, lpRing);
+
+        // 3. Subtitle: "%d giây nữa tự tìm trận..." / "auto find match in %ds..."
+        TextView subText = new TextView(activity);
+        subText.setTag("banner_sub");
+        subText.setTextColor(0xFF94A3B8); // Slate 400
+        subText.setTextSize(11.5f);
+        subText.setGravity(Gravity.CENTER);
+        subText.setText(String.format(java.util.Locale.US, I18n.get(activity, "cd_sub"), seconds));
+        LinearLayout.LayoutParams lpSub = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        lpSub.bottomMargin = (int) (16 * density);
+        card.addView(subText, lpSub);
+
+        // 4. Action Buttons Bar [⏹ HỦY] & [⚡ TÌM NGAY]
+        LinearLayout btnBar = new LinearLayout(activity);
+        btnBar.setOrientation(LinearLayout.HORIZONTAL);
+        btnBar.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams lpBtnBar = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        card.addView(btnBar, lpBtnBar);
+
+        // Button [⏹ HỦY]
+        TextView btnCancel = new TextView(activity);
+        btnCancel.setText(I18n.get(activity, "cd_cancel"));
+        btnCancel.setTextColor(Color.WHITE);
+        btnCancel.setTextSize(12f);
+        btnCancel.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        btnCancel.setGravity(Gravity.CENTER);
+        GradientDrawable cancelBg = new GradientDrawable();
+        cancelBg.setColor(0x33787880);
+        cancelBg.setCornerRadius(10 * density);
+        btnCancel.setBackground(cancelBg);
+        int btnPadV = (int) (9 * density);
+        btnCancel.setPadding(0, btnPadV, 0, btnPadV);
+        LinearLayout.LayoutParams lpCancel = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        lpCancel.rightMargin = (int) (5 * density);
+        btnBar.addView(btnCancel, lpCancel);
+
+        btnCancel.setOnClickListener(v -> {
+            userExplicitlyCancelled = true;
             cancelCountdown("User tapped cancel banner");
             vibrate(activity, 15);
             try {
@@ -1192,15 +1370,41 @@ public class AutoFindManager {
             } catch (Throwable ignored) {}
         });
 
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+        // Button [⚡ TÌM NGAY]
+        TextView btnNow = new TextView(activity);
+        btnNow.setText(I18n.get(activity, "cd_now"));
+        btnNow.setTextColor(0xFF0B130E); // Dark emerald text
+        btnNow.setTextSize(12f);
+        btnNow.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        btnNow.setGravity(Gravity.CENTER);
+        GradientDrawable nowBg = new GradientDrawable();
+        nowBg.setColor(0xFF30D158); // Neon emerald
+        nowBg.setCornerRadius(10 * density);
+        btnNow.setBackground(nowBg);
+        btnNow.setPadding(0, btnPadV, 0, btnPadV);
+        LinearLayout.LayoutParams lpNow = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        lpNow.leftMargin = (int) (5 * density);
+        btnBar.addView(btnNow, lpNow);
+
+        btnNow.setOnClickListener(v -> {
+            if (countdownRunnable != null) {
+                getMainHandler().removeCallbacks(countdownRunnable);
+                countdownRunnable = null;
+            }
+            removeCountdownBanner(activity);
+            triggerAutoFind(activity);
+        });
+
+        int cardW = (int) (270 * density);
+        FrameLayout.LayoutParams lpCard = new FrameLayout.LayoutParams(
+                cardW,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        lp.topMargin = (int) (48 * density);
+        lpCard.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
+        lpCard.topMargin = (int) (52 * density);
 
-        root.addView(banner, lp);
-        banner.bringToFront();
+        root.addView(card, lpCard);
+        card.bringToFront();
     }
 
     private static void updateCountdownBanner(Activity activity, int seconds) {
@@ -1210,9 +1414,13 @@ public class AutoFindManager {
 
         View banner = decor.findViewWithTag(BANNER_TAG);
         if (banner != null) {
-            View title = banner.findViewWithTag("banner_title");
-            if (title instanceof TextView) {
-                ((TextView) title).setText(String.format(java.util.Locale.US, I18n.get(activity, "toast_cd_countdown"), seconds));
+            View ring = banner.findViewWithTag("banner_ring");
+            if (ring instanceof CountdownRingView) {
+                ((CountdownRingView) ring).setProgress(seconds, COUNTDOWN_DURATION_SEC);
+            }
+            View sub = banner.findViewWithTag("banner_sub");
+            if (sub instanceof TextView) {
+                ((TextView) sub).setText(String.format(java.util.Locale.US, I18n.get(activity, "cd_sub"), seconds));
             }
             banner.bringToFront();
         }
