@@ -24,7 +24,10 @@ public class I18n {
     }
 
     public static String get(Context context, String key) {
-        boolean isVi = isVi(context);
+        return get(key, isVi(context));
+    }
+
+    public static String get(String key, boolean isVi) {
         switch (key) {
             case "title":
                 return isVi ? "CÀI ĐẶT NNVC" : "NNVC SETTINGS";
@@ -60,6 +63,10 @@ public class I18n {
                 return isVi ? "Xả Nước Nhanh (Bullet Flagging)" : "Bullet Flagging";
             case "bullet_flagging_sub":
                 return isVi ? "Đi ngay lập tức (0ms) khi thời gian còn <= 6s" : "Instantly move (0ms) when clock is under 6s";
+            case "row_safemode":
+                return isVi ? "🛡️ Chế Độ Safe" : "🛡️ Safe Mode";
+            case "safemode_sub":
+                return isVi ? "Đánh tự nhiên như người thật, an toàn tránh bị phát hiện (Tắt để đánh hết sức)" : "Play human-like & safe from bans (Disable to play at full strength)";
             case "card_elo":
                 return isVi ? "Sức Mạnh Engine" : "Engine Strength";
             case "row_elo":

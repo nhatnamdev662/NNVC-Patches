@@ -586,6 +586,9 @@ public class StockfishExtension {
                     ? StockfishSettings.autoDepthForElo(StockfishSettings.getElo(context))
                     : StockfishSettings.getDepth(context);
             int multiPV = StockfishSettings.getMultiPV(context);
+            if (StockfishSettings.isSafeModeEnabled(context)) {
+                multiPV = Math.max(3, multiPV);
+            }
             int limited = StockfishSettings.isLimitStrength(context) ? StockfishSettings.getElo(context) : 0;
             String engineChoice = StockfishSettings.getEngineChoice(context);
             String komodoStyle = StockfishSettings.getKomodoStyle(context);
@@ -620,6 +623,9 @@ public class StockfishExtension {
                         ? StockfishSettings.autoDepthForElo(StockfishSettings.getElo(ctx))
                         : StockfishSettings.getDepth(ctx);
                 int multiPV = StockfishSettings.getMultiPV(ctx);
+                if (StockfishSettings.isSafeModeEnabled(ctx)) {
+                    multiPV = Math.max(3, multiPV);
+                }
 
                 Log.d(TAG, "Analysing FEN with " + StockfishSettings.getEngineChoice(ctx) + " at depth " + depth + " with MultiPV=" + multiPV + "…");
                 // Stream intermediate depths to the classifier, but NEVER paint intermediate arrows to UI.
@@ -795,6 +801,66 @@ public class StockfishExtension {
 
         boolean showThreat = (threatListToInject != null && !threatListToInject.isEmpty());
         boolean showPremove = (premoveMoveToInject != null);
+
+        // ── Safe Mode Move Selection & Synchronization (100% Extension Parity) ──
+        String safeChosenMove = null;
+        if (result.moves != null && !result.moves.isEmpty()) {
+            boolean isSafeMode = StockfishSettings.isSafeModeEnabled(context);
+            int arrowLimit = StockfishSettings.getMultiPV(context);
+            boolean finalUserIsWhite = (userWhite != null) ? userWhite.booleanValue() : isWhiteTurn;
+            long myClockMs = -1L;
+            long oppClockMs = -1L;
+            if (activity != null) {
+                SmartDelayManager.LiveClockInfo clk = SmartDelayManager.detectLiveClocks(activity, finalUserIsWhite);
+                if (clk != null) {
+                    if (clk.mySec >= 0) myClockMs = (long) (clk.mySec * 1000.0);
+                    if (clk.oppSec >= 0) oppClockMs = (long) (clk.oppSec * 1000.0);
+                }
+            }
+
+            SafeMoveSelector.MoveDecision decision = SafeMoveSelector.selectMove(
+                    result.moves, result.sideToMoveScores, result.lineMates, result.lineMateIn,
+                    arrowLimit, myClockMs, oppClockMs, fen, isSafeMode, finalUserIsWhite);
+            safeChosenMove = decision.chosenMove;
+
+            // If selected safe move is not index 0, reorder result.moves and line arrays
+            // so the chosen safe move becomes index 0 (Tier 1 Gold Arrow)
+            if (decision.chosenIndex > 0 && decision.chosenIndex < result.moves.size()) {
+                int pick = decision.chosenIndex;
+                String pickedMove = result.moves.remove(pick);
+                result.moves.add(0, pickedMove);
+
+                if (result.sideToMoveScores != null && pick < result.sideToMoveScores.length) {
+                    float pickedScore = result.sideToMoveScores[pick];
+                    for (int k = pick; k > 0; k--) {
+                        result.sideToMoveScores[k] = result.sideToMoveScores[k - 1];
+                    }
+                    result.sideToMoveScores[0] = pickedScore;
+                }
+                if (result.lineScores != null && pick < result.lineScores.length) {
+                    float pickedScore = result.lineScores[pick];
+                    for (int k = pick; k > 0; k--) {
+                        result.lineScores[k] = result.lineScores[k - 1];
+                    }
+                    result.lineScores[0] = pickedScore;
+                }
+                if (result.lineMates != null && pick < result.lineMates.length) {
+                    boolean pickedMate = result.lineMates[pick];
+                    for (int k = pick; k > 0; k--) {
+                        result.lineMates[k] = result.lineMates[k - 1];
+                    }
+                    result.lineMates[0] = pickedMate;
+                }
+                if (result.lineMateIn != null && pick < result.lineMateIn.length) {
+                    int pickedMateIn = result.lineMateIn[pick];
+                    for (int k = pick; k > 0; k--) {
+                        result.lineMateIn[k] = result.lineMateIn[k - 1];
+                    }
+                    result.lineMateIn[0] = pickedMateIn;
+                }
+                NnvcLogger.i(TAG, "🛡️ [SAFE MODE] Picked Top " + (pick + 1) + " [" + pickedMove + "] (Reason: " + decision.reason + " | Gap: " + decision.cpGap + "cp). Reordered to Tier 1 Gold Arrow.");
+            }
+        }
 
         if (showArrows || showThreat || showPremove) {
             int maxArrows = StockfishSettings.getMultiPV(context);

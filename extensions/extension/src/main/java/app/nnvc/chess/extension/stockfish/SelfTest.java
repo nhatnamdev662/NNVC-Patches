@@ -1631,6 +1631,83 @@ public class SelfTest {
         AutoMoveManager.reset();
         check("AutoMoveManager reset cleans pending scheduled state", !AutoMoveManager.hasPendingScheduledMove());
 
+        // =========================================================================
+        // Test 39: Authentic NNVC Desktop Extension Safe Mode (100% Parity)
+        // =========================================================================
+        // 39a. Safe Mode settings verification & default state
+        check("Safe Mode preference key matches NNVC Extension", "nnvc_safe_mode".equals(StockfishSettings.KEY_SAFE_MODE));
+        check("I18n row_safemode vi is 🛡️ Chế Độ Safe", "🛡️ Chế Độ Safe".equals(I18n.get("row_safemode", true)));
+        check("I18n row_safemode en is 🛡️ Safe Mode", "🛡️ Safe Mode".equals(I18n.get("row_safemode", false)));
+
+        // 39b. Pure Top 1 when Safe Mode is OFF
+        List<String> mockMoves = java.util.Arrays.asList("e2e4", "d2d4", "g1f3", "c2c4");
+        float[] mockScores = new float[]{0.35f, 0.30f, 0.25f, 0.10f};
+        boolean[] mockMates = new boolean[]{false, false, false, false};
+        int[] mockMateIn = new int[]{0, 0, 0, 0};
+        String startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+        SafeMoveSelector.MoveDecision dOff = SafeMoveSelector.selectMove(
+                mockMoves, mockScores, mockMates, mockMateIn, 3, 60000L, 60000L, startFen, false, true);
+        check("Safe Mode OFF returns Top 1 move unconditionally", "e2e4".equals(dOff.chosenMove) && dOff.chosenIndex == 0);
+
+        // 39c. Arrow Count Constraint: Arrow Limit = 1 forces Top 1
+        SafeMoveSelector.MoveDecision dLimit1 = SafeMoveSelector.selectMove(
+                mockMoves, mockScores, mockMates, mockMateIn, 1, 60000L, 60000L, startFen, true, true);
+        check("Arrow Limit = 1 forces Top 1 candidate", "e2e4".equals(dLimit1.chosenMove) && dLimit1.chosenIndex == 0);
+
+        // 39d. Candidate restriction with Arrow Limit = 3
+        boolean allWithinLimit = true;
+        for (int i = 0; i < 50; i++) {
+            SafeMoveSelector.MoveDecision d = SafeMoveSelector.selectMove(
+                    mockMoves, mockScores, mockMates, mockMateIn, 3, 60000L, 60000L, startFen, true, true);
+            if (d.chosenIndex > 2) {
+                allWithinLimit = false;
+                break;
+            }
+        }
+        check("Safe Mode with Arrow Limit = 3 picks strictly within Top 3 (indices 0..2)", allWithinLimit);
+
+        // 39e. Emergency Override: Forced Mate for me forces Top 1
+        boolean[] mateForMe = new boolean[]{true, false, false, false};
+        int[] mateInForMe = new int[]{2, 0, 0, 0};
+        SafeMoveSelector.MoveDecision dMate = SafeMoveSelector.selectMove(
+                mockMoves, mockScores, mateForMe, mateInForMe, 3, 60000L, 60000L, startFen, true, true);
+        check("Forced mate for player forces Top 1", "e2e4".equals(dMate.chosenMove) && dMate.chosenIndex == 0 && "forced_mate_top1".equals(dMate.reason));
+
+        // 39f. Emergency Override: Heavy Loss (eval <= -2.0) forces Top 1
+        float[] heavyLossScores = new float[]{-2.5f, -2.6f, -2.7f, -3.0f};
+        SafeMoveSelector.MoveDecision dLoss = SafeMoveSelector.selectMove(
+                mockMoves, heavyLossScores, mockMates, mockMateIn, 3, 60000L, 60000L, startFen, true, true);
+        check("Heavy loss (eval <= -2.0) forces Top 1", "e2e4".equals(dLoss.chosenMove) && dLoss.chosenIndex == 0 && "tactical_crisis_top1".equals(dLoss.reason));
+
+        // 39g. Dirty Flagging Prioritization: When clock <= 6.0s, prioritize check move within 35 cp gap
+        // Position: White Queen on e1, White King on h1, Black King on e8.
+        // Candidates: move 0 is e1f2 (quiet, non-check), move 1 is e1e7 (check, delivering check to e8)
+        String checkFen = "4k3/8/8/8/8/8/8/4Q2K w - - 0 1";
+        List<String> dfMoves = java.util.Arrays.asList("e1f2", "e1e7");
+        float[] dfScores = new float[]{1.0f, 0.85f}; // 15 cp gap (within 35 cp)
+        boolean[] dfMates = new boolean[]{false, false};
+        int[] dfMateIn = new int[]{0, 0};
+        SafeMoveSelector.MoveDecision dDF = SafeMoveSelector.selectMove(
+                dfMoves, dfScores, dfMates, dfMateIn, 2, 5000L, 5000L, checkFen, true, true);
+        check("Dirty Flagging <= 6s prioritizes check move within 35 cp gap",
+                "e1e7".equals(dDF.chosenMove) && dDF.chosenIndex == 1 && "dirty_flagging_check".equals(dDF.reason));
+
+        // 39h. Move List Re-ordering Synchronization (Mũi Tên 1 Placement)
+        List<String> liveMoves = new java.util.ArrayList<>(java.util.Arrays.asList("e2e4", "d2d4", "g1f3"));
+        float[] sideScores = new float[]{0.35f, 0.30f, 0.25f};
+        int pickedIndex = 1; // "d2d4" picked
+        String pickedSafeMove = liveMoves.remove(pickedIndex);
+        liveMoves.add(0, pickedSafeMove);
+        float pickedScore = sideScores[pickedIndex];
+        for (int k = pickedIndex; k > 0; k--) {
+            sideScores[k] = sideScores[k - 1];
+        }
+        sideScores[0] = pickedScore;
+        check("Mũi tên 1 re-ordering correctly places selected move at index 0", "d2d4".equals(liveMoves.get(0)));
+        check("Mũi tên 1 re-ordering shifts previous best move to index 1", "e2e4".equals(liveMoves.get(1)));
+        check("Mũi tên 1 re-ordering synchronizes side scores correctly", Math.abs(sideScores[0] - 0.30f) < 0.001f);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

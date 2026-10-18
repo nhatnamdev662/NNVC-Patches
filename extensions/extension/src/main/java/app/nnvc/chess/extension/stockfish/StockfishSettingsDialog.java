@@ -713,6 +713,38 @@ public class StockfishSettingsDialog {
             }
         });
 
+        addCardSeparator(engineCard, density);
+
+        // Safe Mode Switch – 100% Parity with NNVC Desktop Extension Tab Engine (#_s_safemode)
+        final CyberSwitchView safeModeSwitch = addCyberSwitchRow(engineCard,
+                I18n.get(activity, "row_safemode"),
+                I18n.get(activity, "safemode_sub"),
+                StockfishSettings.isSafeModeEnabled(activity),
+                density, activity);
+
+        safeModeSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setSafeModeEnabled(activity, isChecked);
+            try {
+                android.os.Vibrator v = (android.os.Vibrator) activity.getSystemService(android.content.Context.VIBRATOR_SERVICE);
+                if (v != null && v.hasVibrator()) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        v.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else {
+                        v.vibrate(20);
+                    }
+                }
+            } catch (Throwable ignored) {}
+            String toastMsg = I18n.isVi(activity)
+                    ? (isChecked ? "🛡️ Chế độ Safe: BẬT (Đánh tự nhiên)" : "⚡ Chế độ Safe: TẮT (Đánh hết sức)")
+                    : (isChecked ? "🛡️ Safe Mode: ON (Natural play)" : "⚡ Safe Mode: OFF (Max strength)");
+            android.widget.Toast.makeText(activity, toastMsg, android.widget.Toast.LENGTH_SHORT).show();
+            if (StockfishSettings.isEngineEnabled(activity)) {
+                StockfishBridge.clearCache();
+                StockfishBridge.stopSearch();
+                StockfishExtension.triggerPlayAnalysisOnly();
+            }
+        });
+
         addDialogSpacer(panelEngine, 10, density);
 
         // Card 3: Smart Delay (100% Parity với Desktop Extension Card Delay #_cb_delay trong Tab ENGINE)

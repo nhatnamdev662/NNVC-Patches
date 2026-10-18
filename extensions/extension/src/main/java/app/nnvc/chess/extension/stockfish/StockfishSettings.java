@@ -558,6 +558,17 @@ public class StockfishSettings {
     public static void setFixedDelaySeconds(Context context, float sec) {
         getPrefs(context).edit().putFloat(KEY_FIXED_DELAY_SEC, Math.max(0f, sec)).apply();
     }
+
+    // ── Safe Mode Settings (100% Parity with NNVC Desktop Extension) ──────────
+    public static final String KEY_SAFE_MODE = "nnvc_safe_mode";
+
+    public static boolean isSafeModeEnabled(Context context) {
+        return getPrefs(context).getBoolean(KEY_SAFE_MODE, true);
+    }
+
+    public static void setSafeModeEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_SAFE_MODE, enabled).apply();
+    }
 }
 
 
