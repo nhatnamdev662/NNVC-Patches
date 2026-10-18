@@ -31,12 +31,123 @@ public class AutoMoveManager {
     private static volatile String lastAttemptedUci = null;
     private static volatile long lastMoveTimestamp = 0;
 
+    /** Pending scheduled move task to allow instant cancellation on board changes or user interaction */
+    private static volatile Runnable pendingMoveRunnable = null;
+    private static volatile String pendingMoveFen = null;
+
     /** Cached 64 static Square instances from com.chess.chessboard.w.b */
     private static volatile List<?> cachedSquaresList = null;
     private static volatile Method cachedTapMethod = null;
 
     /** Minimum cooldown between moves (ms) */
     private static final long COOLDOWN_MS = 500;
+
+    /**
+     * Cancels any pending scheduled auto-move immediately.
+     * Prevents unintended PREMOVE when board state changes or user makes a move manually.
+     */
+    public static void cancelPendingAutoMove(String reason) {
+        Handler h = getMainHandler();
+        if (h != null && pendingMoveRunnable != null) {
+            h.removeCallbacks(pendingMoveRunnable);
+            NnvcLogger.d(TAG, "🚫 Cancelled pending Auto Move (" + reason + ")");
+        }
+        pendingMoveRunnable = null;
+        pendingMoveFen = null;
+        isExecutingMove = false;
+    }
+
+    public static boolean hasPendingScheduledMove() {
+        return pendingMoveRunnable != null || isExecutingMove;
+    }
+
+    /**
+     * Clears any active square selection or in-progress drag on the board.
+     * Prevents tap confusion when user tapped another square before Auto Move fires.
+     * Dispatches ACTION_CANCEL (3) to dependencies.k1() (MoveHandler), triggering listener.P3() -> vmState.f1(l.a).
+     */
+    public static void clearBoardSelection(View boardView, boolean flipped) {
+        if (boardView == null) return;
+        try {
+            Class<?> bvClass = boardView.getClass();
+            Object deps = null;
+            try {
+                Method getDepsMethod = bvClass.getMethod("getDependencies$cbview_release");
+                getDepsMethod.setAccessible(true);
+                deps = getDepsMethod.invoke(boardView);
+            } catch (Throwable ignored) {}
+
+            if (deps == null) {
+                try {
+                    Field uField = bvClass.getDeclaredField("u");
+                    uField.setAccessible(true);
+                    deps = uField.get(boardView);
+                } catch (Throwable ignored) {}
+            }
+
+            if (deps != null) {
+                Method k1Method = deps.getClass().getMethod("k1");
+                k1Method.setAccessible(true);
+                Object moveHandler = k1Method.invoke(deps);
+                if (moveHandler != null) {
+                    Method moveActionMethod = moveHandler.getClass().getMethod("b", float.class, float.class, int.class, float.class, boolean.class);
+                    moveActionMethod.setAccessible(true);
+                    float squareSize = boardView.getWidth() > 0 ? (boardView.getWidth() / 8.0f) : 100f;
+                    // Action 3 = ACTION_CANCEL -> calls listener.P3() -> clears selectedSquare
+                    moveActionMethod.invoke(moveHandler, 0f, 0f, 3, squareSize, flipped);
+                    NnvcLogger.d(TAG, "🧹 Cleared board selection (ACTION_CANCEL dispatched to moveHandler)");
+                }
+            }
+        } catch (Throwable t) {
+            NnvcLogger.w(TAG, "clearBoardSelection failed (non-fatal): " + t.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves live board FEN directly from ChessBoardView.getPosition() if available.
+     */
+    public static String getCurrentBoardFen(View boardView) {
+        if (boardView == null) return null;
+        try {
+            Method getPosMethod = boardView.getClass().getMethod("getPosition");
+            getPosMethod.setAccessible(true);
+            Object pos = getPosMethod.invoke(boardView);
+            if (pos != null) {
+                return StockfishExtension.extractFen(pos);
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    /**
+     * Just-In-Time (JIT) validation: Verifies whether the board is still in the exact same position
+     * and whose turn it is before executing the move.
+     * Prevents accidental PREMOVE if the user moved manually while the delay timer was ticking.
+     */
+    public static boolean isTurnAndPositionMatching(View boardView, String targetFen) {
+        if (targetFen == null) return true;
+        String liveFen = getCurrentBoardFen(boardView);
+        if (liveFen == null) {
+            liveFen = StockfishExtension.getCurrentBoardFen();
+        }
+        if (liveFen != null) {
+            String[] liveParts = liveFen.trim().split("\\s+");
+            String[] targetParts = targetFen.trim().split("\\s+");
+            if (liveParts.length >= 2 && targetParts.length >= 2) {
+                // 1. Piece placement must match
+                if (!liveParts[0].equals(targetParts[0])) {
+                    NnvcLogger.w(TAG, "🛑 JIT FEN mismatch: piece layout changed (live=" + liveParts[0] + ", target=" + targetParts[0] + ")");
+                    return false;
+                }
+                // 2. Active turn must match
+                if (!liveParts[1].equals(targetParts[1])) {
+                    NnvcLogger.w(TAG, "🛑 JIT Turn mismatch: side to move changed (live=" + liveParts[1] + ", target=" + targetParts[1] + ")");
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 
     private static Handler getMainHandler() {
         if (mainHandler == null) {
@@ -502,9 +613,13 @@ public class AutoMoveManager {
             return;
         }
 
-        if (isExecutingMove) {
-            NnvcLogger.d(TAG, "Auto Move skipped: execution already in progress.");
-            return;
+        if (pendingMoveRunnable != null || isExecutingMove) {
+            if (pendingMoveFen != null && currentFen != null && !pendingMoveFen.split(" ")[0].equals(currentFen.split(" ")[0])) {
+                cancelPendingAutoMove("Position changed to new FEN while previous move was pending");
+            } else {
+                NnvcLogger.d(TAG, "Auto Move skipped: execution or schedule already in progress for this position.");
+                return;
+            }
         }
 
         long now = nowMs();
@@ -539,11 +654,19 @@ public class AutoMoveManager {
         lastAttemptedFen = currentFen;
         lastAttemptedUci = uciMove;
         lastMoveTimestamp = now;
+        pendingMoveFen = currentFen;
 
         final Runnable moveExecutionTask = new Runnable() {
             @Override
             public void run() {
                 try {
+                    // 1. Just-In-Time (JIT) check: verify board is still on target position and it is user's turn
+                    if (!isTurnAndPositionMatching(boardView, currentFen)) {
+                        NnvcLogger.i(TAG, "🛑 [AUTO MOVE JIT ABORT] Ván cờ đã đổi hoặc không còn là lượt người chơi. Hủy nước đi chống PREMOVE: " + uciMove);
+                        cancelPendingAutoMove("JIT mismatch (prevented PREMOVE)");
+                        return;
+                    }
+
                     ClassLoader cl = boardView.getContext().getClassLoader();
                     final Object fromSquare = getSquare(cl, fromSq);
                     final Object toSquare = getSquare(cl, toSq);
@@ -551,6 +674,7 @@ public class AutoMoveManager {
                     if (fromSquare == null || toSquare == null) {
                         NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: Unable to resolve Square objects (" + fromSq + "=" + fromSquare + ", " + toSq + "=" + toSquare + "). NO FALLBACK.");
                         isExecutingMove = false;
+                        pendingMoveRunnable = null;
                         return;
                     }
 
@@ -558,6 +682,7 @@ public class AutoMoveManager {
                     if (moveExecutor == null) {
                         NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: No DirectMoveExecutor (neither accessibilityContract nor moveHandler) found on ChessBoardView. NO FALLBACK.");
                         isExecutingMove = false;
+                        pendingMoveRunnable = null;
                         return;
                     }
 
@@ -565,6 +690,9 @@ public class AutoMoveManager {
                     if (isPromo) {
                         applyPromotionQueen(boardView);
                     }
+
+                    // 2. Clear any active user square selection/dragging before executing tap to prevent conflict
+                    clearBoardSelection(boardView, flipped);
 
                     NnvcLogger.i(TAG, "⚡ Direct Auto Move executing (Extension Style): " + uciMove + " (" + fromSq + " -> " + toSq + ", delay=" + fittsDelay + "ms, promo=" + isPromo + ")");
 
@@ -577,6 +705,13 @@ public class AutoMoveManager {
                         @Override
                         public void run() {
                             try {
+                                // JIT check before final tap: ensure turn did not abruptly change
+                                if (!isTurnAndPositionMatching(boardView, currentFen)) {
+                                    NnvcLogger.i(TAG, "🛑 [AUTO MOVE STEP 2 ABORT] Lượt đi thay đổi trước khi tap ô đích: " + toSq);
+                                    cancelPendingAutoMove("Turn changed before step 2");
+                                    return;
+                                }
+
                                 if (isPromo) {
                                     applyPromotionQueen(boardView);
                                 }
@@ -593,16 +728,18 @@ public class AutoMoveManager {
                                                 dismissOrResolvePromoDialog(boardView);
                                             } catch (Throwable ignored) {
                                             } finally {
-                                                isExecutingMove = false;
+                                                schedulePostMoveValidation(boardView, currentFen, uciMove);
                                             }
                                         }
                                     }, 120);
                                 } else {
-                                    isExecutingMove = false;
+                                    schedulePostMoveValidation(boardView, currentFen, uciMove);
                                 }
                             } catch (Throwable t) {
                                 NnvcLogger.e(TAG, "❌ Direct Auto Move toSquare execution failed: " + t.getMessage(), t);
                                 isExecutingMove = false;
+                                pendingMoveRunnable = null;
+                                lastAttemptedFen = null;
                             }
                         }
                     }, fittsDelay);
@@ -610,10 +747,13 @@ public class AutoMoveManager {
                 } catch (Throwable t) {
                     NnvcLogger.e(TAG, "❌ Direct Auto Move fromSquare execution failed: " + t.getMessage(), t);
                     isExecutingMove = false;
+                    pendingMoveRunnable = null;
+                    lastAttemptedFen = null;
                 }
             }
         };
 
+        pendingMoveRunnable = moveExecutionTask;
         if (preMoveDelayMs > 0) {
             NnvcLogger.i(TAG, "⏳ [SMART DELAY SCHEDULER] Chờ " + preMoveDelayMs + "ms trước khi kích hoạt nước đi " + uciMove);
             postDelayedToMain(moveExecutionTask, preMoveDelayMs);
@@ -622,12 +762,46 @@ public class AutoMoveManager {
         }
     }
 
+    /**
+     * Post-move validation: Checks after 350ms if board position advanced.
+     * If position remained exactly unchanged and still our turn (e.g. user tapped or interrupted),
+     * resets lastAttemptedFen to allow immediate retry rather than stalling indefinitely.
+     */
+    private static void schedulePostMoveValidation(final View boardView, final String fenBefore, final String moveUci) {
+        postDelayedToMain(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    isExecutingMove = false;
+                    pendingMoveRunnable = null;
+
+                    String live = getCurrentBoardFen(boardView);
+                    if (live == null) live = StockfishExtension.getCurrentBoardFen();
+                    if (live != null && fenBefore != null) {
+                        String[] liveParts = live.trim().split("\\s+");
+                        String[] beforeParts = fenBefore.trim().split("\\s+");
+                        if (liveParts.length >= 2 && beforeParts.length >= 2 &&
+                            liveParts[0].equals(beforeParts[0]) && liveParts[1].equals(beforeParts[1])) {
+                            NnvcLogger.w(TAG, "⚠️ [AUTO MOVE STUCK RECOVERY] Thế cờ chưa thay đổi sau nước đi " + moveUci + ". Xóa lastAttemptedFen để cho phép thử lại.");
+                            lastAttemptedFen = null;
+                            lastAttemptedUci = null;
+                        }
+                    }
+                } catch (Throwable ignored) {
+                } finally {
+                    isExecutingMove = false;
+                    pendingMoveRunnable = null;
+                }
+            }
+        }, 350);
+    }
+
     public static boolean isExecuting() {
-        return isExecutingMove;
+        return isExecutingMove || pendingMoveRunnable != null;
     }
 
     public static void reset() {
-        isExecutingMove = false;
+        cancelPendingAutoMove("reset");
         lastAttemptedFen = null;
         lastAttemptedUci = null;
         lastMoveTimestamp = 0;

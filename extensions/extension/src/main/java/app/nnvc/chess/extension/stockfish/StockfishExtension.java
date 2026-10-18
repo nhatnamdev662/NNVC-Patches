@@ -46,11 +46,16 @@ public class StockfishExtension {
     public static volatile boolean isDeveloperMode = false;
 
     private static volatile String lastLoadedMove0Fen = null;
+    private static volatile String currentBoardFen = null;
     private static volatile boolean isMove0AnalysisScheduled = false;
     private static volatile boolean isMove0AnalysisCompleted = false;
     private static volatile Object pendingStateImpl = null;
     private static volatile Object pendingPositionObject = null;
     private static volatile android.os.Handler move0RetryHandler = null;
+
+    public static String getCurrentBoardFen() {
+        return currentBoardFen;
+    }
 
     static Object getPendingStateImpl() {
         return pendingStateImpl;
@@ -444,6 +449,8 @@ public class StockfishExtension {
         }
 
         Log.d(TAG, "Position changed → FEN: " + fen);
+        currentBoardFen = fen;
+        AutoMoveManager.cancelPendingAutoMove("onBoardChanged: position changed to " + fen);
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
             if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && (OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
@@ -1306,6 +1313,7 @@ public class StockfishExtension {
             OverlayManager.hideMateAnnouncement();
             OverlayManager.hideEngineInfo();
             OverlayManager.hideAccuracyEloPills();
+            AutoMoveManager.cancelPendingAutoMove("Engine toggled off");
         } else {
             triggerAnalysisForCurrentState();
         }
@@ -1785,6 +1793,7 @@ public class StockfishExtension {
         if (isGameOver(act)) {
             OverlayManager.hideArrowOverlay(true);
             StockfishBridge.stopSearch();
+            AutoMoveManager.cancelPendingAutoMove("Game over");
             return;
         }
         // Settings or app state changed: always repaint and restart analysis

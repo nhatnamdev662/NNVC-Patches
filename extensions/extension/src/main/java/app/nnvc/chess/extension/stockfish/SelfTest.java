@@ -1581,6 +1581,56 @@ public class SelfTest {
         check("I18n tcp_src_auto vi is Tự động nhận diện", "Tự động nhận diện".equals(I18n.get(null, "tcp_src_auto")));
         check("I18n tcp_src_clock vi is Từ đồng hồ", "Từ đồng hồ".equals(I18n.get(null, "tcp_src_clock")));
 
+        // =========================================================================
+        // Test 38: Auto Move Anti-Premove & Selection Recovery (100% Extension Parity)
+        // =========================================================================
+        // 38a. Cancel pending auto-move and scheduled state check
+        AutoMoveManager.cancelPendingAutoMove("Test 38a unit test");
+        check("AutoMove hasPendingScheduledMove is false after cancel", !AutoMoveManager.hasPendingScheduledMove());
+        check("AutoMove isExecuting is false after cancel", !AutoMoveManager.isExecuting());
+
+        // 38b. Safe clearBoardSelection handling with null view
+        boolean clearSelectionSafe = false;
+        try {
+            AutoMoveManager.clearBoardSelection(null, false);
+            clearSelectionSafe = true;
+        } catch (Throwable t) {
+            clearSelectionSafe = false;
+        }
+        check("clearBoardSelection is null-safe without exceptions", clearSelectionSafe);
+
+        // 38c. Just-In-Time (JIT) FEN & Turn matching verification
+        String startFenWhite = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        String moveFenBlack = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        String startFenBlack = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1";
+
+        // When StockfishExtension current board FEN matches startFenWhite
+        try {
+            java.lang.reflect.Field curFenField = StockfishExtension.class.getDeclaredField("currentBoardFen");
+            curFenField.setAccessible(true);
+            
+            // Match case
+            curFenField.set(null, startFenWhite);
+            check("JIT matching returns true on exact same position", AutoMoveManager.isTurnAndPositionMatching(null, startFenWhite));
+
+            // User played move manually -> piece placement changed -> must reject
+            curFenField.set(null, moveFenBlack);
+            check("JIT matching returns false when user made a move (piece changed)", !AutoMoveManager.isTurnAndPositionMatching(null, startFenWhite));
+
+            // Opponent turn -> side to move changed -> must reject to prevent PREMOVE
+            curFenField.set(null, startFenBlack);
+            check("JIT matching returns false when turn changed (side mismatch)", !AutoMoveManager.isTurnAndPositionMatching(null, startFenWhite));
+
+            // Clean up
+            curFenField.set(null, null);
+        } catch (Throwable t) {
+            check("JIT reflection tests executed without unexpected error: " + t.getMessage(), false);
+        }
+
+        // 38d. AutoMoveManager reset clears all states
+        AutoMoveManager.reset();
+        check("AutoMoveManager reset cleans pending scheduled state", !AutoMoveManager.hasPendingScheduledMove());
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
