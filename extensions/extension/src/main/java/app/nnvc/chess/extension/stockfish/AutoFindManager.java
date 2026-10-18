@@ -52,6 +52,7 @@ public class AutoFindManager {
     private static Handler mainHandler = null;
     private static Runnable countdownRunnable = null;
     private static WeakReference<Activity> activeActivityRef = new WeakReference<>(null);
+    private static volatile Object lastHandledGameId = null;
     private static volatile String lastHandledGameUuid = null;
     private static volatile Object lastHandledGameEndData = null;
 
@@ -86,11 +87,17 @@ public class AutoFindManager {
         if (currentEndData == null) {
             return false;
         }
-        String currentUuid = extractGameUuid(currentEndData);
-        if (currentUuid != null && lastHandledGameUuid != null) {
-            return currentUuid.equalsIgnoreCase(lastHandledGameUuid);
+        if (lastHandledGameEndData != null && (currentEndData == lastHandledGameEndData || currentEndData.equals(lastHandledGameEndData))) {
+            return true;
         }
-        return lastHandledGameEndData != null && currentEndData == lastHandledGameEndData;
+        if (lastHandledGameId != null && isSameGameId(lastHandledGameId, currentEndData)) {
+            return true;
+        }
+        String currentUuid = extractPureUuid(currentEndData);
+        if (currentUuid != null && lastHandledGameUuid != null && currentUuid.equalsIgnoreCase(lastHandledGameUuid)) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -104,20 +111,44 @@ public class AutoFindManager {
             return;
         }
 
+        // Cancel celebration coroutine popup immediately to prevent race condition
+        cancelCelebrationReinflation(activity);
+
         if (currentState == State.COUNTDOWN || currentState == State.SEEKING) {
             return; // Already in progress
         }
 
         Object currentEndData = getCurrentGameEndData(activity);
+        Object gameId = null;
+        String currentUuid = null;
         if (currentEndData != null) {
-            String currentUuid = extractGameUuid(currentEndData);
-            if (currentUuid != null && lastHandledGameUuid != null && currentUuid.equalsIgnoreCase(lastHandledGameUuid)) {
-                return; // Already queued for this game instance UUID
+            gameId = extractInnerGameId(currentEndData);
+            currentUuid = extractPureUuid(gameId);
+        } else {
+            Object vm = getRealGameViewModel(activity);
+            if (vm != null) {
+                gameId = getCurrentGameId(vm);
+                currentUuid = extractPureUuid(gameId);
             }
-            if (lastHandledGameEndData != null && currentEndData == lastHandledGameEndData) {
-                return; // Already queued for this exact object instance
-            }
+        }
+
+        if (lastHandledGameId != null && gameId != null && isSameGameId(lastHandledGameId, gameId)) {
+            return;
+        }
+        if (currentUuid != null && lastHandledGameUuid != null && currentUuid.equalsIgnoreCase(lastHandledGameUuid)) {
+            return;
+        }
+        if (currentEndData != null && lastHandledGameEndData != null && (currentEndData == lastHandledGameEndData || currentEndData.equals(lastHandledGameEndData))) {
+            return;
+        }
+
+        if (gameId != null) {
+            lastHandledGameId = gameId;
+        }
+        if (currentUuid != null) {
             lastHandledGameUuid = currentUuid;
+        }
+        if (currentEndData != null) {
             lastHandledGameEndData = currentEndData;
         }
 
@@ -136,6 +167,7 @@ public class AutoFindManager {
     }
 
     public static void resetHandledGameEndData() {
+        lastHandledGameId = null;
         lastHandledGameUuid = null;
         lastHandledGameEndData = null;
     }
@@ -257,6 +289,9 @@ public class AutoFindManager {
         if (activity == null) return false;
         boolean actionExecuted = false;
         try {
+            // Cancel celebration re-inflation first
+            cancelCelebrationReinflation(activity);
+
             // 1. Invoke gameOverV6Listener.e() directly (matches exact Chess.com New Game click action)
             try {
                 Object listener = null;
@@ -327,6 +362,7 @@ public class AutoFindManager {
             try {
                 Object vm = getRealGameViewModel(activity);
                 if (vm != null) {
+                    cancelCelebrationReinflationFromVm(vm);
                     Method xaMethod = findMethodByName(vm.getClass(), "Xa");
                     if (xaMethod != null) {
                         xaMethod.setAccessible(true);
@@ -461,10 +497,103 @@ public class AutoFindManager {
         return false;
     }
 
+    public static Object getCurrentGameId(Object vm) {
+        if (vm == null) return null;
+        try {
+            Method mGameId = findMethodByName(vm.getClass(), "getGameId");
+            if (mGameId != null) {
+                mGameId.setAccessible(true);
+                Object id = mGameId.invoke(vm);
+                if (id != null) return id;
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Field fGameId = findFieldByName(vm.getClass(), "gameId", "U");
+            if (fGameId != null) {
+                fGameId.setAccessible(true);
+                Object id = fGameId.get(vm);
+                if (id != null) return id;
+            }
+        } catch (Throwable ignored) {}
+
+        // Fallback: Scan fields of type CompatId
+        try {
+            Class<?> c = vm.getClass();
+            while (c != null && c != Object.class) {
+                for (Field f : c.getDeclaredFields()) {
+                    if (f.getType().getName().contains("CompatId")) {
+                        f.setAccessible(true);
+                        Object val = f.get(vm);
+                        if (val != null) return val;
+                    }
+                }
+                c = c.getSuperclass();
+            }
+        } catch (Throwable ignored) {}
+
+        return null;
+    }
+
+    public static void cancelCelebrationReinflation(Activity activity) {
+        if (activity == null) return;
+        Object vm = getRealGameViewModel(activity);
+        if (vm != null) {
+            cancelCelebrationReinflationFromVm(vm);
+        }
+    }
+
+    public static void cancelCelebrationReinflationFromVm(Object vm) {
+        if (vm == null) return;
+        try {
+            Method mLa = findMethodByName(vm.getClass(), "La");
+            if (mLa != null) {
+                mLa.setAccessible(true);
+                if (mLa.getParameterTypes().length == 0) {
+                    mLa.invoke(vm);
+                } else if (mLa.getParameterTypes().length == 1 && mLa.getParameterTypes()[0] == boolean.class) {
+                    mLa.invoke(vm, true);
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Field fZ0 = findFieldByName(vm.getClass(), "boardInteractedDuringGameOver", "Z0");
+            if (fZ0 != null) {
+                fZ0.setAccessible(true);
+                fZ0.setBoolean(vm, true);
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Method mSet = findMethodByName(vm.getClass(), "setBoardInteractedDuringGameOver");
+            if (mSet != null) {
+                mSet.setAccessible(true);
+                if (mSet.getParameterTypes().length == 1 && mSet.getParameterTypes()[0] == boolean.class) {
+                    mSet.invoke(vm, true);
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Method mXa = findMethodByName(vm.getClass(), "Xa");
+            if (mXa != null) {
+                mXa.setAccessible(true);
+                mXa.invoke(vm);
+            }
+        } catch (Throwable ignored) {}
+    }
+
     public static Object getCurrentGameEndData(Activity activity) {
         if (activity == null) return null;
         Object vm = getRealGameViewModel(activity);
+        return getCurrentGameEndDataFromVm(vm);
+    }
+
+    public static Object getCurrentGameEndDataFromVm(Object vm) {
         if (vm == null) return null;
+
+        Object curGameId = getCurrentGameId(vm);
 
         // 1. Inspect gameEndData field (field i0 or gameEndData)
         try {
@@ -472,7 +601,15 @@ public class AutoFindManager {
             if (fEndData != null) {
                 fEndData.setAccessible(true);
                 Object endData = fEndData.get(vm);
-                if (endData != null) return endData;
+                if (endData != null) {
+                    if (curGameId != null) {
+                        if (isSameGameId(curGameId, endData)) {
+                            return endData;
+                        }
+                    } else if (isPopupActive(vm)) {
+                        return endData;
+                    }
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -485,7 +622,15 @@ public class AutoFindManager {
                 if (flow != null) {
                     Method getValue = flow.getClass().getMethod("getValue");
                     Object endData = getValue.invoke(flow);
-                    if (endData != null) return endData;
+                    if (endData != null) {
+                        if (curGameId != null) {
+                            if (isSameGameId(curGameId, endData)) {
+                                return endData;
+                            }
+                        } else if (isPopupActive(vm)) {
+                            return endData;
+                        }
+                    }
                 }
             }
         } catch (Throwable ignored) {}
@@ -498,7 +643,15 @@ public class AutoFindManager {
                 if (flow != null) {
                     Method getValue = flow.getClass().getMethod("getValue");
                     Object endData = getValue.invoke(flow);
-                    if (endData != null) return endData;
+                    if (endData != null) {
+                        if (curGameId != null) {
+                            if (isSameGameId(curGameId, endData)) {
+                                return endData;
+                            }
+                        } else if (isPopupActive(vm)) {
+                            return endData;
+                        }
+                    }
                 }
             }
         } catch (Throwable ignored) {}
@@ -513,15 +666,16 @@ public class AutoFindManager {
                     Method getValue = flow.getClass().getMethod("getValue");
                     Object pair = getValue.invoke(flow);
                     if (pair != null) {
-                        try {
-                            Method getFirst = findMethodByName(pair.getClass(), "getFirst", "a");
-                            if (getFirst != null) {
-                                getFirst.setAccessible(true);
-                                Object endData = getFirst.invoke(pair);
-                                if (endData != null) return endData;
+                        Object endData = extractFirstFromPair(pair);
+                        if (endData != null) {
+                            if (curGameId != null) {
+                                if (isSameGameId(curGameId, endData)) {
+                                    return endData;
+                                }
+                            } else {
+                                return endData;
                             }
-                        } catch (Throwable ignored) {}
-                        return pair;
+                        }
                     }
                 }
             }
@@ -536,15 +690,16 @@ public class AutoFindManager {
                     Method getValue = flow.getClass().getMethod("getValue");
                     Object pair = getValue.invoke(flow);
                     if (pair != null) {
-                        try {
-                            Method getFirst = findMethodByName(pair.getClass(), "getFirst", "a");
-                            if (getFirst != null) {
-                                getFirst.setAccessible(true);
-                                Object endData = getFirst.invoke(pair);
-                                if (endData != null) return endData;
+                        Object endData = extractFirstFromPair(pair);
+                        if (endData != null) {
+                            if (curGameId != null) {
+                                if (isSameGameId(curGameId, endData)) {
+                                    return endData;
+                                }
+                            } else {
+                                return endData;
                             }
-                        } catch (Throwable ignored) {}
-                        return pair;
+                        }
                     }
                 }
             }
@@ -553,59 +708,238 @@ public class AutoFindManager {
         return null;
     }
 
-    public static String extractGameUuid(Object idObj) {
-        if (idObj == null) return null;
-        if (idObj instanceof String) {
-            String s = (String) idObj;
-            if (!s.isEmpty()) return s;
+    private static boolean isPopupActive(Object vm) {
+        if (vm == null) return false;
+        try {
+            Method oa = findMethodByName(vm.getClass(), "oa");
+            if (oa != null) {
+                oa.setAccessible(true);
+                Object flow = oa.invoke(vm);
+                if (flow != null) {
+                    Method getValue = flow.getClass().getMethod("getValue");
+                    if (getValue.invoke(flow) != null) return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Field fPopup = findFieldByName(vm.getClass(), "_showGameOverPopup", "showGameOverPopup", "X0", "Y0");
+            if (fPopup != null) {
+                fPopup.setAccessible(true);
+                Object flow = fPopup.get(vm);
+                if (flow != null) {
+                    Method getValue = flow.getClass().getMethod("getValue");
+                    if (getValue.invoke(flow) != null) return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    private static Object extractFirstFromPair(Object pair) {
+        if (pair == null) return null;
+        try {
+            Method getFirst = findMethodByName(pair.getClass(), "getFirst", "a");
+            if (getFirst != null) {
+                getFirst.setAccessible(true);
+                Object fd = getFirst.invoke(pair);
+                if (fd != null) return fd;
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Field fFirst = findFieldByName(pair.getClass(), "first", "a");
+            if (fFirst != null) {
+                fFirst.setAccessible(true);
+                Object fd = fFirst.get(pair);
+                if (fd != null) return fd;
+            }
+        } catch (Throwable ignored) {}
+        return pair;
+    }
+
+    public static boolean isSameGameId(Object curIdObj, Object endIdObj) {
+        if (curIdObj == null || endIdObj == null) {
+            return false;
+        }
+        if (curIdObj == endIdObj || curIdObj.equals(endIdObj)) {
+            return true;
         }
 
+        Object curId = extractInnerGameId(curIdObj);
+        Object endId = extractInnerGameId(endIdObj);
+        if (curId == null || endId == null) {
+            return false;
+        }
+        if (curId == endId || curId.equals(endId)) {
+            return true;
+        }
+
+        // 1. UUID comparison
+        String curUuid = extractPureUuid(curId);
+        String endUuid = extractPureUuid(endId);
+        if (curUuid != null && endUuid != null && !curUuid.isEmpty() && !endUuid.isEmpty()) {
+            if (curUuid.equalsIgnoreCase(endUuid)) {
+                return true;
+            }
+        }
+
+        // 2. Numeric Long ID comparison
+        Long curNum = extractNumericId(curId);
+        Long endNum = extractNumericId(endId);
+        if (curNum != null && endNum != null && curNum.longValue() > 0 && endNum.longValue() > 0) {
+            if (curNum.longValue() == endNum.longValue()) {
+                return true;
+            }
+        }
+
+        // 3. Fallback: string representation
+        String s1 = curId.toString();
+        String s2 = endId.toString();
+        if (!s1.isEmpty() && s1.equalsIgnoreCase(s2)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public static Object extractInnerGameId(Object obj) {
+        if (obj == null) return null;
         try {
-            // 1. If it's GameEndData, extract its gameId property first
-            Method mGetGameId = findMethodByName(idObj.getClass(), "getGameId");
-            if (mGetGameId != null) {
-                mGetGameId.setAccessible(true);
-                Object innerId = mGetGameId.invoke(idObj);
-                if (innerId != null) {
-                    idObj = innerId;
+            Method m = findMethodByName(obj.getClass(), "getGameId");
+            if (m != null) {
+                m.setAccessible(true);
+                Object res = m.invoke(obj);
+                if (res != null) return res;
+            }
+        } catch (Throwable ignored) {}
+        try {
+            Field f = findFieldByName(obj.getClass(), "gameId");
+            if (f != null) {
+                f.setAccessible(true);
+                Object res = f.get(obj);
+                if (res != null) return res;
+            }
+        } catch (Throwable ignored) {}
+        return obj;
+    }
+
+    public static String extractPureUuid(Object obj) {
+        if (obj == null) return null;
+        Object inner = extractInnerGameId(obj);
+        if (inner == null) return null;
+
+        // 1. Try getUuid()
+        try {
+            Method m = findMethodByName(inner.getClass(), "getUuid");
+            if (m != null) {
+                m.setAccessible(true);
+                Object res = m.invoke(inner);
+                if (res instanceof String && !((String) res).isEmpty()) {
+                    return (String) res;
                 }
             }
         } catch (Throwable ignored) {}
 
+        // 2. Try getStringUuid()
         try {
-            // 2. Try getUuid() (CompatId.Id)
-            Method mUuid = findMethodByName(idObj.getClass(), "getUuid");
-            if (mUuid != null) {
-                mUuid.setAccessible(true);
-                Object res = mUuid.invoke(idObj);
-                if (res instanceof String && !((String) res).isEmpty()) return (String) res;
-            }
-        } catch (Throwable ignored) {}
-
-        try {
-            // 3. Try getId() (CompatId.Uuid or generic Id)
-            Method mId = findMethodByName(idObj.getClass(), "getId");
-            if (mId != null) {
-                mId.setAccessible(true);
-                Object res = mId.invoke(idObj);
-                if (res != null) {
-                    String str = res.toString();
-                    if (!str.isEmpty()) return str;
+            Method m = findMethodByName(inner.getClass(), "getStringUuid");
+            if (m != null) {
+                m.setAccessible(true);
+                Object res = m.invoke(inner);
+                if (res instanceof String && !((String) res).isEmpty()) {
+                    return (String) res;
                 }
             }
         } catch (Throwable ignored) {}
 
+        // 3. If CompatId.Uuid, getId() is UUID
         try {
-            // 4. Try getStringUuid() (CompatId)
-            Method mStr = findMethodByName(idObj.getClass(), "getStringUuid");
-            if (mStr != null) {
-                mStr.setAccessible(true);
-                Object res = mStr.invoke(idObj);
-                if (res instanceof String && !((String) res).isEmpty()) return (String) res;
+            Method m = findMethodByName(inner.getClass(), "getId");
+            if (m != null) {
+                m.setAccessible(true);
+                Object res = m.invoke(inner);
+                if (res instanceof String) {
+                    String str = (String) res;
+                    if (str.contains("-") || !str.matches("^\\d+$")) {
+                        return str;
+                    }
+                }
             }
         } catch (Throwable ignored) {}
 
-        return idObj.toString();
+        // 4. If String itself looks like UUID
+        if (inner instanceof String) {
+            String str = (String) inner;
+            if (str.contains("-") || !str.matches("^\\d+$")) {
+                return str;
+            }
+        }
+        return null;
+    }
+
+    public static Long extractNumericId(Object obj) {
+        if (obj == null) return null;
+        Object inner = extractInnerGameId(obj);
+        if (inner == null) return null;
+
+        if (inner instanceof Number) {
+            return ((Number) inner).longValue();
+        }
+
+        // 1. Try getLongId()
+        try {
+            Method m = findMethodByName(inner.getClass(), "getLongId");
+            if (m != null) {
+                m.setAccessible(true);
+                Object res = m.invoke(inner);
+                if (res instanceof Number) {
+                    return ((Number) res).longValue();
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 2. Try getId() returning Long or numeric String
+        try {
+            Method m = findMethodByName(inner.getClass(), "getId");
+            if (m != null) {
+                m.setAccessible(true);
+                Object res = m.invoke(inner);
+                if (res instanceof Number) {
+                    return ((Number) res).longValue();
+                } else if (res instanceof String) {
+                    String s = (String) res;
+                    if (s.matches("^\\d+$")) {
+                        try {
+                            return Long.parseLong(s);
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 3. If String is pure digits
+        if (inner instanceof String) {
+            String s = (String) inner;
+            if (s.matches("^\\d+$")) {
+                try {
+                    return Long.parseLong(s);
+                } catch (Throwable ignored) {}
+            }
+        }
+        return null;
+    }
+
+    public static String extractGameUuid(Object idObj) {
+        if (idObj == null) return null;
+        String uuid = extractPureUuid(idObj);
+        if (uuid != null && !uuid.isEmpty()) {
+            return uuid;
+        }
+        Long num = extractNumericId(idObj);
+        if (num != null) {
+            return num.toString();
+        }
+        Object inner = extractInnerGameId(idObj);
+        return inner != null ? inner.toString() : null;
     }
 
     /**
@@ -787,6 +1121,7 @@ public class AutoFindManager {
             if (title instanceof TextView) {
                 ((TextView) title).setText(String.format(java.util.Locale.US, I18n.get(activity, "toast_cd_countdown"), seconds));
             }
+            banner.bringToFront();
         }
     }
 

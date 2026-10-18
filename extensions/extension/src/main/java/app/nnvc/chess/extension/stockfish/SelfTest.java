@@ -1836,6 +1836,84 @@ public class SelfTest {
         check("extractGameUuid bridges CompatId.Id and CompatId.Uuid", extractedId.equals(extractedUuid));
         check("isCurrentGameHandled handles null activity safely", !AutoFindManager.isCurrentGameHandled(null));
 
+        // 40f. Stale GameEndData Protection & Celebration Re-inflation Cancellation
+        class MockAutoFindRealGameViewModel {
+            public Object gameId;
+            public Object gameEndData;
+            public boolean Z0 = false;
+            public boolean xaCalled = false;
+            public boolean laCalled = false;
+
+            public void La() {
+                laCalled = true;
+                Z0 = true;
+            }
+
+            public void Xa() {
+                xaCalled = true;
+            }
+        }
+
+        MockAutoFindRealGameViewModel mockVm = new MockAutoFindRealGameViewModel();
+        mockVm.gameId = compatId; // uuid-abc-123
+        mockVm.gameEndData = gameEndData; // uuid-abc-123
+
+        check("getCurrentGameId extracts gameId correctly", AutoFindManager.getCurrentGameId(mockVm) == compatId);
+        Object matchedEndData = AutoFindManager.getCurrentGameEndDataFromVm(mockVm);
+        check("getCurrentGameEndDataFromVm returns endData when UUIDs match", matchedEndData == gameEndData);
+
+        // Stale GameEndData scenario (Move 1 of new game with stale i0 from previous game)
+        class MockOtherGameId {
+            private final String uuid = "uuid-xyz-789";
+            public String getUuid() { return uuid; }
+        }
+        mockVm.gameId = new MockOtherGameId(); // new game uuid-xyz-789
+        // mockVm.gameEndData is still uuid-abc-123 from previous game!
+        Object rejectedEndData = AutoFindManager.getCurrentGameEndDataFromVm(mockVm);
+        check("getCurrentGameEndDataFromVm returns null on gameId mismatch (rejects stale gameEndData)", rejectedEndData == null);
+
+        // Null gameId protection
+        mockVm.gameId = null;
+        check("getCurrentGameEndDataFromVm returns null when gameId is null", AutoFindManager.getCurrentGameEndDataFromVm(mockVm) == null);
+
+        // 40g. Multi-vector isSameGameId verification (Numeric ID vs UUID)
+        class MockNumericCompatIdOnly {
+            private final long id = 888777666L;
+            public long getId() { return id; }
+            public String getUuid() { return null; }
+        }
+        class MockNumericAndUuidCompatId {
+            private final long id = 888777666L;
+            private final String uuid = "server-generated-uuid-999";
+            public long getId() { return id; }
+            public String getUuid() { return uuid; }
+        }
+        class MockMismatchCompatId {
+            private final long id = 111222333L;
+            private final String uuid = "other-uuid-000";
+            public long getId() { return id; }
+            public String getUuid() { return uuid; }
+        }
+
+        MockNumericCompatIdOnly numOnly = new MockNumericCompatIdOnly();
+        MockNumericAndUuidCompatId numAndUuid = new MockNumericAndUuidCompatId();
+        MockMismatchCompatId mismatchId = new MockMismatchCompatId();
+
+        check("isSameGameId matches identical numeric ID when one side has null UUID", AutoFindManager.isSameGameId(numOnly, numAndUuid));
+        check("isSameGameId matches identical UUID even if numeric IDs vary", AutoFindManager.isSameGameId(compatUuid, compatId));
+        check("isSameGameId rejects when both numeric ID and UUID mismatch", !AutoFindManager.isSameGameId(numOnly, mismatchId));
+        check("isSameGameId handles null inputs safely", !AutoFindManager.isSameGameId(null, numOnly) && !AutoFindManager.isSameGameId(numOnly, null));
+
+        // Celebration re-inflation cancellation
+        check("MockAutoFindRealGameViewModel initial Z0 is false", !mockVm.Z0);
+        check("MockAutoFindRealGameViewModel initial laCalled is false", !mockVm.laCalled);
+        check("MockAutoFindRealGameViewModel initial xaCalled is false", !mockVm.xaCalled);
+
+        AutoFindManager.cancelCelebrationReinflationFromVm(mockVm);
+        check("cancelCelebrationReinflation sets boardInteractedDuringGameOver (Z0) to true", mockVm.Z0);
+        check("cancelCelebrationReinflation invokes La() setter", mockVm.laCalled);
+        check("cancelCelebrationReinflation invokes Xa() to dismiss popup", mockVm.xaCalled);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
