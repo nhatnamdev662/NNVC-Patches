@@ -1768,6 +1768,38 @@ public class SelfTest {
         check("I18n safemode_toast_off vi is correct", "⚡ Chế độ Safe: TẮT (Đánh hết sức)".equals(I18n.get("safemode_toast_off", true)));
         check("I18n safemode_toast_off en is correct", "⚡ Safe Mode: OFF (Max strength)".equals(I18n.get("safemode_toast_off", false)));
 
+        // =========================================================================
+        // Test 40: Authentic Auto Find Match (Auto Queue) Architecture & Parity
+        // =========================================================================
+        // 40a. Settings verification & default state
+        check("Auto Find Match preference key matches NNVC Extension", "nnvc_auto_find_match".equals(StockfishSettings.KEY_AUTO_FIND_MATCH));
+        check("I18n row_autostart vi is Tự Động Tìm Trận", "Tự Động Tìm Trận".equals(I18n.get("row_autostart", true)));
+        check("I18n row_autostart en is Auto Find Game", "Auto Find Game".equals(I18n.get("row_autostart", false)));
+        check("I18n autostart_toast_on vi is correct", "🎮 Tự động tìm trận: BẬT".equals(I18n.get("autostart_toast_on", true)));
+        check("I18n autostart_toast_on en is correct", "🎮 Auto find game: ON".equals(I18n.get("autostart_toast_on", false)));
+        check("I18n autostart_toast_off vi is correct", "🎮 Tự động tìm trận: TẮT".equals(I18n.get("autostart_toast_off", true)));
+        check("I18n autostart_toast_off en is correct", "🎮 Auto find game: OFF".equals(I18n.get("autostart_toast_off", false)));
+        check("I18n toast_newgame vi is correct", "🎮 Đang tìm trận mới...".equals(I18n.get("toast_newgame", true)));
+        check("I18n toast_cd_cancel vi is correct", "Đã hủy tự động tìm trận".equals(I18n.get("toast_cd_cancel", true)));
+
+        // 40b. State Machine & Lifecycle Transitions
+        check("AutoFindManager initial state is IDLE", AutoFindManager.getState() == AutoFindManager.State.IDLE);
+        AutoFindManager.cancelCountdown("test");
+        check("Cancel countdown keeps/returns to IDLE", AutoFindManager.getState() == AutoFindManager.State.IDLE);
+        check("isSeeking is false when IDLE", !AutoFindManager.isSeeking());
+        check("isCountingDown is false when IDLE", !AutoFindManager.isCountingDown());
+
+        // 40c. Button Pattern Matching
+        java.util.regex.Pattern btnPattern = java.util.regex.Pattern.compile(
+                "(?i)(v[áa]n m[ớo]i|ch[ơo]i l[ạa]i|ch[ơo]i ti[ếe]p|t[ìi]m tr[ậa]n|new game|play again|find opponent|next game)"
+        );
+        check("Button pattern matches 'Ván mới'", btnPattern.matcher("Ván mới").find());
+        check("Button pattern matches 'Chơi lại'", btnPattern.matcher("Chơi lại").find());
+        check("Button pattern matches 'Play Again'", btnPattern.matcher("Play Again").find());
+        check("Button pattern matches 'New Game'", btnPattern.matcher("New Game").find());
+        check("Button pattern matches 'Find Opponent'", btnPattern.matcher("Find Opponent").find());
+        check("Button pattern rejects unrelated text", !btnPattern.matcher("Cài đặt bàn cờ").find());
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

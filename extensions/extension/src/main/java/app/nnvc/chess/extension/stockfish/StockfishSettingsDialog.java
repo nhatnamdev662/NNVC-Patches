@@ -457,6 +457,30 @@ public class StockfishSettingsDialog {
             }
         });
 
+        addDialogSpacer(liveCard, 8, density);
+
+        // Auto Find Match Switch – 100% Parity with NNVC Desktop Extension Tab Live (_s_autostart)
+        final CyberSwitchView autoFindSwitch = addCyberSwitchRow(liveCard,
+                I18n.get(activity, "row_autostart"),
+                I18n.get(activity, "row_autostart_sub"),
+                StockfishSettings.isAutoFindMatchEnabled(activity),
+                density, activity);
+
+        autoFindSwitch.setOnCheckedChangeListener((view, isChecked) -> {
+            StockfishSettings.setAutoFindMatchEnabled(activity, isChecked);
+            try {
+                android.os.Vibrator v = (android.os.Vibrator) activity.getSystemService(android.content.Context.VIBRATOR_SERVICE);
+                if (v != null && v.hasVibrator()) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        v.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else {
+                        v.vibrate(20);
+                    }
+                }
+            } catch (Throwable ignored) {}
+            android.widget.Toast.makeText(activity, isChecked ? I18n.get(activity, "autostart_toast_on") : I18n.get(activity, "autostart_toast_off"), android.widget.Toast.LENGTH_SHORT).show();
+        });
+
         // ─── TAB 2: ENGINE (Sức mạnh & Phân loại) ───
         final LinearLayout panelEngine = new LinearLayout(activity);
         panelEngine.setOrientation(LinearLayout.VERTICAL);

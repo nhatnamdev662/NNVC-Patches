@@ -569,6 +569,18 @@ public class StockfishSettings {
     public static void setSafeModeEnabled(Context context, boolean enabled) {
         getPrefs(context).edit().putBoolean(KEY_SAFE_MODE, enabled).apply();
     }
+
+    // ── Auto Find Match Settings (100% Parity with NNVC Desktop Extension) ────
+    public static final String KEY_AUTO_FIND_MATCH = "nnvc_auto_find_match";
+
+    public static boolean isAutoFindMatchEnabled(Context context) {
+        return getPrefs(context).getBoolean(KEY_AUTO_FIND_MATCH, false);
+    }
+
+    public static void setAutoFindMatchEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_AUTO_FIND_MATCH, enabled).apply();
+    }
 }
+
 
 

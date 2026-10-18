@@ -1102,6 +1102,7 @@ public class StockfishExtension {
             @Override
             public void onActivityPaused(Activity activity) {
                 if (resumedActivity.get() == activity) resumedActivity = new WeakReference<>(null);
+                AutoFindManager.cancelCountdown("Activity paused");
                 stopGameOverWatchdog();
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
@@ -1118,6 +1119,7 @@ public class StockfishExtension {
 
             @Override
             public void onActivityDestroyed(Activity activity) {
+                AutoFindManager.cancelCountdown("Activity destroyed");
                 stopGameOverWatchdog();
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
@@ -1317,6 +1319,7 @@ public class StockfishExtension {
                         TorchEngine.getInstance(c).cancelPendingRequests();
                     } catch (Throwable ignored) {}
                 }
+                AutoFindManager.onGameOver(activity);
                 Log.i(TAG, "[ACTIVE GAME OVER] Ván đấu kết thúc! Đã chủ động ẩn toàn bộ mũi tên và dừng engine.");
             }
             return true;
@@ -1330,6 +1333,7 @@ public class StockfishExtension {
                 isMove0AnalysisCompleted = false;
                 lastArrowSignature = null;
                 lastScheduledKey = null;
+                AutoFindManager.onNewGameStarted();
                 unlockScreenshots(activity);
                 OverlayManager.clearHookedBoardViews();
                 tryLoadMove0(activity);

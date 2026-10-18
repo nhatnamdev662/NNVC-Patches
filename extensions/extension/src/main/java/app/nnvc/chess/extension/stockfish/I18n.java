@@ -71,6 +71,20 @@ public class I18n {
                 return isVi ? "🛡️ Chế độ Safe: BẬT (Đánh tự nhiên)" : "🛡️ Safe Mode: ON (Natural play)";
             case "safemode_toast_off":
                 return isVi ? "⚡ Chế độ Safe: TẮT (Đánh hết sức)" : "⚡ Safe Mode: OFF (Max strength)";
+            case "row_autostart":
+                return isVi ? "Tự Động Tìm Trận" : "Auto Find Game";
+            case "row_autostart_sub":
+                return isVi ? "Tự động bắt đầu ván mới sau khi kết thúc" : "Automatically find a new match when game ends";
+            case "toast_newgame":
+                return isVi ? "🎮 Đang tìm trận mới..." : "🎮 Finding new game...";
+            case "toast_cd_countdown":
+                return isVi ? "🎮 Tìm trận sau %ds... [Chạm để hủy]" : "🎮 New game in %ds... [Tap to cancel]";
+            case "toast_cd_cancel":
+                return isVi ? "Đã hủy tự động tìm trận" : "Auto find game cancelled";
+            case "autostart_toast_on":
+                return isVi ? "🎮 Tự động tìm trận: BẬT" : "🎮 Auto find game: ON";
+            case "autostart_toast_off":
+                return isVi ? "🎮 Tự động tìm trận: TẮT" : "🎮 Auto find game: OFF";
             case "card_elo":
                 return isVi ? "Sức Mạnh Engine" : "Engine Strength";
             case "row_elo":
