@@ -1959,21 +1959,12 @@ public class SelfTest {
             check("StockfishExtension onGameOverNative hook exists", false);
         }
 
-        // 40i. 5-Second Cooldown & Extension Parity Cyber Card & Touch Interception
+        // 40i. 5-Second Cooldown & Extension Parity Cyber Card
         check("AutoFindManager COUNTDOWN_DURATION_SEC is 5s", AutoFindManager.COUNTDOWN_DURATION_SEC == 5);
         check("I18n cd_label exists", I18n.get(null, "cd_label").length() > 0);
         check("I18n cd_sub exists", I18n.get(null, "cd_sub").length() > 0);
         check("I18n cd_cancel exists", I18n.get(null, "cd_cancel").length() > 0);
         check("I18n cd_now exists", I18n.get(null, "cd_now").length() > 0);
-
-        // Passive touch watcher null-safety
-        boolean touchWatcherSafe = true;
-        try {
-            AutoMoveManager.attachPassiveTouchWatcher(null);
-        } catch (Throwable t) {
-            touchWatcherSafe = false;
-        }
-        check("AutoMoveManager attachPassiveTouchWatcher is null-safe", touchWatcherSafe);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

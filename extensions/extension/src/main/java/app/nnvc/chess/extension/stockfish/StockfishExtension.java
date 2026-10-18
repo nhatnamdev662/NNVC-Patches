@@ -213,44 +213,39 @@ public class StockfishExtension {
         }
         try {
             boolean hasKeyMoveHints = false;
-            boolean hasLegalMoves = false;
             for (Object type : optionalPainters) {
-                if (type != null) {
-                    String s = type.toString();
-                    if ("KEY_MOVE_HINTS".equals(s)) hasKeyMoveHints = true;
-                    if ("LEGAL_MOVES".equals(s)) hasLegalMoves = true;
+                if (type != null && "KEY_MOVE_HINTS".equals(type.toString())) {
+                    hasKeyMoveHints = true;
+                    break;
                 }
             }
-            if (!hasKeyMoveHints || !hasLegalMoves) {
+            if (!hasKeyMoveHints) {
+                Log.d(TAG, "injecting KEY_MOVE_HINTS into optional painters array");
                 Class<?> optionalPainterClass = Class.forName("com.chess.internal.utils.chessboard.ChessBoardViewOptionalPainterType");
-                Object hintsField = null;
-                Object legalField = null;
+                Object gField = null;
                 for (Field field : optionalPainterClass.getDeclaredFields()) {
                     if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) &&
                         field.getType().equals(optionalPainterClass)) {
                         try {
                             field.setAccessible(true);
                             Object val = field.get(null);
-                            if (val != null) {
-                                if ("KEY_MOVE_HINTS".equals(val.toString())) hintsField = val;
-                                if ("LEGAL_MOVES".equals(val.toString())) legalField = val;
+                            if (val != null && "KEY_MOVE_HINTS".equals(val.toString())) {
+                                gField = val;
+                                break;
                             }
                         } catch (Throwable ignored) {}
                     }
                 }
 
-                int toAdd = 0;
-                if (!hasKeyMoveHints && hintsField != null) toAdd++;
-                if (!hasLegalMoves && legalField != null) toAdd++;
-
-                if (toAdd > 0) {
-                    Object[] newPainters = (Object[]) java.lang.reflect.Array.newInstance(optionalPainterClass, optionalPainters.length + toAdd);
-                    System.arraycopy(optionalPainters, 0, newPainters, 0, optionalPainters.length);
-                    int ins = optionalPainters.length;
-                    if (!hasKeyMoveHints && hintsField != null) newPainters[ins++] = hintsField;
-                    if (!hasLegalMoves && legalField != null) newPainters[ins++] = legalField;
-                    return newPainters;
+                if (gField == null) {
+                    Log.e(TAG, "Could not find KEY_MOVE_HINTS field in ChessBoardViewOptionalPainterType");
+                    return optionalPainters;
                 }
+
+                Object[] newPainters = (Object[]) java.lang.reflect.Array.newInstance(optionalPainterClass, optionalPainters.length + 1);
+                System.arraycopy(optionalPainters, 0, newPainters, 0, optionalPainters.length);
+                newPainters[optionalPainters.length] = gField;
+                return newPainters;
             }
         } catch (Throwable t) {
             Log.e(TAG, "ensureHintArrowsEnabled failed: " + t.getMessage(), t);

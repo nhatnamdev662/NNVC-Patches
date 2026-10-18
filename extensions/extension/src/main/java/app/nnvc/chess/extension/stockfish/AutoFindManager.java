@@ -1,5 +1,6 @@
 package app.nnvc.chess.extension.stockfish;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Canvas;
@@ -16,6 +17,8 @@ import android.os.Vibrator;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -1209,8 +1212,9 @@ public class AutoFindManager {
         private final Paint progressPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF arcRect = new RectF();
-        private int currentSeconds = COUNTDOWN_DURATION_SEC;
+        private float currentFraction = 1.0f;
         private int maxSeconds = COUNTDOWN_DURATION_SEC;
+        private ValueAnimator animator = null;
 
         public CountdownRingView(Context context) {
             super(context);
@@ -1218,26 +1222,62 @@ public class AutoFindManager {
         }
 
         private void init(Context context) {
-            float density = context.getResources().getDisplayMetrics().density;
+            float density = (context != null && context.getResources() != null)
+                    ? context.getResources().getDisplayMetrics().density : 2f;
             bgPaint.setStyle(Paint.Style.STROKE);
             bgPaint.setColor(0x33787880);
-            bgPaint.setStrokeWidth(5f * density);
+            bgPaint.setStrokeWidth(5.5f * density);
 
             progressPaint.setStyle(Paint.Style.STROKE);
             progressPaint.setColor(0xFF30D158); // Neon Emerald (#30d158)
-            progressPaint.setStrokeWidth(5f * density);
+            progressPaint.setStrokeWidth(5.5f * density);
             progressPaint.setStrokeCap(Paint.Cap.ROUND);
 
-            textPaint.setColor(Color.WHITE);
+            textPaint.setColor(0xFF30D158); // Clean neon emerald digits
             textPaint.setTextAlign(Paint.Align.CENTER);
             textPaint.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-            textPaint.setTextSize(30f * density);
+            textPaint.setTextSize(32f * density);
         }
 
-        public void setProgress(int current, int max) {
-            this.currentSeconds = current;
-            this.maxSeconds = max;
-            invalidate();
+        public void startSweep(int totalSeconds) {
+            stopSweep();
+            this.maxSeconds = totalSeconds;
+            this.currentFraction = 1.0f;
+            try {
+                animator = ValueAnimator.ofFloat(1.0f, 0.0f);
+                animator.setDuration(totalSeconds * 1000L);
+                animator.setInterpolator(new LinearInterpolator());
+                animator.addUpdateListener(animation -> {
+                    Object val = animation.getAnimatedValue();
+                    if (val instanceof Float) {
+                        currentFraction = (Float) val;
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                            postInvalidateOnAnimation();
+                        } else {
+                            postInvalidate();
+                        }
+                    }
+                });
+                animator.start();
+            } catch (Throwable t) {
+                currentFraction = 0f;
+                postInvalidate();
+            }
+        }
+
+        public void stopSweep() {
+            if (animator != null) {
+                try {
+                    animator.cancel();
+                } catch (Throwable ignored) {}
+                animator = null;
+            }
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            stopSweep();
         }
 
         @Override
@@ -1248,19 +1288,21 @@ public class AutoFindManager {
             if (w <= 0 || h <= 0) return;
 
             float density = getResources().getDisplayMetrics().density;
-            float stroke = 5f * density;
+            float stroke = 5.5f * density;
             float pad = stroke / 2f + 2f * density;
             arcRect.set(pad, pad, w - pad, h - pad);
 
             // Background circular track
             canvas.drawOval(arcRect, bgPaint);
 
-            // Progress arc (starts at 12 o'clock = -90 deg)
-            float sweep = (maxSeconds > 0) ? ((float) currentSeconds / maxSeconds) * 360f : 0f;
+            // Progress arc (starts at 12 o'clock = -90 deg, sweeps smoothly clockwise)
+            float sweep = Math.max(0f, currentFraction * 360f);
             canvas.drawArc(arcRect, -90f, sweep, false, progressPaint);
 
-            // Center number
-            String numText = String.valueOf(currentSeconds);
+            // Center number (smooth dynamic integer rounded up)
+            int displaySec = (int) Math.ceil(currentFraction * maxSeconds);
+            if (displaySec <= 0 && currentFraction > 0.01f) displaySec = 1;
+            String numText = String.valueOf(displaySec);
             Paint.FontMetrics fm = textPaint.getFontMetrics();
             float textY = (h / 2f) - ((fm.ascent + fm.descent) / 2f);
             canvas.drawText(numText, w / 2f, textY, textPaint);
@@ -1277,29 +1319,37 @@ public class AutoFindManager {
 
         float density = activity.getResources().getDisplayMetrics().density;
 
+        // 1. Fullscreen translucent scrim backdrop (Extension modal overlay)
+        final FrameLayout overlay = new FrameLayout(activity);
+        overlay.setTag(BANNER_TAG);
+        overlay.setClickable(true);
+        overlay.setFocusable(true);
+        overlay.setBackgroundColor(0x8C000000); // 55% dimmed black glass
+
+        // 2. Centered Cyber Card
         final LinearLayout card = new LinearLayout(activity);
-        card.setTag(BANNER_TAG);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_HORIZONTAL);
-        int padH = (int) (22 * density);
-        int padV = (int) (18 * density);
+        card.setClickable(true); // Absorb taps inside card
+        int padH = (int) (26 * density);
+        int padV = (int) (22 * density);
         card.setPadding(padH, padV, padH, padV);
 
-        // Cyber glass card background matching Extension
+        // Cyber glass card background matching Extension rgba(34,34,38,.86)
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xF2161922); // Deep Cyber glass 95%
-        bg.setCornerRadius(20 * density);
-        bg.setStroke((int) (1.5f * density), 0x4D30D158); // Subtle emerald border
+        bg.setColor(0xF0222226); // Deep Cyber glass 94%
+        bg.setCornerRadius(22 * density);
+        bg.setStroke((int) (1f * density), 0x2EFFFFFF); // Subtle white glass border
         card.setBackground(bg);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             card.setElevation(50f);
         }
 
-        // 1. Header Title: "TÌM TRẬN MỚI" / "FIND NEW MATCH"
+        // Header Title: "TÌM TRẬN MỚI" / "FIND NEW MATCH"
         TextView titleText = new TextView(activity);
         titleText.setTag("banner_title");
-        titleText.setTextColor(Color.WHITE);
+        titleText.setTextColor(0xFFF5F5F7);
         titleText.setTextSize(12.5f);
         titleText.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         titleText.setText(I18n.get(activity, "cd_label"));
@@ -1308,33 +1358,33 @@ public class AutoFindManager {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        lpTitle.bottomMargin = (int) (12 * density);
+        lpTitle.bottomMargin = (int) (14 * density);
         card.addView(titleText, lpTitle);
 
-        // 2. Countdown Ring View (86dp x 86dp)
+        // Countdown Ring View (90dp x 90dp with continuous 60fps sweep)
         CountdownRingView ringView = new CountdownRingView(activity);
         ringView.setTag("banner_ring");
-        ringView.setProgress(seconds, COUNTDOWN_DURATION_SEC);
-        int ringSize = (int) (86 * density);
+        ringView.startSweep(COUNTDOWN_DURATION_SEC);
+        int ringSize = (int) (90 * density);
         LinearLayout.LayoutParams lpRing = new LinearLayout.LayoutParams(ringSize, ringSize);
-        lpRing.bottomMargin = (int) (12 * density);
+        lpRing.bottomMargin = (int) (14 * density);
         card.addView(ringView, lpRing);
 
-        // 3. Subtitle: "%d giây nữa tự tìm trận..." / "auto find match in %ds..."
+        // Subtitle: "%d giây nữa tự tìm trận..." / "auto find match in %ds..."
         TextView subText = new TextView(activity);
         subText.setTag("banner_sub");
-        subText.setTextColor(0xFF94A3B8); // Slate 400
-        subText.setTextSize(11.5f);
+        subText.setTextColor(0xFF9898A0); // Apple secondary label grey
+        subText.setTextSize(12f);
         subText.setGravity(Gravity.CENTER);
         subText.setText(String.format(java.util.Locale.US, I18n.get(activity, "cd_sub"), seconds));
         LinearLayout.LayoutParams lpSub = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        lpSub.bottomMargin = (int) (16 * density);
+        lpSub.bottomMargin = (int) (18 * density);
         card.addView(subText, lpSub);
 
-        // 4. Action Buttons Bar [⏹ HỦY] & [⚡ TÌM NGAY]
+        // Action Buttons Bar [⏹ HỦY] & [⚡ TÌM NGAY]
         LinearLayout btnBar = new LinearLayout(activity);
         btnBar.setOrientation(LinearLayout.HORIZONTAL);
         btnBar.setGravity(Gravity.CENTER);
@@ -1347,18 +1397,18 @@ public class AutoFindManager {
         // Button [⏹ HỦY]
         TextView btnCancel = new TextView(activity);
         btnCancel.setText(I18n.get(activity, "cd_cancel"));
-        btnCancel.setTextColor(Color.WHITE);
-        btnCancel.setTextSize(12f);
+        btnCancel.setTextColor(0xFFE5E5EA);
+        btnCancel.setTextSize(12.5f);
         btnCancel.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         btnCancel.setGravity(Gravity.CENTER);
         GradientDrawable cancelBg = new GradientDrawable();
         cancelBg.setColor(0x33787880);
-        cancelBg.setCornerRadius(10 * density);
+        cancelBg.setCornerRadius(12 * density);
         btnCancel.setBackground(cancelBg);
-        int btnPadV = (int) (9 * density);
+        int btnPadV = (int) (10 * density);
         btnCancel.setPadding(0, btnPadV, 0, btnPadV);
         LinearLayout.LayoutParams lpCancel = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        lpCancel.rightMargin = (int) (5 * density);
+        lpCancel.rightMargin = (int) (6 * density);
         btnBar.addView(btnCancel, lpCancel);
 
         btnCancel.setOnClickListener(v -> {
@@ -1370,20 +1420,23 @@ public class AutoFindManager {
             } catch (Throwable ignored) {}
         });
 
+        // Tapping dimmed background outside card also cancels
+        overlay.setOnClickListener(v -> btnCancel.performClick());
+
         // Button [⚡ TÌM NGAY]
         TextView btnNow = new TextView(activity);
         btnNow.setText(I18n.get(activity, "cd_now"));
-        btnNow.setTextColor(0xFF0B130E); // Dark emerald text
-        btnNow.setTextSize(12f);
+        btnNow.setTextColor(0xFF051B0B); // Dark emerald text on neon
+        btnNow.setTextSize(12.5f);
         btnNow.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         btnNow.setGravity(Gravity.CENTER);
         GradientDrawable nowBg = new GradientDrawable();
         nowBg.setColor(0xFF30D158); // Neon emerald
-        nowBg.setCornerRadius(10 * density);
+        nowBg.setCornerRadius(12 * density);
         btnNow.setBackground(nowBg);
         btnNow.setPadding(0, btnPadV, 0, btnPadV);
         LinearLayout.LayoutParams lpNow = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        lpNow.leftMargin = (int) (5 * density);
+        lpNow.leftMargin = (int) (6 * density);
         btnBar.addView(btnNow, lpNow);
 
         btnNow.setOnClickListener(v -> {
@@ -1395,16 +1448,31 @@ public class AutoFindManager {
             triggerAutoFind(activity);
         });
 
-        int cardW = (int) (270 * density);
+        // Add card to overlay centered
+        int cardW = (int) (285 * density);
         FrameLayout.LayoutParams lpCard = new FrameLayout.LayoutParams(
                 cardW,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        lpCard.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
-        lpCard.topMargin = (int) (52 * density);
+        lpCard.gravity = Gravity.CENTER;
+        overlay.addView(card, lpCard);
 
-        root.addView(card, lpCard);
-        card.bringToFront();
+        // Add overlay to decorView full screen
+        FrameLayout.LayoutParams lpOverlay = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        root.addView(overlay, lpOverlay);
+        overlay.bringToFront();
+
+        // Smooth Entrance Animation (Desktop Extension cd-overlay-in & cd-card-in)
+        overlay.setAlpha(0f);
+        overlay.animate().alpha(1f).setDuration(200).start();
+
+        card.setScaleX(0.85f);
+        card.setScaleY(0.85f);
+        card.animate().scaleX(1f).scaleY(1f).setDuration(260)
+                .setInterpolator(new OvershootInterpolator(1.05f)).start();
     }
 
     private static void updateCountdownBanner(Activity activity, int seconds) {
@@ -1414,10 +1482,6 @@ public class AutoFindManager {
 
         View banner = decor.findViewWithTag(BANNER_TAG);
         if (banner != null) {
-            View ring = banner.findViewWithTag("banner_ring");
-            if (ring instanceof CountdownRingView) {
-                ((CountdownRingView) ring).setProgress(seconds, COUNTDOWN_DURATION_SEC);
-            }
             View sub = banner.findViewWithTag("banner_sub");
             if (sub instanceof TextView) {
                 ((TextView) sub).setText(String.format(java.util.Locale.US, I18n.get(activity, "cd_sub"), seconds));
@@ -1431,10 +1495,19 @@ public class AutoFindManager {
         View decor = activity.getWindow().getDecorView();
         if (!(decor instanceof ViewGroup)) return;
 
-        ViewGroup root = (ViewGroup) decor;
-        View banner = root.findViewWithTag(BANNER_TAG);
+        final ViewGroup root = (ViewGroup) decor;
+        final View banner = root.findViewWithTag(BANNER_TAG);
         if (banner != null) {
-            root.removeView(banner);
+            View ring = banner.findViewWithTag("banner_ring");
+            if (ring instanceof CountdownRingView) {
+                ((CountdownRingView) ring).stopSweep();
+            }
+            // Smooth exit animation
+            banner.animate().alpha(0f).setDuration(150).withEndAction(() -> {
+                try {
+                    root.removeView(banner);
+                } catch (Throwable ignored) {}
+            }).start();
         }
     }
 

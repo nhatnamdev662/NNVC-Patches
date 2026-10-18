@@ -57,37 +57,6 @@ public class AutoMoveManager {
         isExecutingMove = false;
     }
 
-    private static java.lang.ref.WeakReference<View> watchedBoardViewRef = null;
-
-    /**
-     * Attaches a passive touch watcher to ChessBoardView.
-     * When user taps the board manually, immediately cancels pending scheduled auto-move.
-     * Always returns false so ChessBoardView.onTouchEvent receives the touch and shows
-     * legal moves dots and allows manual move input unimpeded.
-     */
-    public static void attachPassiveTouchWatcher(final View boardView) {
-        if (boardView == null) return;
-        try {
-            if (watchedBoardViewRef != null && watchedBoardViewRef.get() == boardView) {
-                return;
-            }
-            watchedBoardViewRef = new java.lang.ref.WeakReference<>(boardView);
-            boardView.setOnTouchListener(new View.OnTouchListener() {
-                @Override
-                public boolean onTouch(View v, android.view.MotionEvent event) {
-                    if (event != null && event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) {
-                        if (hasPendingScheduledMove()) {
-                            cancelPendingAutoMove("User touched board manually");
-                        }
-                    }
-                    return false;
-                }
-            });
-        } catch (Throwable t) {
-            NnvcLogger.w(TAG, "Failed to attach passive touch watcher: " + t.getMessage());
-        }
-    }
-
     public static boolean hasPendingScheduledMove() {
         return pendingMoveRunnable != null || isExecutingMove;
     }
@@ -643,8 +612,6 @@ public class AutoMoveManager {
             NnvcLogger.w(TAG, "executeAutoMove aborted: Auto Move is DISABLED in settings (Tab LIVE).");
             return;
         }
-
-        attachPassiveTouchWatcher(boardView);
 
         if (pendingMoveRunnable != null || isExecutingMove) {
             if (pendingMoveFen != null && currentFen != null && !pendingMoveFen.split(" ")[0].equals(currentFen.split(" ")[0])) {
