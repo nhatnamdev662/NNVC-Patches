@@ -457,7 +457,7 @@ public class StockfishExtension {
         }
         Activity curAct = getCurrentActivity();
         if (curAct != null) {
-            if (lastGameOverHandled && !isGameOver(curAct)) {
+            if (lastGameOverHandled && !isGameOver(curAct) && !AutoFindManager.isCountingDown() && !AutoFindManager.isSeeking()) {
                 lastGameOverHandled = false;
                 AutoFindManager.onNewGameStarted();
             }
@@ -468,6 +468,7 @@ public class StockfishExtension {
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
             lastGameOverHandled = false;
+            AutoFindManager.resetHandledGameEndData();
             AutoFindManager.onNewGameStarted();
             if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && (OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
                 Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled and rendered, skipping duplicate reset.");
@@ -1321,7 +1322,7 @@ public class StockfishExtension {
             }
             return true;
         } else {
-            if (lastGameOverHandled) {
+            if (lastGameOverHandled && !AutoFindManager.isCountingDown() && !AutoFindManager.isSeeking()) {
                 // Chuyển từ Game Over sang Ván mới (Rematch / New Game)
                 Log.i(TAG, "[NEW GAME DETECTED] Phát hiện chuyển sang ván mới sau Game Over! Đang khởi tạo lại Move 0...");
                 lastGameOverHandled = false;
@@ -1330,6 +1331,7 @@ public class StockfishExtension {
                 isMove0AnalysisCompleted = false;
                 lastArrowSignature = null;
                 lastScheduledKey = null;
+                AutoFindManager.resetHandledGameEndData();
                 AutoFindManager.onNewGameStarted();
                 unlockScreenshots(activity);
                 OverlayManager.clearHookedBoardViews();

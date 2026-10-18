@@ -1797,10 +1797,13 @@ public class SelfTest {
         check("isViewModelGameOver handles null activity safely", !AutoFindManager.isViewModelGameOver(null));
         check("getRealGameViewModel handles null activity safely", AutoFindManager.getRealGameViewModel(null) == null);
         check("triggerViaViewModel handles null activity safely", !AutoFindManager.triggerViaViewModel(null));
+        AutoFindManager.resetHandledGameEndData();
+        check("resetHandledGameEndData executed cleanly", true);
         AutoFindManager.onNewGameStarted();
         check("onNewGameStarted sets state to PLAYING", AutoFindManager.getState() == AutoFindManager.State.PLAYING);
         AutoFindManager.cancelCountdown("test cleanup");
         check("cancelCountdown resets state to IDLE", AutoFindManager.getState() == AutoFindManager.State.IDLE);
+        check("isCountingDown is false after cancel", !AutoFindManager.isCountingDown());
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

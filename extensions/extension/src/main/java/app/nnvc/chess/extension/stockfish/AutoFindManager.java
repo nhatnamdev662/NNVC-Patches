@@ -88,21 +88,29 @@ public class AutoFindManager {
             return;
         }
 
-        if (currentState == State.COUNTDOWN) {
+        if (currentState == State.COUNTDOWN || currentState == State.SEEKING) {
             return; // Already in progress
         }
 
-        // Record handled gameEndData to ensure each unique game end is processed cleanly
+        // Retrieve current gameEndData to prevent duplicate countdowns for the exact same game instance
+        Object currentEndData = null;
         try {
             Object vm = getRealGameViewModel(activity);
             if (vm != null) {
                 Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
                 if (fEndData != null) {
                     fEndData.setAccessible(true);
-                    lastHandledGameEndData = fEndData.get(vm);
+                    currentEndData = fEndData.get(vm);
                 }
             }
         } catch (Throwable ignored) {}
+
+        if (currentEndData != null && currentEndData == lastHandledGameEndData) {
+            return; // Already queued for this game instance
+        }
+        if (currentEndData != null) {
+            lastHandledGameEndData = currentEndData;
+        }
 
         activeActivityRef = new WeakReference<>(activity);
         currentState = State.COUNTDOWN;
@@ -247,7 +255,7 @@ public class AutoFindManager {
                             eMethod.setAccessible(true);
                             eMethod.invoke(listener);
                             NnvcLogger.d(TAG, "Invoked gameOverV6Listener.e() directly.");
-                            actionExecuted = true;
+                            return true;
                         }
                     }
                 }
@@ -437,16 +445,42 @@ public class AutoFindManager {
                 } catch (Throwable ignored) {}
             }
 
-            // 3. Inspect gameEndData matched against lastHandledGameEndData
-            // In Chess.com, vm.gameEndData is assigned IMMEDIATELY when the game concludes (0ms delay).
-            // Each completed game produces a new GameEndData object instance.
-            // If endData != null and is NOT the instance already handled, the game is freshly over!
+            // 3. Inspect gameOver StateFlow (getter H9() or fields _gameOver a1 / gameOver b1)
+            try {
+                Method h9 = findMethodByName(vm.getClass(), "H9");
+                if (h9 != null) {
+                    h9.setAccessible(true);
+                    Object flow = h9.invoke(vm);
+                    if (flow != null) {
+                        Method getValue = flow.getClass().getMethod("getValue");
+                        if (getValue.invoke(flow) != null) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            Field fGameOver = findFieldByName(vm.getClass(), "_gameOver", "gameOver", "a1", "b1");
+            if (fGameOver != null) {
+                try {
+                    fGameOver.setAccessible(true);
+                    Object flow = fGameOver.get(vm);
+                    if (flow != null) {
+                        Method getValue = flow.getClass().getMethod("getValue");
+                        if (getValue.invoke(flow) != null) {
+                            return true;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            // 4. Inspect gameEndData field (field i0 or gameEndData)
             try {
                 Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
                 if (fEndData != null) {
                     fEndData.setAccessible(true);
                     Object endData = fEndData.get(vm);
-                    if (endData != null && endData != lastHandledGameEndData) {
+                    if (endData != null) {
                         return true;
                     }
                 }
@@ -592,7 +626,7 @@ public class AutoFindManager {
         banner.setBackground(bg);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            banner.setElevation(30f);
+            banner.setElevation(50f);
         }
 
         TextView titleText = new TextView(activity);
@@ -620,6 +654,7 @@ public class AutoFindManager {
         lp.topMargin = (int) (48 * density);
 
         root.addView(banner, lp);
+        banner.bringToFront();
     }
 
     private static void updateCountdownBanner(Activity activity, int seconds) {
