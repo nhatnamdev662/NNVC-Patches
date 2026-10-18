@@ -1801,17 +1801,35 @@ public class SelfTest {
         check("resetHandledGameEndData executed cleanly", true);
         AutoFindManager.onNewGameStarted();
         check("onNewGameStarted sets state to PLAYING", AutoFindManager.getState() == AutoFindManager.State.PLAYING);
-        // 40e. Mock Game ID Mismatch Protection
+        // 40e. Mock Game ID Mismatch Protection & Normalized UUID Extraction
+        class MockCompatIdId {
+            private final long id = 123456789L;
+            private final String uuid = "uuid-abc-123";
+            public long getId() { return id; }
+            public String getUuid() { return uuid; }
+        }
+        class MockCompatIdUuid {
+            private final String id = "uuid-abc-123";
+            public String getId() { return id; }
+        }
         class MockGameEndData {
-            private final String gameId = "game_123";
-            public String getGameId() { return gameId; }
+            private final Object gameId = new MockCompatIdUuid();
+            public Object getGameId() { return gameId; }
         }
-        class MockDifferentGameEndData {
-            private final String gameId = "game_old";
-            public String getGameId() { return gameId; }
-        }
-        check("MockGameEndData gameId match", new MockGameEndData().getGameId().equals("game_123"));
-        check("MockDifferentGameEndData gameId mismatch", !new MockDifferentGameEndData().getGameId().equals("game_123"));
+
+        MockCompatIdId compatId = new MockCompatIdId();
+        MockCompatIdUuid compatUuid = new MockCompatIdUuid();
+        MockGameEndData gameEndData = new MockGameEndData();
+
+        String extractedId = AutoFindManager.extractGameUuid(compatId);
+        String extractedUuid = AutoFindManager.extractGameUuid(compatUuid);
+        String extractedFromEndData = AutoFindManager.extractGameUuid(gameEndData);
+
+        check("extractGameUuid extracts uuid from MockCompatIdId", "uuid-abc-123".equals(extractedId));
+        check("extractGameUuid extracts id from MockCompatIdUuid", "uuid-abc-123".equals(extractedUuid));
+        check("extractGameUuid extracts uuid from GameEndData", "uuid-abc-123".equals(extractedFromEndData));
+        check("extractGameUuid bridges CompatId.Id and CompatId.Uuid", extractedId.equals(extractedUuid));
+        check("isCurrentGameHandled handles null activity safely", !AutoFindManager.isCurrentGameHandled(null));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

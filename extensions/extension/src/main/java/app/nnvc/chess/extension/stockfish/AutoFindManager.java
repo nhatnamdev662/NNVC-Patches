@@ -52,6 +52,7 @@ public class AutoFindManager {
     private static Handler mainHandler = null;
     private static Runnable countdownRunnable = null;
     private static WeakReference<Activity> activeActivityRef = new WeakReference<>(null);
+    private static volatile String lastHandledGameUuid = null;
     private static volatile Object lastHandledGameEndData = null;
 
     private static final Pattern NEW_GAME_BTN_PATTERN = Pattern.compile(
@@ -77,6 +78,21 @@ public class AutoFindManager {
         return currentState == State.COUNTDOWN;
     }
 
+    public static boolean isCurrentGameHandled(Activity activity) {
+        if (currentState == State.COUNTDOWN || currentState == State.SEEKING) {
+            return true;
+        }
+        Object currentEndData = getCurrentGameEndData(activity);
+        if (currentEndData == null) {
+            return false;
+        }
+        String currentUuid = extractGameUuid(currentEndData);
+        if (currentUuid != null && lastHandledGameUuid != null) {
+            return currentUuid.equalsIgnoreCase(lastHandledGameUuid);
+        }
+        return lastHandledGameEndData != null && currentEndData == lastHandledGameEndData;
+    }
+
     /**
      * Called when game over is detected. Initiates countdown if enabled.
      */
@@ -92,23 +108,16 @@ public class AutoFindManager {
             return; // Already in progress
         }
 
-        // Retrieve current gameEndData to prevent duplicate countdowns for the exact same game instance
-        Object currentEndData = null;
-        try {
-            Object vm = getRealGameViewModel(activity);
-            if (vm != null) {
-                Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
-                if (fEndData != null) {
-                    fEndData.setAccessible(true);
-                    currentEndData = fEndData.get(vm);
-                }
-            }
-        } catch (Throwable ignored) {}
-
-        if (currentEndData != null && currentEndData == lastHandledGameEndData) {
-            return; // Already queued for this game instance
-        }
+        Object currentEndData = getCurrentGameEndData(activity);
         if (currentEndData != null) {
+            String currentUuid = extractGameUuid(currentEndData);
+            if (currentUuid != null && lastHandledGameUuid != null && currentUuid.equalsIgnoreCase(lastHandledGameUuid)) {
+                return; // Already queued for this game instance UUID
+            }
+            if (lastHandledGameEndData != null && currentEndData == lastHandledGameEndData) {
+                return; // Already queued for this exact object instance
+            }
+            lastHandledGameUuid = currentUuid;
             lastHandledGameEndData = currentEndData;
         }
 
@@ -127,6 +136,7 @@ public class AutoFindManager {
     }
 
     public static void resetHandledGameEndData() {
+        lastHandledGameUuid = null;
         lastHandledGameEndData = null;
     }
 
@@ -135,6 +145,7 @@ public class AutoFindManager {
      */
     public static void onNewGameStarted() {
         cancelCountdown("New game started");
+        resetHandledGameEndData();
         currentState = State.PLAYING;
     }
 
@@ -154,6 +165,9 @@ public class AutoFindManager {
 
         if (currentState == State.COUNTDOWN) {
             NnvcLogger.i(TAG, "Cancelled Auto Find countdown (" + reason + ")");
+        }
+        if ("Activity paused".equals(reason)) {
+            resetHandledGameEndData();
         }
         currentState = State.IDLE;
     }
@@ -438,118 +452,160 @@ public class AutoFindManager {
                 } catch (Throwable ignored) {}
             }
 
-            Object vm = getRealGameViewModel(activity);
-            if (vm == null) return false;
-
-            // 2. Check _showGameOverPopup (field X0 or _showGameOverPopup or getter oa())
-            // In Chess.com, _showGameOverPopup is null during gameplay and ONLY non-null when game over modal is active.
-            // When game starts or modal is dismissed (via Xa()), it is reset to null!
-            try {
-                Method oa = findMethodByName(vm.getClass(), "oa");
-                if (oa != null) {
-                    oa.setAccessible(true);
-                    Object flow = oa.invoke(vm);
-                    if (flow != null) {
-                        Method getValue = flow.getClass().getMethod("getValue");
-                        if (getValue.invoke(flow) != null) {
-                            return true;
-                        }
-                    }
-                }
-            } catch (Throwable ignored) {}
-
-            Field fPopup = findFieldByName(vm.getClass(), "_showGameOverPopup", "showGameOverPopup", "X0", "Y0");
-            if (fPopup != null) {
-                try {
-                    fPopup.setAccessible(true);
-                    Object flow = fPopup.get(vm);
-                    if (flow != null) {
-                        Method getValue = flow.getClass().getMethod("getValue");
-                        if (getValue.invoke(flow) != null) {
-                            return true;
-                        }
-                    }
-                } catch (Throwable ignored) {}
+            // 2. Multi-layer ViewModel GameEndData / GameOver state check
+            Object endData = getCurrentGameEndData(activity);
+            if (endData != null) {
+                return true;
             }
-
-            // 3. Inspect gameOver StateFlow / gameEndData with gameId match
-            Object curGameId = null;
-            try {
-                Field fGameId = findFieldByName(vm.getClass(), "gameId", "U");
-                if (fGameId != null) {
-                    fGameId.setAccessible(true);
-                    curGameId = fGameId.get(vm);
-                }
-            } catch (Throwable ignored) {}
-
-            // Inspect gameOver StateFlow (getter H9() or fields _gameOver a1 / gameOver b1)
-            try {
-                Method h9 = findMethodByName(vm.getClass(), "H9");
-                if (h9 != null) {
-                    h9.setAccessible(true);
-                    Object flow = h9.invoke(vm);
-                    if (flow != null) {
-                        Method getValue = flow.getClass().getMethod("getValue");
-                        Object endData = getValue.invoke(flow);
-                        if (endData != null) {
-                            if (curGameId != null) {
-                                Method getEndGameId = findMethodByName(endData.getClass(), "getGameId");
-                                Object endGameId = getEndGameId != null ? getEndGameId.invoke(endData) : null;
-                                if (curGameId.equals(endGameId)) {
-                                    return true;
-                                }
-                            } else {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            } catch (Throwable ignored) {}
-
-            Field fGameOver = findFieldByName(vm.getClass(), "_gameOver", "gameOver", "a1", "b1");
-            if (fGameOver != null) {
-                try {
-                    fGameOver.setAccessible(true);
-                    Object flow = fGameOver.get(vm);
-                    if (flow != null) {
-                        Method getValue = flow.getClass().getMethod("getValue");
-                        Object endData = getValue.invoke(flow);
-                        if (endData != null) {
-                            if (curGameId != null) {
-                                Method getEndGameId = findMethodByName(endData.getClass(), "getGameId");
-                                Object endGameId = getEndGameId != null ? getEndGameId.invoke(endData) : null;
-                                if (curGameId.equals(endGameId)) {
-                                    return true;
-                                }
-                            } else {
-                                return true;
-                            }
-                        }
-                    }
-                } catch (Throwable ignored) {}
-            }
-
-            // 4. Inspect gameEndData field (field i0 or gameEndData) matched against current gameId
-            try {
-                Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
-                if (fEndData != null) {
-                    fEndData.setAccessible(true);
-                    Object endData = fEndData.get(vm);
-                    if (endData != null) {
-                        if (curGameId != null) {
-                            Method getEndGameId = findMethodByName(endData.getClass(), "getGameId");
-                            Object endGameId = getEndGameId != null ? getEndGameId.invoke(endData) : null;
-                            if (curGameId.equals(endGameId)) {
-                                return true;
-                            }
-                        } else {
-                            return true;
-                        }
-                    }
-                }
-            } catch (Throwable ignored) {}
         } catch (Throwable ignored) {}
         return false;
+    }
+
+    public static Object getCurrentGameEndData(Activity activity) {
+        if (activity == null) return null;
+        Object vm = getRealGameViewModel(activity);
+        if (vm == null) return null;
+
+        // 1. Inspect gameEndData field (field i0 or gameEndData)
+        try {
+            Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
+            if (fEndData != null) {
+                fEndData.setAccessible(true);
+                Object endData = fEndData.get(vm);
+                if (endData != null) return endData;
+            }
+        } catch (Throwable ignored) {}
+
+        // 2. Inspect gameOver StateFlow (getter H9() or fields _gameOver a1 / gameOver b1)
+        try {
+            Method h9 = findMethodByName(vm.getClass(), "H9");
+            if (h9 != null) {
+                h9.setAccessible(true);
+                Object flow = h9.invoke(vm);
+                if (flow != null) {
+                    Method getValue = flow.getClass().getMethod("getValue");
+                    Object endData = getValue.invoke(flow);
+                    if (endData != null) return endData;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Field fGameOver = findFieldByName(vm.getClass(), "_gameOver", "gameOver", "a1", "b1");
+            if (fGameOver != null) {
+                fGameOver.setAccessible(true);
+                Object flow = fGameOver.get(vm);
+                if (flow != null) {
+                    Method getValue = flow.getClass().getMethod("getValue");
+                    Object endData = getValue.invoke(flow);
+                    if (endData != null) return endData;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 3. Inspect _showGameOverPopup StateFlow (field X0 / getter oa())
+        try {
+            Method oa = findMethodByName(vm.getClass(), "oa");
+            if (oa != null) {
+                oa.setAccessible(true);
+                Object flow = oa.invoke(vm);
+                if (flow != null) {
+                    Method getValue = flow.getClass().getMethod("getValue");
+                    Object pair = getValue.invoke(flow);
+                    if (pair != null) {
+                        try {
+                            Method getFirst = findMethodByName(pair.getClass(), "getFirst", "a");
+                            if (getFirst != null) {
+                                getFirst.setAccessible(true);
+                                Object endData = getFirst.invoke(pair);
+                                if (endData != null) return endData;
+                            }
+                        } catch (Throwable ignored) {}
+                        return pair;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Field fPopup = findFieldByName(vm.getClass(), "_showGameOverPopup", "showGameOverPopup", "X0", "Y0");
+            if (fPopup != null) {
+                fPopup.setAccessible(true);
+                Object flow = fPopup.get(vm);
+                if (flow != null) {
+                    Method getValue = flow.getClass().getMethod("getValue");
+                    Object pair = getValue.invoke(flow);
+                    if (pair != null) {
+                        try {
+                            Method getFirst = findMethodByName(pair.getClass(), "getFirst", "a");
+                            if (getFirst != null) {
+                                getFirst.setAccessible(true);
+                                Object endData = getFirst.invoke(pair);
+                                if (endData != null) return endData;
+                            }
+                        } catch (Throwable ignored) {}
+                        return pair;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        return null;
+    }
+
+    public static String extractGameUuid(Object idObj) {
+        if (idObj == null) return null;
+        if (idObj instanceof String) {
+            String s = (String) idObj;
+            if (!s.isEmpty()) return s;
+        }
+
+        try {
+            // 1. If it's GameEndData, extract its gameId property first
+            Method mGetGameId = findMethodByName(idObj.getClass(), "getGameId");
+            if (mGetGameId != null) {
+                mGetGameId.setAccessible(true);
+                Object innerId = mGetGameId.invoke(idObj);
+                if (innerId != null) {
+                    idObj = innerId;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            // 2. Try getUuid() (CompatId.Id)
+            Method mUuid = findMethodByName(idObj.getClass(), "getUuid");
+            if (mUuid != null) {
+                mUuid.setAccessible(true);
+                Object res = mUuid.invoke(idObj);
+                if (res instanceof String && !((String) res).isEmpty()) return (String) res;
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            // 3. Try getId() (CompatId.Uuid or generic Id)
+            Method mId = findMethodByName(idObj.getClass(), "getId");
+            if (mId != null) {
+                mId.setAccessible(true);
+                Object res = mId.invoke(idObj);
+                if (res != null) {
+                    String str = res.toString();
+                    if (!str.isEmpty()) return str;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            // 4. Try getStringUuid() (CompatId)
+            Method mStr = findMethodByName(idObj.getClass(), "getStringUuid");
+            if (mStr != null) {
+                mStr.setAccessible(true);
+                Object res = mStr.invoke(idObj);
+                if (res instanceof String && !((String) res).isEmpty()) return (String) res;
+            }
+        } catch (Throwable ignored) {}
+
+        return idObj.toString();
     }
 
     /**
@@ -746,12 +802,14 @@ public class AutoFindManager {
         }
     }
 
-    private static Method findMethodByName(Class<?> clazz, String name) {
+    private static Method findMethodByName(Class<?> clazz, String... names) {
         Class<?> current = clazz;
         while (current != null && current != Object.class) {
             for (Method m : current.getDeclaredMethods()) {
-                if (m.getName().equals(name)) {
-                    return m;
+                for (String name : names) {
+                    if (m.getName().equals(name)) {
+                        return m;
+                    }
                 }
             }
             current = current.getSuperclass();

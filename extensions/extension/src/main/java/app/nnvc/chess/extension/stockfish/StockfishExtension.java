@@ -1303,7 +1303,7 @@ public class StockfishExtension {
     public static boolean checkAndHandleGameOver(Activity activity) {
         if (activity == null) return false;
         if (isGameOver(activity)) {
-            if (!lastGameOverHandled) {
+            if (!lastGameOverHandled || !AutoFindManager.isCurrentGameHandled(activity)) {
                 lastGameOverHandled = true;
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
