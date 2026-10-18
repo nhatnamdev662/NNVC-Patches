@@ -245,18 +245,35 @@ public class AutoFindManager {
         try {
             // 1. Invoke gameOverV6Listener.e() directly (matches exact Chess.com New Game click action)
             try {
+                Object listener = null;
                 Field fListener = findFieldByName(activity.getClass(), "t0", "gameOverV6Listener");
                 if (fListener != null) {
                     fListener.setAccessible(true);
-                    Object listener = fListener.get(activity);
-                    if (listener != null) {
-                        Method eMethod = findMethodByName(listener.getClass(), "e");
-                        if (eMethod != null) {
-                            eMethod.setAccessible(true);
-                            eMethod.invoke(listener);
-                            NnvcLogger.d(TAG, "Invoked gameOverV6Listener.e() directly.");
-                            return true;
-                        }
+                    listener = fListener.get(activity);
+                }
+                if (listener == null) {
+                    // Dynamic scan for any listener field with method e()
+                    for (Field f : activity.getClass().getDeclaredFields()) {
+                        try {
+                            f.setAccessible(true);
+                            Object val = f.get(activity);
+                            if (val != null) {
+                                String cn = val.getClass().getName();
+                                if (cn.contains("RealGameActivity$b") || cn.contains("GameOverV6") || cn.contains("v6.k1")) {
+                                    listener = val;
+                                    break;
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+                if (listener != null) {
+                    Method eMethod = findMethodByName(listener.getClass(), "e");
+                    if (eMethod != null) {
+                        eMethod.setAccessible(true);
+                        eMethod.invoke(listener);
+                        NnvcLogger.d(TAG, "Invoked gameOverV6Listener.e() directly.");
+                        return true;
                     }
                 }
             } catch (Throwable t) {
@@ -358,13 +375,23 @@ public class AutoFindManager {
             }
         } catch (Throwable ignored) {}
 
-        // Scan fields for Lazy ViewModel
+        // Scan methods with 0 params returning RealGameViewModel
+        try {
+            for (Method m : activity.getClass().getMethods()) {
+                if (m.getParameterTypes().length == 0 && m.getReturnType().getName().contains("RealGameViewModel")) {
+                    m.setAccessible(true);
+                    Object vm = m.invoke(activity);
+                    if (vm != null) return vm;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // Scan fields for ViewModel or Lazy ViewModel
         try {
             Class<?> c = activity.getClass();
             while (c != null && !c.getName().equals("android.app.Activity")) {
                 for (Field f : c.getDeclaredFields()) {
-                    String fn = f.getName().toLowerCase(java.util.Locale.US);
-                    if (fn.contains("viewmodel")) {
+                    try {
                         f.setAccessible(true);
                         Object val = f.get(activity);
                         if (val != null) {
@@ -380,7 +407,7 @@ public class AutoFindManager {
                                 }
                             } catch (Throwable ignored) {}
                         }
-                    }
+                    } catch (Throwable ignored) {}
                 }
                 c = c.getSuperclass();
             }
@@ -445,7 +472,17 @@ public class AutoFindManager {
                 } catch (Throwable ignored) {}
             }
 
-            // 3. Inspect gameOver StateFlow (getter H9() or fields _gameOver a1 / gameOver b1)
+            // 3. Inspect gameOver StateFlow / gameEndData with gameId match
+            Object curGameId = null;
+            try {
+                Field fGameId = findFieldByName(vm.getClass(), "gameId", "U");
+                if (fGameId != null) {
+                    fGameId.setAccessible(true);
+                    curGameId = fGameId.get(vm);
+                }
+            } catch (Throwable ignored) {}
+
+            // Inspect gameOver StateFlow (getter H9() or fields _gameOver a1 / gameOver b1)
             try {
                 Method h9 = findMethodByName(vm.getClass(), "H9");
                 if (h9 != null) {
@@ -453,8 +490,17 @@ public class AutoFindManager {
                     Object flow = h9.invoke(vm);
                     if (flow != null) {
                         Method getValue = flow.getClass().getMethod("getValue");
-                        if (getValue.invoke(flow) != null) {
-                            return true;
+                        Object endData = getValue.invoke(flow);
+                        if (endData != null) {
+                            if (curGameId != null) {
+                                Method getEndGameId = findMethodByName(endData.getClass(), "getGameId");
+                                Object endGameId = getEndGameId != null ? getEndGameId.invoke(endData) : null;
+                                if (curGameId.equals(endGameId)) {
+                                    return true;
+                                }
+                            } else {
+                                return true;
+                            }
                         }
                     }
                 }
@@ -467,21 +513,38 @@ public class AutoFindManager {
                     Object flow = fGameOver.get(vm);
                     if (flow != null) {
                         Method getValue = flow.getClass().getMethod("getValue");
-                        if (getValue.invoke(flow) != null) {
-                            return true;
+                        Object endData = getValue.invoke(flow);
+                        if (endData != null) {
+                            if (curGameId != null) {
+                                Method getEndGameId = findMethodByName(endData.getClass(), "getGameId");
+                                Object endGameId = getEndGameId != null ? getEndGameId.invoke(endData) : null;
+                                if (curGameId.equals(endGameId)) {
+                                    return true;
+                                }
+                            } else {
+                                return true;
+                            }
                         }
                     }
                 } catch (Throwable ignored) {}
             }
 
-            // 4. Inspect gameEndData field (field i0 or gameEndData)
+            // 4. Inspect gameEndData field (field i0 or gameEndData) matched against current gameId
             try {
                 Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
                 if (fEndData != null) {
                     fEndData.setAccessible(true);
                     Object endData = fEndData.get(vm);
                     if (endData != null) {
-                        return true;
+                        if (curGameId != null) {
+                            Method getEndGameId = findMethodByName(endData.getClass(), "getGameId");
+                            Object endGameId = getEndGameId != null ? getEndGameId.invoke(endData) : null;
+                            if (curGameId.equals(endGameId)) {
+                                return true;
+                            }
+                        } else {
+                            return true;
+                        }
                     }
                 }
             } catch (Throwable ignored) {}

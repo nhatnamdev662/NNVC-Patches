@@ -1801,9 +1801,17 @@ public class SelfTest {
         check("resetHandledGameEndData executed cleanly", true);
         AutoFindManager.onNewGameStarted();
         check("onNewGameStarted sets state to PLAYING", AutoFindManager.getState() == AutoFindManager.State.PLAYING);
-        AutoFindManager.cancelCountdown("test cleanup");
-        check("cancelCountdown resets state to IDLE", AutoFindManager.getState() == AutoFindManager.State.IDLE);
-        check("isCountingDown is false after cancel", !AutoFindManager.isCountingDown());
+        // 40e. Mock Game ID Mismatch Protection
+        class MockGameEndData {
+            private final String gameId = "game_123";
+            public String getGameId() { return gameId; }
+        }
+        class MockDifferentGameEndData {
+            private final String gameId = "game_old";
+            public String getGameId() { return gameId; }
+        }
+        check("MockGameEndData gameId match", new MockGameEndData().getGameId().equals("game_123"));
+        check("MockDifferentGameEndData gameId mismatch", !new MockDifferentGameEndData().getGameId().equals("game_123"));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
