@@ -373,6 +373,22 @@ public class StockfishExtension {
         }
     }
 
+    /**
+     * Native hook invoked directly by Chess.com bytecode in RealGameViewModel.Gb(GameEndData, GameplayAnimationPreferences)
+     * when ANY game finishes (checkmate, timeout, resignation, draw, abandonment).
+     *
+     * @param viewModel The RealGameViewModel instance executing the game over.
+     * @param gameEndData The GameEndData instance passed by server/game flow.
+     */
+    public static void onGameOverNative(Object viewModel, Object gameEndData) {
+        try {
+            NnvcLogger.i(TAG, "Native onGameOverNative hooked directly from RealGameViewModel.Gb!");
+            AutoFindManager.onGameOverNative(viewModel, gameEndData);
+        } catch (Throwable t) {
+            NnvcLogger.e(TAG, "onGameOverNative error: " + t.getMessage(), t);
+        }
+    }
+
     public static void onBoardChanged(Object stateImplObject, Object positionObject) {
         if (positionObject == null) return;
         

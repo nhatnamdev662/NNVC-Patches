@@ -51,6 +51,39 @@ def find_tool(name, default_path):
                     return cand_exe
     return None
 
+def inject_patched_dex_if_needed(apk_path):
+    import zipfile
+    patched_dex_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes9.dex")
+    if not os.path.exists(patched_dex_path):
+        patched_dex_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "patched_classes9.dex")
+    if not os.path.exists(patched_dex_path):
+        return
+
+    with open(patched_dex_path, "rb") as pf:
+        patched_dex_bytes = pf.read()
+
+    # Check if input APK already has this patched dex
+    with zipfile.ZipFile(apk_path, "r") as z:
+        if "classes9.dex" in z.namelist():
+            current_dex = z.read("classes9.dex")
+            if b"onGameOverNative" in current_dex:
+                print("[OK] classes9.dex already contains onGameOverNative hook.")
+                return
+
+    print("[*] Injecting native RealGameViewModel onGameOverNative hook into classes9.dex...")
+    temp_apk = apk_path + ".dex_patch.tmp"
+    with zipfile.ZipFile(apk_path, "r") as zin:
+        with zipfile.ZipFile(temp_apk, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                if item.filename == "classes9.dex":
+                    zout.writestr(item, patched_dex_bytes)
+                else:
+                    zout.writestr(item, zin.read(item.filename))
+
+    os.remove(apk_path)
+    os.rename(temp_apk, apk_path)
+    print("[OK] classes9.dex successfully injected into APK!")
+
 def sign_apk(input_apk, output_apk=None):
     if not os.path.exists(input_apk):
         print(f"[ERROR] Input APK not found: {input_apk}")
@@ -59,6 +92,8 @@ def sign_apk(input_apk, output_apk=None):
     if not os.path.exists(KEYSTORE_PATH):
         print(f"[ERROR] Keystore not found: {KEYSTORE_PATH}")
         sys.exit(1)
+
+    inject_patched_dex_if_needed(input_apk)
 
     apksigner_cmd = find_tool("apksigner", r"C:\Android\build-tools\android-37.0\apksigner.bat")
     if not apksigner_cmd:

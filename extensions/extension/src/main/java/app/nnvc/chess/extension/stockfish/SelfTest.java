@@ -1914,6 +1914,46 @@ public class SelfTest {
         check("cancelCelebrationReinflation invokes La() setter", mockVm.laCalled);
         check("cancelCelebrationReinflation invokes Xa() to dismiss popup", mockVm.xaCalled);
 
+        // 40h. Native Smali Bytecode Hook Integration & Direct ViewModel Trigger
+        class MockNativeRealGameViewModel {
+            public boolean kaCalled = false;
+            public boolean xaCalled = false;
+            public boolean ubCalled = false;
+            public boolean Z0 = false;
+
+            public void Ka() {
+                kaCalled = true;
+            }
+
+            public void Xa() {
+                xaCalled = true;
+            }
+
+            public void ub() {
+                ubCalled = true;
+            }
+
+            public void La() {
+                Z0 = true;
+            }
+        }
+
+        MockNativeRealGameViewModel nativeVm = new MockNativeRealGameViewModel();
+        boolean trigResult = AutoFindManager.triggerViaViewModelInstance(nativeVm);
+        check("triggerViaViewModelInstance executes Ka() on native ViewModel instance", trigResult && nativeVm.kaCalled);
+        check("triggerViaViewModelInstance dismisses popup via Xa()", nativeVm.xaCalled);
+        check("triggerViaViewModelInstance cleans up via ub()", nativeVm.ubCalled);
+        check("triggerViaViewModelInstance cancels celebration (Z0=true)", nativeVm.Z0);
+        check("triggerViaViewModelInstance handles null safely", !AutoFindManager.triggerViaViewModelInstance(null));
+
+        // Test native hook entry point in StockfishExtension
+        try {
+            java.lang.reflect.Method mNative = StockfishExtension.class.getMethod("onGameOverNative", Object.class, Object.class);
+            check("StockfishExtension has public static onGameOverNative(Object, Object) hook", mNative != null && java.lang.reflect.Modifier.isStatic(mNative.getModifiers()));
+        } catch (Throwable t) {
+            check("StockfishExtension onGameOverNative hook exists", false);
+        }
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

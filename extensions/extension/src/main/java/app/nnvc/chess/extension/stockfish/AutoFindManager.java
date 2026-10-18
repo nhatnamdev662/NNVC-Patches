@@ -55,6 +55,7 @@ public class AutoFindManager {
     private static volatile Object lastHandledGameId = null;
     private static volatile String lastHandledGameUuid = null;
     private static volatile Object lastHandledGameEndData = null;
+    private static volatile WeakReference<Object> lastNativeViewModelRef = null;
 
     private static final Pattern NEW_GAME_BTN_PATTERN = Pattern.compile(
             "(?i)(v[áa]n m[ớo]i|ch[ơo]i l[ạa]i|ch[ơo]i ti[ếe]p|t[ìi]m tr[ậa]n|new game|play again|find opponent|next game)"
@@ -101,9 +102,56 @@ public class AutoFindManager {
     }
 
     /**
+     * Called directly from Smali bytecode in RealGameViewModel.Gb(GameEndData, GameplayAnimationPreferences).
+     * Instant 0ms callback whenever ANY game ends (Live chess, Daily, Bot, Checkmate, Timeout, Resign, Draw).
+     */
+    public static void onGameOverNative(final Object viewModel, final Object gameEndData) {
+        Context ctx = StockfishExtension.getContext();
+        if (ctx == null) {
+            Activity act = StockfishExtension.getCurrentActivity();
+            if (act != null) ctx = act.getApplicationContext();
+        }
+        if (ctx != null && !StockfishSettings.isAutoFindMatchEnabled(ctx)) {
+            NnvcLogger.d(TAG, "Auto Find Match is disabled in settings. Skipping native game over.");
+            return;
+        }
+
+        NnvcLogger.i(TAG, "Native game over detected via RealGameViewModel.Gb bytecode hook!");
+        if (viewModel != null) {
+            lastNativeViewModelRef = new WeakReference<>(viewModel);
+            cancelCelebrationReinflationFromVm(viewModel);
+        }
+
+        getMainHandler().post(() -> {
+            Activity activity = StockfishExtension.getCurrentActivity();
+            if (activity != null) {
+                onGameOverWithContext(activity, viewModel, gameEndData);
+            } else {
+                NnvcLogger.w(TAG, "Current Activity is null during onGameOverNative, scheduling 300ms retry...");
+                getMainHandler().postDelayed(() -> {
+                    Activity retryAct = StockfishExtension.getCurrentActivity();
+                    if (retryAct != null) {
+                        onGameOverWithContext(retryAct, viewModel, gameEndData);
+                    } else if (viewModel != null) {
+                        NnvcLogger.w(TAG, "No activity available after delay, triggering ViewModel directly.");
+                        triggerViaViewModelInstance(viewModel);
+                    }
+                }, 300L);
+            }
+        });
+    }
+
+    /**
      * Called when game over is detected. Initiates countdown if enabled.
      */
     public static void onGameOver(final Activity activity) {
+        if (activity == null) return;
+        Object vm = getRealGameViewModel(activity);
+        Object endData = getCurrentGameEndData(activity);
+        onGameOverWithContext(activity, vm, endData);
+    }
+
+    public static void onGameOverWithContext(final Activity activity, final Object viewModel, final Object gameEndData) {
         if (activity == null) return;
         if (!StockfishSettings.isAutoFindMatchEnabled(activity)) {
             cancelCountdown("Auto find disabled");
@@ -112,20 +160,24 @@ public class AutoFindManager {
         }
 
         // Cancel celebration coroutine popup immediately to prevent race condition
-        cancelCelebrationReinflation(activity);
+        if (viewModel != null) {
+            cancelCelebrationReinflationFromVm(viewModel);
+        } else {
+            cancelCelebrationReinflation(activity);
+        }
 
         if (currentState == State.COUNTDOWN || currentState == State.SEEKING) {
             return; // Already in progress
         }
 
-        Object currentEndData = getCurrentGameEndData(activity);
+        Object currentEndData = gameEndData != null ? gameEndData : getCurrentGameEndData(activity);
         Object gameId = null;
         String currentUuid = null;
         if (currentEndData != null) {
             gameId = extractInnerGameId(currentEndData);
             currentUuid = extractPureUuid(gameId);
         } else {
-            Object vm = getRealGameViewModel(activity);
+            Object vm = viewModel != null ? viewModel : getRealGameViewModel(activity);
             if (vm != null) {
                 gameId = getCurrentGameId(vm);
                 currentUuid = extractPureUuid(gameId);
@@ -252,8 +304,22 @@ public class AutoFindManager {
         }, 15000L);
 
         getMainHandler().post(() -> {
+            // Tầng 0: Direct Cached Native ViewModel (highest priority, 100% reliable)
+            boolean triggered = false;
+            if (lastNativeViewModelRef != null) {
+                Object vm = lastNativeViewModelRef.get();
+                if (vm != null) {
+                    triggered = triggerViaViewModelInstance(vm);
+                    if (triggered) {
+                        NnvcLogger.i(TAG, "Auto Find triggered via cached native ViewModel!");
+                    }
+                }
+            }
+
             // Tầng 1: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
-            boolean triggered = triggerViaViewModel(activity);
+            if (!triggered) {
+                triggered = triggerViaViewModel(activity);
+            }
 
             // Tầng 2: UI View Button Scanner
             if (!triggered) {
@@ -388,6 +454,33 @@ public class AutoFindManager {
             NnvcLogger.d(TAG, "triggerViaViewModel failed: " + t.getMessage());
         }
         return actionExecuted;
+    }
+
+    public static boolean triggerViaViewModelInstance(Object vm) {
+        if (vm == null) return false;
+        try {
+            cancelCelebrationReinflationFromVm(vm);
+            Method xaMethod = findMethodByName(vm.getClass(), "Xa");
+            if (xaMethod != null) {
+                xaMethod.setAccessible(true);
+                xaMethod.invoke(vm);
+            }
+            Method ubMethod = findMethodByName(vm.getClass(), "ub");
+            if (ubMethod != null) {
+                ubMethod.setAccessible(true);
+                ubMethod.invoke(vm);
+            }
+            Method kaMethod = findMethodByName(vm.getClass(), "Ka");
+            if (kaMethod != null) {
+                kaMethod.setAccessible(true);
+                kaMethod.invoke(vm);
+                NnvcLogger.d(TAG, "Invoked RealGameViewModel.Ka() directly on native instance.");
+                return true;
+            }
+        } catch (Throwable t) {
+            NnvcLogger.d(TAG, "triggerViaViewModelInstance failed: " + t.getMessage());
+        }
+        return false;
     }
 
     public static Object getRealGameViewModel(Activity activity) {
