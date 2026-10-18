@@ -451,8 +451,14 @@ public class StockfishExtension {
         Log.d(TAG, "Position changed → FEN: " + fen);
         currentBoardFen = fen;
         AutoMoveManager.cancelPendingAutoMove("onBoardChanged: position changed to " + fen);
+        if (AutoFindManager.isSeeking()) {
+            lastGameOverHandled = false;
+            AutoFindManager.onNewGameStarted();
+        }
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
+            lastGameOverHandled = false;
+            AutoFindManager.onNewGameStarted();
             if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && (OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
                 Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled and rendered, skipping duplicate reset.");
                 return;

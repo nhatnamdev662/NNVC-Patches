@@ -1793,9 +1793,14 @@ public class SelfTest {
         check("Button pattern matches 'Find Opponent'", btnPattern.matcher("Find Opponent").find());
         check("Button pattern rejects unrelated text", !btnPattern.matcher("Cài đặt bàn cờ").find());
 
-        // 40d. ViewModel Game Over Detection
+        // 40d. ViewModel Game Over Detection & State Lifecycle
         check("isViewModelGameOver handles null activity safely", !AutoFindManager.isViewModelGameOver(null));
         check("getRealGameViewModel handles null activity safely", AutoFindManager.getRealGameViewModel(null) == null);
+        check("triggerViaViewModel handles null activity safely", !AutoFindManager.triggerViaViewModel(null));
+        AutoFindManager.onNewGameStarted();
+        check("onNewGameStarted sets state to PLAYING", AutoFindManager.getState() == AutoFindManager.State.PLAYING);
+        AutoFindManager.cancelCountdown("test cleanup");
+        check("cancelCountdown resets state to IDLE", AutoFindManager.getState() == AutoFindManager.State.IDLE);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

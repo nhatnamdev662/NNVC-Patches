@@ -87,7 +87,7 @@ public class AutoFindManager {
             return;
         }
 
-        if (currentState == State.COUNTDOWN || currentState == State.SEEKING) {
+        if (currentState == State.COUNTDOWN) {
             return; // Already in progress
         }
 
@@ -172,7 +172,15 @@ public class AutoFindManager {
 
         NnvcLogger.i(TAG, "Triggering Auto Find match...");
 
-        // Tầng 1: Native ViewModel Controller
+        // Safety watchdog: auto-reset SEEKING to IDLE after 15 seconds if no match or board change occurred
+        getMainHandler().postDelayed(() -> {
+            if (currentState == State.SEEKING) {
+                NnvcLogger.d(TAG, "Safety watchdog: auto-resetting lingering SEEKING state to IDLE");
+                currentState = State.IDLE;
+            }
+        }, 15000L);
+
+        // Tầng 1: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
         boolean triggered = triggerViaViewModel(activity);
 
         // Tầng 2: UI View Button Scanner
@@ -189,23 +197,102 @@ public class AutoFindManager {
     }
 
     /**
-     * Tầng 1: Invokes RealGameViewModel.Ka() directly on UI thread.
+     * Tầng 1: Invokes RealGameActivity UI cleanup & RealGameViewModel.Ka() on UI thread.
      */
-    public static boolean triggerViaViewModel(Activity activity) {
+    public static boolean triggerViaViewModel(final Activity activity) {
         if (activity == null) return false;
         try {
-            Object vm = getRealGameViewModel(activity);
-            if (vm != null) {
-                Method kaMethod = findMethodByName(vm.getClass(), "Ka");
-                if (kaMethod != null) {
-                    kaMethod.setAccessible(true);
-                    kaMethod.invoke(vm);
-                    NnvcLogger.d(TAG, "Invoked RealGameViewModel.Ka() directly.");
-                    return true;
+            getMainHandler().post(() -> {
+                // 1. Invoke gameOverV6Listener.e() directly (matches exact Chess.com New Game click action)
+                try {
+                    Field fListener = null;
+                    try {
+                        fListener = activity.getClass().getDeclaredField("t0");
+                    } catch (Throwable ignored) {
+                        try {
+                            fListener = activity.getClass().getDeclaredField("gameOverV6Listener");
+                        } catch (Throwable ignored2) {}
+                    }
+                    if (fListener != null) {
+                        fListener.setAccessible(true);
+                        Object listener = fListener.get(activity);
+                        if (listener != null) {
+                            Method eMethod = findMethodByName(listener.getClass(), "e");
+                            if (eMethod != null) {
+                                eMethod.setAccessible(true);
+                                eMethod.invoke(listener);
+                                NnvcLogger.d(TAG, "Invoked gameOverV6Listener.e() directly.");
+                                return;
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    NnvcLogger.d(TAG, "gameOverV6Listener.e() failed: " + t.getMessage());
                 }
-            }
+
+                // 2. Direct x6() call on RealGameActivity (cleans up gameOverOverlayView & modal)
+                try {
+                    Method x6 = findMethodByName(activity.getClass(), "x6");
+                    if (x6 != null) {
+                        x6.setAccessible(true);
+                        x6.invoke(activity);
+                        NnvcLogger.d(TAG, "Invoked RealGameActivity.x6() directly.");
+                    }
+                } catch (Throwable t) {
+                    NnvcLogger.d(TAG, "RealGameActivity.x6() failed: " + t.getMessage());
+                }
+
+                // 3. Fallback: Manually remove gameOverOverlayView / m0
+                try {
+                    Field fGov = null;
+                    try {
+                        fGov = activity.getClass().getDeclaredField("m0");
+                    } catch (Throwable ignored) {
+                        try {
+                            fGov = activity.getClass().getDeclaredField("gameOverOverlayView");
+                        } catch (Throwable ignored2) {}
+                    }
+                    if (fGov != null) {
+                        fGov.setAccessible(true);
+                        Object gov = fGov.get(activity);
+                        if (gov instanceof View) {
+                            View v = (View) gov;
+                            if (v.getParent() instanceof ViewGroup) {
+                                ((ViewGroup) v.getParent()).removeView(v);
+                            }
+                        }
+                        fGov.set(activity, null);
+                    }
+                } catch (Throwable ignored) {}
+
+                // 4. ViewModel cleanup Xa() and trigger Ka()
+                try {
+                    Object vm = getRealGameViewModel(activity);
+                    if (vm != null) {
+                        Method xaMethod = findMethodByName(vm.getClass(), "Xa");
+                        if (xaMethod != null) {
+                            xaMethod.setAccessible(true);
+                            xaMethod.invoke(vm);
+                        }
+                        Method ubMethod = findMethodByName(vm.getClass(), "ub");
+                        if (ubMethod != null) {
+                            ubMethod.setAccessible(true);
+                            ubMethod.invoke(vm);
+                        }
+                        Method kaMethod = findMethodByName(vm.getClass(), "Ka");
+                        if (kaMethod != null) {
+                            kaMethod.setAccessible(true);
+                            kaMethod.invoke(vm);
+                            NnvcLogger.d(TAG, "Invoked RealGameViewModel.Ka() directly.");
+                        }
+                    }
+                } catch (Throwable t) {
+                    NnvcLogger.d(TAG, "ViewModel Ka() trigger failed: " + t.getMessage());
+                }
+            });
+            return true;
         } catch (Throwable t) {
-            NnvcLogger.d(TAG, "ViewModel trigger failed: " + t.getMessage());
+            NnvcLogger.d(TAG, "triggerViaViewModel failed: " + t.getMessage());
         }
         return false;
     }
