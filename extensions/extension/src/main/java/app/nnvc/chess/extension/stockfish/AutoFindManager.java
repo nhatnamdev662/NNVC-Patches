@@ -180,20 +180,35 @@ public class AutoFindManager {
             }
         }, 15000L);
 
-        // Tầng 1: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
-        boolean triggered = triggerViaViewModel(activity);
+        getMainHandler().post(() -> {
+            // Tầng 1: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
+            boolean triggered = triggerViaViewModel(activity);
 
-        // Tầng 2: UI View Button Scanner
-        if (!triggered) {
-            triggered = triggerViaButtonScan(activity);
-        }
+            // Tầng 2: UI View Button Scanner
+            if (!triggered) {
+                triggered = triggerViaButtonScan(activity);
+            }
 
-        if (triggered) {
-            NnvcLogger.i(TAG, "Auto Find match triggered successfully!");
-        } else {
-            NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller or action button.");
-            currentState = State.IDLE;
-        }
+            if (triggered) {
+                NnvcLogger.i(TAG, "Auto Find match triggered successfully!");
+            } else {
+                NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller or action button on first attempt. Scheduling retry in 400ms...");
+                getMainHandler().postDelayed(() -> {
+                    if (currentState == State.SEEKING) {
+                        boolean retry = triggerViaButtonScan(activity);
+                        if (!retry) {
+                            retry = triggerViaViewModel(activity);
+                        }
+                        if (retry) {
+                            NnvcLogger.i(TAG, "Auto Find match triggered on retry!");
+                        } else {
+                            NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller or action button after retry.");
+                            currentState = State.IDLE;
+                        }
+                    }
+                }, 400L);
+            }
+        });
     }
 
     /**
@@ -201,100 +216,86 @@ public class AutoFindManager {
      */
     public static boolean triggerViaViewModel(final Activity activity) {
         if (activity == null) return false;
+        boolean actionExecuted = false;
         try {
-            getMainHandler().post(() -> {
-                // 1. Invoke gameOverV6Listener.e() directly (matches exact Chess.com New Game click action)
-                try {
-                    Field fListener = null;
-                    try {
-                        fListener = activity.getClass().getDeclaredField("t0");
-                    } catch (Throwable ignored) {
-                        try {
-                            fListener = activity.getClass().getDeclaredField("gameOverV6Listener");
-                        } catch (Throwable ignored2) {}
-                    }
-                    if (fListener != null) {
-                        fListener.setAccessible(true);
-                        Object listener = fListener.get(activity);
-                        if (listener != null) {
-                            Method eMethod = findMethodByName(listener.getClass(), "e");
-                            if (eMethod != null) {
-                                eMethod.setAccessible(true);
-                                eMethod.invoke(listener);
-                                NnvcLogger.d(TAG, "Invoked gameOverV6Listener.e() directly.");
-                                return;
-                            }
+            // 1. Invoke gameOverV6Listener.e() directly (matches exact Chess.com New Game click action)
+            try {
+                Field fListener = findFieldByName(activity.getClass(), "t0", "gameOverV6Listener");
+                if (fListener != null) {
+                    fListener.setAccessible(true);
+                    Object listener = fListener.get(activity);
+                    if (listener != null) {
+                        Method eMethod = findMethodByName(listener.getClass(), "e");
+                        if (eMethod != null) {
+                            eMethod.setAccessible(true);
+                            eMethod.invoke(listener);
+                            NnvcLogger.d(TAG, "Invoked gameOverV6Listener.e() directly.");
+                            actionExecuted = true;
                         }
                     }
-                } catch (Throwable t) {
-                    NnvcLogger.d(TAG, "gameOverV6Listener.e() failed: " + t.getMessage());
                 }
+            } catch (Throwable t) {
+                NnvcLogger.d(TAG, "gameOverV6Listener.e() failed: " + t.getMessage());
+            }
 
-                // 2. Direct x6() call on RealGameActivity (cleans up gameOverOverlayView & modal)
-                try {
-                    Method x6 = findMethodByName(activity.getClass(), "x6");
-                    if (x6 != null) {
-                        x6.setAccessible(true);
-                        x6.invoke(activity);
-                        NnvcLogger.d(TAG, "Invoked RealGameActivity.x6() directly.");
-                    }
-                } catch (Throwable t) {
-                    NnvcLogger.d(TAG, "RealGameActivity.x6() failed: " + t.getMessage());
+            // 2. Direct x6() call on RealGameActivity (cleans up gameOverOverlayView & modal)
+            try {
+                Method x6 = findMethodByName(activity.getClass(), "x6");
+                if (x6 != null) {
+                    x6.setAccessible(true);
+                    x6.invoke(activity);
+                    NnvcLogger.d(TAG, "Invoked RealGameActivity.x6() directly.");
+                    actionExecuted = true;
                 }
+            } catch (Throwable t) {
+                NnvcLogger.d(TAG, "RealGameActivity.x6() failed: " + t.getMessage());
+            }
 
-                // 3. Fallback: Manually remove gameOverOverlayView / m0
-                try {
-                    Field fGov = null;
-                    try {
-                        fGov = activity.getClass().getDeclaredField("m0");
-                    } catch (Throwable ignored) {
-                        try {
-                            fGov = activity.getClass().getDeclaredField("gameOverOverlayView");
-                        } catch (Throwable ignored2) {}
-                    }
-                    if (fGov != null) {
-                        fGov.setAccessible(true);
-                        Object gov = fGov.get(activity);
-                        if (gov instanceof View) {
-                            View v = (View) gov;
-                            if (v.getParent() instanceof ViewGroup) {
-                                ((ViewGroup) v.getParent()).removeView(v);
-                            }
-                        }
-                        fGov.set(activity, null);
-                    }
-                } catch (Throwable ignored) {}
-
-                // 4. ViewModel cleanup Xa() and trigger Ka()
-                try {
-                    Object vm = getRealGameViewModel(activity);
-                    if (vm != null) {
-                        Method xaMethod = findMethodByName(vm.getClass(), "Xa");
-                        if (xaMethod != null) {
-                            xaMethod.setAccessible(true);
-                            xaMethod.invoke(vm);
-                        }
-                        Method ubMethod = findMethodByName(vm.getClass(), "ub");
-                        if (ubMethod != null) {
-                            ubMethod.setAccessible(true);
-                            ubMethod.invoke(vm);
-                        }
-                        Method kaMethod = findMethodByName(vm.getClass(), "Ka");
-                        if (kaMethod != null) {
-                            kaMethod.setAccessible(true);
-                            kaMethod.invoke(vm);
-                            NnvcLogger.d(TAG, "Invoked RealGameViewModel.Ka() directly.");
+            // 3. Fallback: Manually remove gameOverOverlayView / m0
+            try {
+                Field fGov = findFieldByName(activity.getClass(), "m0", "gameOverOverlayView");
+                if (fGov != null) {
+                    fGov.setAccessible(true);
+                    Object gov = fGov.get(activity);
+                    if (gov instanceof View) {
+                        View v = (View) gov;
+                        if (v.getParent() instanceof ViewGroup) {
+                            ((ViewGroup) v.getParent()).removeView(v);
                         }
                     }
-                } catch (Throwable t) {
-                    NnvcLogger.d(TAG, "ViewModel Ka() trigger failed: " + t.getMessage());
+                    fGov.set(activity, null);
                 }
-            });
-            return true;
+            } catch (Throwable ignored) {}
+
+            // 4. ViewModel cleanup Xa(), ub() and trigger Ka()
+            try {
+                Object vm = getRealGameViewModel(activity);
+                if (vm != null) {
+                    Method xaMethod = findMethodByName(vm.getClass(), "Xa");
+                    if (xaMethod != null) {
+                        xaMethod.setAccessible(true);
+                        xaMethod.invoke(vm);
+                    }
+                    Method ubMethod = findMethodByName(vm.getClass(), "ub");
+                    if (ubMethod != null) {
+                        ubMethod.setAccessible(true);
+                        ubMethod.invoke(vm);
+                    }
+                    Method kaMethod = findMethodByName(vm.getClass(), "Ka");
+                    if (kaMethod != null) {
+                        kaMethod.setAccessible(true);
+                        kaMethod.invoke(vm);
+                        NnvcLogger.d(TAG, "Invoked RealGameViewModel.Ka() directly.");
+                        actionExecuted = true;
+                    }
+                }
+            } catch (Throwable t) {
+                NnvcLogger.d(TAG, "ViewModel Ka() trigger failed: " + t.getMessage());
+            }
         } catch (Throwable t) {
             NnvcLogger.d(TAG, "triggerViaViewModel failed: " + t.getMessage());
         }
-        return false;
+        return actionExecuted;
     }
 
     public static Object getRealGameViewModel(Activity activity) {
@@ -365,58 +366,83 @@ public class AutoFindManager {
     /**
      * Checks if the active game is in Game Over state via RealGameViewModel reflection.
      * Works natively on modern Jetpack Compose Chess.com (4.10.20) where legacy Dialogs are absent.
+     * Accurately prevents false-positives by verifying gameId match and non-null UI popups.
      */
     public static boolean isViewModelGameOver(Activity activity) {
         if (activity == null) return false;
         try {
+            // 1. Inspect activity fields for gameOverOverlayView (m0)
+            Field fGov = findFieldByName(activity.getClass(), "gameOverOverlayView", "m0");
+            if (fGov != null) {
+                try {
+                    fGov.setAccessible(true);
+                    Object gov = fGov.get(activity);
+                    if (gov instanceof View) {
+                        View gv = (View) gov;
+                        if (gv.getVisibility() == View.VISIBLE && gv.getParent() != null) {
+                            return true;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+
             Object vm = getRealGameViewModel(activity);
             if (vm == null) return false;
 
-            // 1. Direct Ca() call -> returns this.gameEndData != null
-            Method ca = findMethodByName(vm.getClass(), "Ca");
-            if (ca != null) {
-                ca.setAccessible(true);
-                Object res = ca.invoke(vm);
-                if (res instanceof Boolean && (Boolean) res) {
-                    return true;
-                }
-            }
-
-            // 2. Direct gameEndData inspection
-            Class<?> curr = vm.getClass();
-            while (curr != null && curr != Object.class) {
-                for (Field f : curr.getDeclaredFields()) {
-                    String fn = f.getName();
-                    if (fn.equals("gameEndData") || fn.equals("i0")) {
-                        f.setAccessible(true);
-                        if (f.get(vm) != null) {
+            // 2. Check _showGameOverPopup (field X0 or _showGameOverPopup or getter oa())
+            // In Chess.com, _showGameOverPopup is null during gameplay and ONLY non-null when game over modal is active.
+            // When game starts or modal is dismissed (via Xa()), it is reset to null!
+            try {
+                Method oa = findMethodByName(vm.getClass(), "oa");
+                if (oa != null) {
+                    oa.setAccessible(true);
+                    Object flow = oa.invoke(vm);
+                    if (flow != null) {
+                        Method getValue = flow.getClass().getMethod("getValue");
+                        if (getValue.invoke(flow) != null) {
                             return true;
                         }
                     }
                 }
-                curr = curr.getSuperclass();
+            } catch (Throwable ignored) {}
+
+            Field fPopup = findFieldByName(vm.getClass(), "_showGameOverPopup", "showGameOverPopup", "X0", "Y0");
+            if (fPopup != null) {
+                try {
+                    fPopup.setAccessible(true);
+                    Object flow = fPopup.get(vm);
+                    if (flow != null) {
+                        Method getValue = flow.getClass().getMethod("getValue");
+                        if (getValue.invoke(flow) != null) {
+                            return true;
+                        }
+                    }
+                } catch (Throwable ignored) {}
             }
 
-            // 3. StateFlow gameOver / _gameOver inspection
-            curr = vm.getClass();
-            while (curr != null && curr != Object.class) {
-                for (Field f : curr.getDeclaredFields()) {
-                    String fn = f.getName().toLowerCase(java.util.Locale.US);
-                    if (fn.equals("gameover") || fn.equals("b1") || fn.equals("_gameover") || fn.equals("a1")) {
-                        try {
-                            f.setAccessible(true);
-                            Object flow = f.get(vm);
-                            if (flow != null) {
-                                Method getValue = flow.getClass().getMethod("getValue");
-                                if (getValue.invoke(flow) != null) {
-                                    return true;
-                                }
+            // 3. Inspect gameEndData matched against active gameId
+            // In Chess.com, vm.gameEndData persists between games on the same ViewModel instance.
+            // It MUST be checked against vm.gameId (field U / gameId) to verify it belongs to the CURRENT game!
+            try {
+                Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
+                Field fGameId = findFieldByName(vm.getClass(), "gameId", "U", "b");
+                if (fEndData != null && fGameId != null) {
+                    fEndData.setAccessible(true);
+                    fGameId.setAccessible(true);
+                    Object endData = fEndData.get(vm);
+                    Object currGameId = fGameId.get(vm);
+                    if (endData != null && currGameId != null) {
+                        Method getEndGameId = findMethodByName(endData.getClass(), "getGameId");
+                        if (getEndGameId != null) {
+                            getEndGameId.setAccessible(true);
+                            Object endId = getEndGameId.invoke(endData);
+                            if (endId != null && endId.equals(currGameId)) {
+                                return true;
                             }
-                        } catch (Throwable ignored) {}
+                        }
                     }
                 }
-                curr = curr.getSuperclass();
-            }
+            } catch (Throwable ignored) {}
         } catch (Throwable ignored) {}
         return false;
     }
@@ -620,6 +646,21 @@ public class AutoFindManager {
             for (Method m : current.getDeclaredMethods()) {
                 if (m.getName().equals(name)) {
                     return m;
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    private static Field findFieldByName(Class<?> clazz, String... names) {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            for (Field f : current.getDeclaredFields()) {
+                for (String name : names) {
+                    if (f.getName().equals(name)) {
+                        return f;
+                    }
                 }
             }
             current = current.getSuperclass();

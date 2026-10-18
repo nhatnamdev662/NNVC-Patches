@@ -455,6 +455,11 @@ public class StockfishExtension {
             lastGameOverHandled = false;
             AutoFindManager.onNewGameStarted();
         }
+        Activity curAct = getCurrentActivity();
+        if (curAct != null && lastGameOverHandled && !isGameOver(curAct)) {
+            lastGameOverHandled = false;
+            AutoFindManager.onNewGameStarted();
+        }
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
             lastGameOverHandled = false;
