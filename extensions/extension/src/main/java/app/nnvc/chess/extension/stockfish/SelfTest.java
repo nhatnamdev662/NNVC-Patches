@@ -1568,8 +1568,13 @@ public class SelfTest {
 
         // 37f. Clock UI parsing verification
         check("parseClockText 0:05.4 equals 5.4s", Math.abs(SmartDelayManager.parseClockText("0:05.4") - 5.4) < 0.001);
+        check("parseClockText 5.4 equals 5.4s (sub-10s format)", Math.abs(SmartDelayManager.parseClockText("5.4") - 5.4) < 0.001);
+        check("parseClockText 6.2 equals 6.2s (sub-10s format)", Math.abs(SmartDelayManager.parseClockText("6.2") - 6.2) < 0.001);
+        check("parseClockText 0.8 equals 0.8s (sub-10s format)", Math.abs(SmartDelayManager.parseClockText("0.8") - 0.8) < 0.001);
+        check("parseClockText 10.2 equals 10.2s", Math.abs(SmartDelayManager.parseClockText("10.2") - 10.2) < 0.001);
         check("parseClockText 3:00 equals 180s", Math.abs(SmartDelayManager.parseClockText("3:00") - 180.0) < 0.001);
         check("parseClockText 1:15:30 equals 4530s", Math.abs(SmartDelayManager.parseClockText("1:15:30") - 4530.0) < 0.001);
+        check("parseClockText plain integer 15 returns -1", SmartDelayManager.parseClockText("15") < 0);
         check("parseClockText invalid returns -1", SmartDelayManager.parseClockText("invalid") < 0);
 
         // 37g. Time Control Bilingual Parity & Dev-Lingo Purge

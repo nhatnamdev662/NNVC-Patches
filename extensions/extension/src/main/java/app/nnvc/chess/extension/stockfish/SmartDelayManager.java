@@ -335,7 +335,7 @@ public class SmartDelayManager {
         LiveClockInfo info = new LiveClockInfo();
         if (activity == null) return info;
 
-        // ── Tầng 1: Native ViewModel Hooking (100% chính xác) ────────────────
+        // ── Tầng 1: Native ViewModel Hooking (Authoritative Time Control & State) ──
         try {
             Object vm = resolveRealGameViewModel(activity);
             if (vm != null) {
@@ -397,13 +397,29 @@ public class SmartDelayManager {
             NnvcLogger.w(TAG, "Native clock detection error: " + t.getMessage());
         }
 
-        // ── Tầng 2: UI View Hierarchy Scanning (Dự phòng cho Offline/Bots) ─────
-        if (info.mySec < 0 || info.oppSec < 0) {
-            try {
-                scanClocksFromUi(activity, userWhite, info);
-            } catch (Throwable t) {
-                NnvcLogger.w(TAG, "UI clock scan error: " + t.getMessage());
+        // ── Tầng 2: UI View Hierarchy Scanning (Realtime Ticking Clock) ─────
+        try {
+            LiveClockInfo uiInfo = new LiveClockInfo();
+            scanClocksFromUi(activity, userWhite, uiInfo);
+            if (uiInfo.mySec >= 0 && uiInfo.oppSec >= 0) {
+                // UI clock là đồng hồ trực quan đang chạy trực tiếp trên màn hình
+                // Nếu ViewModel cũng có giá trị, lấy giá trị nhỏ hơn (vì đồng hồ chỉ đếm lùi, tránh snapshot cũ tồn đọng)
+                if (info.mySec >= 0 && info.oppSec >= 0) {
+                    info.mySec = Math.min(info.mySec, uiInfo.mySec);
+                    info.oppSec = Math.min(info.oppSec, uiInfo.oppSec);
+                } else {
+                    info.mySec = uiInfo.mySec;
+                    info.oppSec = uiInfo.oppSec;
+                    info.source = "clock";
+                    info.isAutoDetected = true;
+                }
+                if (info.initBaseSec <= 0 && uiInfo.initBaseSec > 0) {
+                    info.initBaseSec = uiInfo.initBaseSec;
+                    info.incrementSec = uiInfo.incrementSec;
+                }
             }
+        } catch (Throwable t) {
+            NnvcLogger.w(TAG, "UI clock scan error: " + t.getMessage());
         }
 
         return info;
@@ -456,6 +472,9 @@ public class SmartDelayManager {
     }
 
     private static Object resolveRealGameViewModel(Activity activity) {
+        if (activity == null) return null;
+        Object vm = AutoFindManager.getRealGameViewModel(activity);
+        if (vm != null) return vm;
         try {
             Method mX6 = activity.getClass().getMethod("X6");
             return mX6.invoke(activity);
@@ -475,7 +494,7 @@ public class SmartDelayManager {
         return null;
     }
 
-    private static final Pattern CLOCK_PATTERN = Pattern.compile("^(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})(?:\\.(\\d))?$");
+    private static final Pattern CLOCK_PATTERN = Pattern.compile("^(?:(?:(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})(?:\\.(\\d))?)|(?:(\\d{1,2})\\.(\\d)))$");
 
     private static void scanClocksFromUi(Activity activity, boolean userWhite, LiveClockInfo info) {
         if (activity.getWindow() == null || activity.getWindow().getDecorView() == null) return;
@@ -536,12 +555,19 @@ public class SmartDelayManager {
         if (str == null) return -1;
         Matcher m = CLOCK_PATTERN.matcher(str.trim());
         if (m.matches()) {
-            String hoursStr = m.group(1);
-            int hours = hoursStr != null ? Integer.parseInt(hoursStr) : 0;
-            int mins = Integer.parseInt(m.group(2));
-            int secs = Integer.parseInt(m.group(3));
-            double tenths = m.group(4) != null ? Double.parseDouble("0." + m.group(4)) : 0.0;
-            return hours * 3600 + mins * 60 + secs + tenths;
+            if (m.group(5) != null) {
+                // Standalone seconds with decimal: e.g. "6.4", "0.8"
+                int secs = Integer.parseInt(m.group(5));
+                double tenths = m.group(6) != null ? Double.parseDouble("0." + m.group(6)) : 0.0;
+                return secs + tenths;
+            } else {
+                String hoursStr = m.group(1);
+                int hours = hoursStr != null ? Integer.parseInt(hoursStr) : 0;
+                int mins = Integer.parseInt(m.group(2));
+                int secs = Integer.parseInt(m.group(3));
+                double tenths = m.group(4) != null ? Double.parseDouble("0." + m.group(4)) : 0.0;
+                return hours * 3600 + mins * 60 + secs + tenths;
+            }
         }
         return -1;
     }
@@ -718,7 +744,8 @@ public class SmartDelayManager {
         double oppSec = clocks.oppSec;
 
         // A. Chế độ Dirty Flagging & Low Time Panic (Chống Rụng Kim Tức Thời - Chuẩn 100% Extension)
-        boolean isDirtyFlagging = isBullet && ((oppSec >= 0 && oppSec <= 6.0) || (mySec >= 0 && mySec <= 6.5));
+        boolean isFastGame = activeTcIndex <= 5; // Bullet (1m, 1|1, 2|1) và Blitz (3m, 3|2, 5m)
+        boolean isDirtyFlagging = isFastGame && ((oppSec >= 0 && oppSec <= 6.0) || (mySec >= 0 && mySec <= 6.5));
         boolean isUnder6_5s = (mySec >= 0 && mySec <= 6.5);
 
         if (isDirtyFlagging || isUnder6_5s) {
@@ -798,6 +825,15 @@ public class SmartDelayManager {
 
         long minBuffer = isBullet ? 160 : isBlitz ? 260 : 380;
         long netDelay = Math.max(minBuffer, rawDelayMs - engineThinkMs);
+
+        // Cap delay to ensure we NEVER sleep past the 6.5s panic threshold
+        if (mySec > 6.5) {
+            long headroomMs = Math.max(0, (long) ((mySec - 6.5) * 1000.0));
+            if (netDelay > headroomMs) {
+                NnvcLogger.d(TAG, "⏱️ [SMART DELAY HEADROOM CAP] Capping delay from " + netDelay + "ms to " + headroomMs + "ms to avoid dropping below 6.5s");
+                netDelay = headroomMs;
+            }
+        }
 
         // Lưu trạng thái cho nước kế tiếp
         lastWasCapture = pos.isTactical;

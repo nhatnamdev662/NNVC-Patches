@@ -211,15 +211,15 @@ public class SafeMoveSelector {
             double gapPenalty = Math.max(0.2, 1.0 - (double) gap / (maxAllowedGap * 1.2));
             double baseWeight;
             if (i == 0) {
-                baseWeight = losing ? 2.5 : advantageState.equals("winning_hard") ? 0.45 : advantageState.equals("balanced") ? 0.9 : 0.6;
+                baseWeight = isDirtyFlaggingScramble ? 5.0 : losing ? 2.5 : advantageState.equals("winning_hard") ? 0.45 : advantageState.equals("balanced") ? 0.9 : 0.6;
             } else if (i == 1) {
-                baseWeight = losing ? 0.5 : advantageState.equals("winning_hard") ? 1.25 : advantageState.equals("balanced") ? 1.0 : 1.0;
+                baseWeight = isDirtyFlaggingScramble ? 0.2 : losing ? 0.5 : advantageState.equals("winning_hard") ? 1.25 : advantageState.equals("balanced") ? 1.0 : 1.0;
             } else if (i == 2) {
-                baseWeight = losing ? 0.2 : advantageState.equals("winning_hard") ? 0.85 : advantageState.equals("balanced") ? 0.7 : 0.8;
+                baseWeight = isDirtyFlaggingScramble ? 0.05 : losing ? 0.2 : advantageState.equals("winning_hard") ? 0.85 : advantageState.equals("balanced") ? 0.7 : 0.8;
             } else if (i == 3) {
-                baseWeight = losing ? 0.05 : 0.45;
+                baseWeight = isDirtyFlaggingScramble ? 0.01 : losing ? 0.05 : 0.45;
             } else {
-                baseWeight = losing ? 0.02 : 0.25;
+                baseWeight = isDirtyFlaggingScramble ? 0.005 : losing ? 0.02 : 0.25;
             }
             double w = Math.max(0.01, baseWeight * gapPenalty);
             weights[i] = w;
