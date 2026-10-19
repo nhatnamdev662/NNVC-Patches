@@ -480,13 +480,16 @@ public class StockfishExtension {
         }
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         Activity curAct = getCurrentActivity();
-        if (curAct != null && !isStartPos) {
-            if (lastGameOverHandled && !isGameOver(curAct) && !AutoFindManager.isCountingDown() && !AutoFindManager.isSeeking()) {
-                lastGameOverHandled = false;
-                AutoFindManager.onNewGameStarted();
-            }
-            if (checkAndHandleGameOver(curAct)) {
-                return;
+        if (curAct != null) {
+            if (isGameOver(curAct)) {
+                if (checkAndHandleGameOver(curAct)) {
+                    return;
+                }
+            } else if (!isStartPos) {
+                if (lastGameOverHandled && !AutoFindManager.isCountingDown() && !AutoFindManager.isSeeking()) {
+                    lastGameOverHandled = false;
+                    AutoFindManager.onNewGameStarted();
+                }
             }
         }
         if (isStartPos) {
@@ -1437,9 +1440,11 @@ public class StockfishExtension {
     public static boolean isGameOver(Activity activity) {
         if (activity == null) return false;
         try {
-            // Guard: If current board is at startpos, it is unequivocally a new game!
+            // Guard: If current board is at startpos, only treat as ongoing if no GameEndData exists (allows aborted games to trigger Game Over)
             if (currentBoardFen != null && currentBoardFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
-                return false;
+                if (AutoFindManager.getCurrentGameEndData(activity) == null) {
+                    return false;
+                }
             }
             try {
                 if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
@@ -1449,7 +1454,9 @@ public class StockfishExtension {
                         if (pos != null) {
                             String f = extractFen(pos);
                             if (f != null && f.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
-                                return false;
+                                if (AutoFindManager.getCurrentGameEndData(activity) == null) {
+                                    return false;
+                                }
                             }
                         }
                     }

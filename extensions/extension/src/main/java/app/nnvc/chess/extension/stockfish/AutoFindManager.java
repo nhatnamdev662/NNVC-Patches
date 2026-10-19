@@ -359,8 +359,9 @@ public class AutoFindManager {
                     if (seekRetryCount < MAX_SEEK_RETRIES) {
                         seekRetryCount++;
                         NnvcLogger.i(TAG, "⚡ [AUTO RE-QUEUE] Seeking dropped or cancelled without new game. Re-queuing match (attempt " + seekRetryCount + "/" + MAX_SEEK_RETRIES + ")...");
-                        executeTrigger(activity);
-                        getMainHandler().postDelayed(this, 2500L);
+                        resetHandledGameEndData();
+                        currentState = State.IDLE;
+                        onGameOver(activity);
                     } else {
                         NnvcLogger.i(TAG, "Max seeking retries reached (" + MAX_SEEK_RETRIES + "). Resetting to IDLE.");
                         currentState = State.IDLE;
@@ -508,6 +509,21 @@ public class AutoFindManager {
                         ubMethod.setAccessible(true);
                         ubMethod.invoke(vm);
                     }
+                    // Restore gameEndData into vm.i0 if null so Ka() doesn't call Q8() (_closeGame)
+                    try {
+                        Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
+                        if (fEndData != null) {
+                            fEndData.setAccessible(true);
+                            Object currentEndData = fEndData.get(vm);
+                            if (currentEndData == null && lastHandledGameEndData != null) {
+                                fEndData.set(vm, lastHandledGameEndData);
+                                NnvcLogger.i(TAG, "Restored lastHandledGameEndData into RealGameViewModel.i0 before Ka()");
+                            }
+                        }
+                    } catch (Throwable t) {
+                        NnvcLogger.d(TAG, "Failed to restore gameEndData: " + t.getMessage());
+                    }
+
                     Method kaMethod = findMethodByName(vm.getClass(), "Ka");
                     if (kaMethod != null) {
                         kaMethod.setAccessible(true);
@@ -539,6 +555,22 @@ public class AutoFindManager {
                 ubMethod.setAccessible(true);
                 ubMethod.invoke(vm);
             }
+
+            // Restore gameEndData into vm.i0 if null so Ka() doesn't call Q8() (_closeGame)
+            try {
+                Field fEndData = findFieldByName(vm.getClass(), "gameEndData", "i0");
+                if (fEndData != null) {
+                    fEndData.setAccessible(true);
+                    Object currentEndData = fEndData.get(vm);
+                    if (currentEndData == null && lastHandledGameEndData != null) {
+                        fEndData.set(vm, lastHandledGameEndData);
+                        NnvcLogger.i(TAG, "Restored lastHandledGameEndData into RealGameViewModel.i0 before Ka()");
+                    }
+                }
+            } catch (Throwable t) {
+                NnvcLogger.d(TAG, "Failed to restore gameEndData: " + t.getMessage());
+            }
+
             Method kaMethod = findMethodByName(vm.getClass(), "Ka");
             if (kaMethod != null) {
                 kaMethod.setAccessible(true);

@@ -85,6 +85,8 @@ public class SoundManager {
         return -1;
     }
 
+    private final java.util.Set<Integer> loadedSoundIds = java.util.Collections.synchronizedSet(new java.util.HashSet<Integer>());
+
     private void initSoundPool() {
         try {
             AudioAttributes attrs = new AudioAttributes.Builder()
@@ -96,6 +98,15 @@ public class SoundManager {
                     .setMaxStreams(4)
                     .setAudioAttributes(attrs)
                     .build();
+
+            soundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
+                @Override
+                public void onLoadComplete(SoundPool sp, int sampleId, int status) {
+                    if (status == 0) {
+                        loadedSoundIds.add(sampleId);
+                    }
+                }
+            });
 
             AssetManager am = context.getAssets();
             brilliantSoundId = loadSoundCandidate(am, BRILLIANT_SOUND_PATHS, "Brilliant");
@@ -110,7 +121,7 @@ public class SoundManager {
 
     private void playSoundWithFallback(int soundId, String[] fallbackPaths, String soundLabel) {
         try {
-            if (soundPool != null && soundId > 0) {
+            if (soundPool != null && soundId > 0 && loadedSoundIds.contains(soundId)) {
                 int streamId = soundPool.play(soundId, 1.0f, 1.0f, 1, 0, 1.0f);
                 if (streamId == 0) {
                     playFallback(fallbackPaths, soundLabel);

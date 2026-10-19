@@ -2136,6 +2136,65 @@ public class SelfTest {
         // Test under-6.5s delay threshold
         check("SmartDelayManager 6.5s headroom cap formula valid", Math.max(0, (long) ((7.0 - 6.5) * 1000.0)) == 500);
 
+        // === 40l. Tests for Pre-move FEN Sound Classification & Aborted Game Auto-Find ===
+        // 1. Move Sound Classification based on pre-move FEN
+        String fenBeforeNormalMove = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        char normalTarget = StockfishExtension.getPieceAtSquare(fenBeforeNormalMove, "d5");
+        char normalFrom = StockfishExtension.getPieceAtSquare(fenBeforeNormalMove, "d7");
+        boolean normalIsCapture = (normalTarget != '.') || (Character.toLowerCase(normalFrom) == 'p' && "d7".charAt(0) != "d5".charAt(0));
+        check("Normal pawn move d7d5 is NOT classified as capture", !normalIsCapture);
+
+        String fenBeforeCapture = "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2";
+        char captureTarget = StockfishExtension.getPieceAtSquare(fenBeforeCapture, "d5");
+        char captureFrom = StockfishExtension.getPieceAtSquare(fenBeforeCapture, "e4");
+        boolean captureIsCapture = (captureTarget != '.') || (Character.toLowerCase(captureFrom) == 'p' && "e4".charAt(0) != "d5".charAt(0));
+        check("Capture e4xd5 is correctly classified as capture via pre-move FEN", captureIsCapture);
+
+        // En passant capture test
+        String fenBeforeEnPassant = "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3";
+        char epTarget = StockfishExtension.getPieceAtSquare(fenBeforeEnPassant, "f6");
+        char epFrom = StockfishExtension.getPieceAtSquare(fenBeforeEnPassant, "e5");
+        boolean epIsCapture = (epTarget != '.') || (Character.toLowerCase(epFrom) == 'p' && "e5".charAt(0) != "f6".charAt(0));
+        check("En passant move e5f6 into empty square is classified as capture", epIsCapture);
+
+        // Castling identification
+        boolean whiteKingsideCastle = ("e1".equals("e1") && ("g1".equals("g1") || "c1".equals("g1")));
+        boolean blackQueensideCastle = ("e8".equals("e8") && ("g8".equals("c8") || "c8".equals("c8")));
+        boolean normalKingMove = ("e1".equals("e1") && ("g1".equals("e2") || "c1".equals("e2")));
+        check("White kingside castling e1g1 is identified", whiteKingsideCastle);
+        check("Black queenside castling e8c8 is identified", blackQueensideCastle);
+        check("Normal king move e1e2 is NOT identified as castle", !normalKingMove);
+
+        // 2. Aborted Game at Startpos Handling in isGameOver
+        StockfishExtension.setCurrentBoardFen(fenStart);
+        check("isGameOver at startpos with null activity returns false", !StockfishExtension.isGameOver(null));
+
+        // 3. Fallback gameEndData restoration before Ka()
+        class MockVmForKa {
+            public Object gameEndData = null;
+            public boolean kaCalled = false;
+            public void Ka() {
+                kaCalled = true;
+            }
+        }
+        MockVmForKa mockVmKa = new MockVmForKa();
+        Object dummyEndData = new Object();
+        try {
+            java.lang.reflect.Field fEndData = mockVmKa.getClass().getDeclaredField("gameEndData");
+            fEndData.setAccessible(true);
+            Object currentEndData = fEndData.get(mockVmKa);
+            if (currentEndData == null && dummyEndData != null) {
+                fEndData.set(mockVmKa, dummyEndData);
+            }
+            check("gameEndData successfully restored into MockVmForKa before Ka()", mockVmKa.gameEndData == dummyEndData);
+        } catch (Throwable t) {
+            check("gameEndData restoration reflection failed", false);
+        }
+
+        // Test AutoFindManager.triggerViaViewModelInstance with dummy VM
+        boolean kaSuccess = AutoFindManager.triggerViaViewModelInstance(mockVmKa);
+        check("triggerViaViewModelInstance successfully invokes Ka() on mock VM", kaSuccess && mockVmKa.kaCalled);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

@@ -738,10 +738,14 @@ public class AutoMoveManager {
      * Invokes CBViewModel.p(com.chess.chessboard.l, MoveVerification, boolean).
      */
     public static boolean executeDirectModelMove(ClassLoader cl, Object cbVm, String fromSq, String toSq, boolean isPromo) {
-        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo, 'q');
+        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo, 'q', null);
     }
 
     public static boolean executeDirectModelMove(ClassLoader cl, Object cbVm, String fromSq, String toSq, boolean isPromo, char promoPiece) {
+        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo, promoPiece, null);
+    }
+
+    public static boolean executeDirectModelMove(ClassLoader cl, Object cbVm, String fromSq, String toSq, boolean isPromo, char promoPiece, String fenBeforeMove) {
         if (cl == null || cbVm == null) return false;
         try {
             Object fromSquare = getSquare(cl, fromSq);
@@ -794,32 +798,30 @@ public class AutoMoveManager {
                 return false;
             }
 
+            // Xác định chính xác loại nước đi dựa trên FEN TRƯỚC KHI THỰC HIỆN NƯỚC ĐI
+            boolean isCastle = ("e1".equals(fromSq) && ("g1".equals(toSq) || "c1".equals(toSq))) ||
+                               ("e8".equals(fromSq) && ("g8".equals(toSq) || "c8".equals(toSq)));
+            boolean isCapture = false;
+            String snapshotFen = (fenBeforeMove != null) ? fenBeforeMove : StockfishExtension.getCurrentBoardFen();
+            if (snapshotFen != null && toSq != null && toSq.length() >= 2 && fromSq != null && fromSq.length() >= 2) {
+                char targetPiece = StockfishExtension.getPieceAtSquare(snapshotFen, toSq);
+                char fromPiece = StockfishExtension.getPieceAtSquare(snapshotFen, fromSq);
+                if (targetPiece != '.') {
+                    isCapture = true;
+                } else if (Character.toLowerCase(fromPiece) == 'p' && fromSq.charAt(0) != toSq.charAt(0)) {
+                    // En passant: Tốt đi chéo vào ô trống là nước ăn quân
+                    isCapture = true;
+                }
+            }
+
             pMethod.setAccessible(true);
             pMethod.invoke(cbVm, moveObj, moveVerification, false);
             NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Executed 0ms move directly via CBViewModel.p: " + fromSq + toSq + (isPromo ? promoPiece : ""));
 
-            // Phát âm thanh nước đi của quân cờ chính hãng Chess.com 0ms
+            // Phát âm thanh nước đi của quân cờ chính hãng Chess.com 0ms đồng bộ
             try {
                 Context ctx = StockfishExtension.getContext();
                 if (ctx != null) {
-                    boolean isCastle = ("e1".equals(fromSq) && ("g1".equals(toSq) || "c1".equals(toSq))) ||
-                                       ("e8".equals(fromSq) && ("g8".equals(toSq) || "c8".equals(toSq)));
-                    String currFen = StockfishExtension.getCurrentBoardFen();
-                    boolean isCapture = false;
-                    if (currFen != null && toSq != null && toSq.length() >= 2) {
-                        char targetPiece = StockfishExtension.getPieceAtSquare(currFen, toSq);
-                        if (targetPiece != '.') {
-                            isCapture = true;
-                        } else if (currFen.contains(" ")) {
-                            String[] parts = currFen.split("\\s+");
-                            if (parts.length >= 4 && toSq.equalsIgnoreCase(parts[3])) {
-                                char fromPiece = StockfishExtension.getPieceAtSquare(currFen, fromSq);
-                                if (Character.toLowerCase(fromPiece) == 'p') {
-                                    isCapture = true;
-                                }
-                            }
-                        }
-                    }
                     SoundManager.getInstance(ctx).playMoveSound(isCapture, isCastle, isPromo);
                 }
             } catch (Throwable st) {
@@ -834,13 +836,17 @@ public class AutoMoveManager {
     }
 
     public static boolean executeDirectModelMove(ClassLoader cl, View boardView, Activity activity, String fromSq, String toSq, boolean isPromo) {
-        return executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, 'q');
+        return executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, 'q', null);
     }
 
     public static boolean executeDirectModelMove(ClassLoader cl, View boardView, Activity activity, String fromSq, String toSq, boolean isPromo, char promoPiece) {
+        return executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, promoPiece, null);
+    }
+
+    public static boolean executeDirectModelMove(ClassLoader cl, View boardView, Activity activity, String fromSq, String toSq, boolean isPromo, char promoPiece, String fenBeforeMove) {
         Object cbVm = resolveCBViewModel(boardView, activity);
         if (cbVm == null) return false;
-        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo, promoPiece);
+        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo, promoPiece, fenBeforeMove);
     }
 
     /**
@@ -890,7 +896,7 @@ public class AutoMoveManager {
             clearBoardSelection(boardView, flipped);
 
             // 2. Direct Model Hook (0ms execution, 100% Desktop Extension Parity)
-            boolean directSuccess = executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, promoChar);
+            boolean directSuccess = executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, promoChar, currentFen);
             if (directSuccess) {
                 if (isPromo && promoChar == 'q') {
                     applyPromotionQueen(boardView);
