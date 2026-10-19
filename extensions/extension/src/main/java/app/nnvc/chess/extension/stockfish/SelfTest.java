@@ -2109,6 +2109,37 @@ public class SelfTest {
                 mockBvThrowing.viewModel == mockRvmWithJ.provider.vm);
         AutoFindManager.setLastKnownViewModel(null);
 
+        // Test Priority 3: Deep Delegate Reflection on rvm.cbDelegate (field K / b4 / j4)
+        class MockDelegateWithFieldJ {
+            public final MockCBViewModel j = new MockCBViewModel();
+        }
+        class MockRvmWithFieldK {
+            public final MockDelegateWithFieldJ K = new MockDelegateWithFieldJ();
+        }
+        MockRvmWithFieldK mockRvmWithK = new MockRvmWithFieldK();
+        AutoFindManager.setLastKnownViewModel(mockRvmWithK);
+        Object vmFromDelegateJ = AutoMoveManager.resolveCBViewModel((Object) null, null);
+        check("resolveCBViewModel falls back to rvm.K.j (Priority 3 Deep Delegate Reflection)",
+                vmFromDelegateJ == mockRvmWithK.K.j);
+
+        // Test Priority 3c: Delegate with StateFlow _cbDataSource (field c)
+        class MockDelegateStateFlow {
+            public final MockCBViewModel vm = new MockCBViewModel();
+            public MockCBViewModel getValue() { return vm; }
+        }
+        class MockDelegateWithStateFlow {
+            public final MockDelegateStateFlow c = new MockDelegateStateFlow();
+        }
+        class MockRvmWithStateFlowDelegate {
+            public final MockDelegateWithStateFlow cbDelegate = new MockDelegateWithStateFlow();
+        }
+        MockRvmWithStateFlowDelegate mockRvmWithStateFlow = new MockRvmWithStateFlowDelegate();
+        AutoFindManager.setLastKnownViewModel(mockRvmWithStateFlow);
+        Object vmFromDelegateFlow = AutoMoveManager.resolveCBViewModel((Object) null, null);
+        check("resolveCBViewModel falls back to rvm.cbDelegate.c.getValue() (Priority 3 StateFlow)",
+                vmFromDelegateFlow == mockRvmWithStateFlow.cbDelegate.c.vm);
+        AutoFindManager.setLastKnownViewModel(null);
+
         // Test resolveDirectMoveExecutor selection logic based on squareSize <= 0.001f
         class MockSquare {
             public int e(boolean flipped) { return 4; }
@@ -2178,6 +2209,29 @@ public class SelfTest {
             executor100.executeTap(new MockSquare(), "e4", false);
             check("resolveDirectMoveExecutor uses AccessibilityContract when squareSize > 0.001f",
                     mockBvExec.accessibilityContract.bCalled && !mockBvExec.u.moveHandler.bCalled);
+        } catch (Exception e) {
+            check("Executor executeTap failed: " + e.getMessage(), false);
+        }
+
+        // 3. Verify getTapMethod binds strictly to method b and never to equals(Object) or other 1-arg methods
+        class MockContractWithExtraMethods {
+            public boolean bCalled = false;
+            public void otherAction(Object obj) {}
+            public void b(MockSquare sq) {
+                bCalled = true;
+            }
+        }
+        final MockContractWithExtraMethods contractWithExtra = new MockContractWithExtraMethods();
+        class MockBoardViewOverrideContract extends MockBoardViewForExecutor {
+            public final MockContractWithExtraMethods accessibilityContract = contractWithExtra;
+        }
+        MockBoardViewOverrideContract bvOverride = new MockBoardViewOverrideContract();
+        bvOverride.drawDelegate.squareSize = 100.0f;
+        AutoMoveManager.DirectMoveExecutor execExtra = AutoMoveManager.resolveDirectMoveExecutor(bvOverride, MockSquare.class);
+        check("resolveDirectMoveExecutor with multiple 1-arg methods resolves correctly", execExtra != null);
+        try {
+            execExtra.executeTap(new MockSquare(), "e4", false);
+            check("resolveDirectMoveExecutor invokes method b (not equals/other)", contractWithExtra.bCalled);
         } catch (Exception e) {
             check("Executor executeTap failed: " + e.getMessage(), false);
         }

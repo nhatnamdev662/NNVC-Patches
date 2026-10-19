@@ -79,11 +79,18 @@ public class AutoMoveManager {
             } catch (Throwable ignored) {}
 
             if (deps == null) {
-                try {
-                    Field uField = bvClass.getDeclaredField("u");
-                    uField.setAccessible(true);
-                    deps = uField.get(boardView);
-                } catch (Throwable ignored) {}
+                Class<?> c = bvClass;
+                while (c != null && c != Object.class && deps == null) {
+                    for (String fName : new String[]{"dependencies", "u"}) {
+                        try {
+                            Field uField = c.getDeclaredField(fName);
+                            uField.setAccessible(true);
+                            deps = uField.get(boardView);
+                            if (deps != null) break;
+                        } catch (NoSuchFieldException ignored) {}
+                    }
+                    c = c.getSuperclass();
+                }
             }
 
             if (deps != null) {
@@ -493,11 +500,18 @@ public class AutoMoveManager {
             } catch (Throwable ignored) {}
 
             if (deps == null) {
-                try {
-                    Field uField = bvClass.getDeclaredField("u");
-                    uField.setAccessible(true);
-                    deps = uField.get(boardView);
-                } catch (Throwable ignored) {}
+                Class<?> c = bvClass;
+                while (c != null && c != Object.class && deps == null) {
+                    for (String fName : new String[]{"dependencies", "u"}) {
+                        try {
+                            Field uField = c.getDeclaredField(fName);
+                            uField.setAccessible(true);
+                            deps = uField.get(boardView);
+                            if (deps != null) break;
+                        } catch (NoSuchFieldException ignored) {}
+                    }
+                    c = c.getSuperclass();
+                }
             }
 
             if (deps != null) {
@@ -525,12 +539,36 @@ public class AutoMoveManager {
                                 Method getW = boardView.getClass().getMethod("getWidth");
                                 getW.setAccessible(true);
                                 int w = ((Number) getW.invoke(boardView)).intValue();
+                                if (w <= 0) {
+                                    try {
+                                        Method getMW = boardView.getClass().getMethod("getMeasuredWidth");
+                                        w = ((Number) getMW.invoke(boardView)).intValue();
+                                    } catch (Throwable ignored) {}
+                                }
+                                if (w <= 0) {
+                                    try {
+                                        Method getRW = boardView.getClass().getMethod("getResolvedWidth");
+                                        w = ((Number) getRW.invoke(boardView)).intValue();
+                                    } catch (Throwable ignored) {}
+                                }
                                 if (w > 0) {
                                     sqSize = w / 8.0f;
                                 } else {
                                     Method getH = boardView.getClass().getMethod("getHeight");
                                     getH.setAccessible(true);
                                     int h = ((Number) getH.invoke(boardView)).intValue();
+                                    if (h <= 0) {
+                                        try {
+                                            Method getMH = boardView.getClass().getMethod("getMeasuredHeight");
+                                            h = ((Number) getMH.invoke(boardView)).intValue();
+                                        } catch (Throwable ignored) {}
+                                    }
+                                    if (h <= 0) {
+                                        try {
+                                            Method getRH = boardView.getClass().getMethod("getResolvedHeight");
+                                            h = ((Number) getRH.invoke(boardView)).intValue();
+                                        } catch (Throwable ignored) {}
+                                    }
                                     sqSize = (h > 0) ? (h / 8.0f) : 100f;
                                 }
                             } catch (Throwable ignored) {}
@@ -567,7 +605,8 @@ public class AutoMoveManager {
         Method cached = cachedTapMethod;
         if (cached != null && cached.getDeclaringClass().isInstance(contract)) {
             Class<?>[] pTypes = cached.getParameterTypes();
-            if (pTypes.length == 1 && pTypes[0].isAssignableFrom(squareClass)) {
+            if ("b".equals(cached.getName()) && pTypes.length == 1 &&
+                (pTypes[0].isAssignableFrom(squareClass) || squareClass.isAssignableFrom(pTypes[0]))) {
                 return cached;
             }
         }
@@ -579,13 +618,16 @@ public class AutoMoveManager {
             return m;
         } catch (Throwable ignored) {}
 
-        // Fallback search across declared methods for 1-arg matching squareClass
+        // Fallback search across declared methods for 1-arg method named 'b' matching squareClass (never equals/Object)
         for (Method m : contract.getClass().getMethods()) {
-            Class<?>[] pTypes = m.getParameterTypes();
-            if (pTypes.length == 1 && pTypes[0].isAssignableFrom(squareClass)) {
-                m.setAccessible(true);
-                cachedTapMethod = m;
-                return m;
+            if ("b".equals(m.getName())) {
+                Class<?>[] pTypes = m.getParameterTypes();
+                if (pTypes.length == 1 && pTypes[0] != Object.class &&
+                    (pTypes[0].isAssignableFrom(squareClass) || squareClass.isAssignableFrom(pTypes[0]))) {
+                    m.setAccessible(true);
+                    cachedTapMethod = m;
+                    return m;
+                }
             }
         }
         return null;
@@ -716,6 +758,35 @@ public class AutoMoveManager {
 
         // Priority 2 & 3: Resolve from RealGameViewModel (rvm)
         Activity act = (activity != null) ? activity : StockfishExtension.getCurrentActivity();
+        if (act == null && boardView != null) {
+            try {
+                Context ctx = null;
+                if (boardView instanceof View) {
+                    ctx = ((View) boardView).getContext();
+                } else {
+                    Method getCtx = boardView.getClass().getMethod("getContext");
+                    ctx = (Context) getCtx.invoke(boardView);
+                }
+                while (ctx != null) {
+                    if (ctx instanceof Activity) {
+                        act = (Activity) ctx;
+                        break;
+                    }
+                    try {
+                        Method getBase = ctx.getClass().getMethod("getBaseContext");
+                        Object base = getBase.invoke(ctx);
+                        if (base instanceof Context && base != ctx) {
+                            ctx = (Context) base;
+                        } else {
+                            break;
+                        }
+                    } catch (Throwable ignored) {
+                        break;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
         Object rvm = null;
         if (act != null) {
             rvm = AutoFindManager.getRealGameViewModel(act);
@@ -776,11 +847,12 @@ public class AutoMoveManager {
                                 }
                             } catch (Throwable ignored) {}
 
-                            // 3b. Try field 'boardViewModel' or 'j'
-                            try {
+                            // 3b. Try field 'boardViewModel' or 'j' or scanning fields of type CBViewModel / d
+                            Class<?> delCls = delegate.getClass();
+                            while (delCls != null && delCls != Object.class && cbVm == null) {
                                 for (String jName : new String[]{"boardViewModel", "j"}) {
                                     try {
-                                        Field jField = delegate.getClass().getDeclaredField(jName);
+                                        Field jField = delCls.getDeclaredField(jName);
                                         jField.setAccessible(true);
                                         Object val = jField.get(delegate);
                                         if (val != null) {
@@ -788,16 +860,34 @@ public class AutoMoveManager {
                                             NnvcLogger.d(TAG, "Resolved CBViewModel via cbDelegate." + jName + ": " + cbVm.getClass().getName());
                                             break;
                                         }
-                                    } catch (NoSuchFieldException ignored) {}
+                                    } catch (Throwable ignored) {}
                                 }
                                 if (cbVm != null) break;
-                            } catch (Throwable ignored) {}
+
+                                for (Field df : delCls.getDeclaredFields()) {
+                                    try {
+                                        if (df.getType().getName().contains("CBViewModel") || df.getType().getName().equals("com.chess.internal.utils.chessboard.d")) {
+                                            df.setAccessible(true);
+                                            Object val = df.get(delegate);
+                                            if (val != null) {
+                                                cbVm = val;
+                                                NnvcLogger.d(TAG, "Resolved CBViewModel via cbDelegate." + df.getName() + " (type match): " + cbVm.getClass().getName());
+                                                break;
+                                            }
+                                        }
+                                    } catch (Throwable ignored) {}
+                                }
+                                if (cbVm != null) break;
+                                delCls = delCls.getSuperclass();
+                            }
+                            if (cbVm != null) break;
 
                             // 3c. Try field '_cbDataSource' or 'c' (StateFlow)
-                            try {
+                            delCls = delegate.getClass();
+                            while (delCls != null && delCls != Object.class && cbVm == null) {
                                 for (String cName : new String[]{"_cbDataSource", "c"}) {
                                     try {
-                                        Field cField = delegate.getClass().getDeclaredField(cName);
+                                        Field cField = delCls.getDeclaredField(cName);
                                         cField.setAccessible(true);
                                         Object flow = cField.get(delegate);
                                         if (flow != null) {
@@ -813,7 +903,9 @@ public class AutoMoveManager {
                                     } catch (Throwable ignored) {}
                                 }
                                 if (cbVm != null) break;
-                            } catch (Throwable ignored) {}
+                                delCls = delCls.getSuperclass();
+                            }
+                            if (cbVm != null) break;
                         }
                     }
                     rvmCls = rvmCls.getSuperclass();
@@ -898,7 +990,7 @@ public class AutoMoveManager {
                 }
             }
 
-            // 2. Set field directly (field 'x' or 'viewModel')
+            // 2. Set field directly (field 'x' or 'viewModel' or any field matching CBViewModel type)
             c = boardView.getClass();
             while (c != null && c != Object.class) {
                 for (String fName : new String[]{"viewModel", "x"}) {
@@ -909,18 +1001,23 @@ public class AutoMoveManager {
                         NnvcLogger.d(TAG, "⚡ Wire-up: Set boardView." + fName + " field successfully");
                     } catch (NoSuchFieldException ignored) {}
                 }
+                for (Field f : c.getDeclaredFields()) {
+                    try {
+                        if (f.getType().getName().contains("CBViewModel") || f.getType().isAssignableFrom(cbVm.getClass())) {
+                            f.setAccessible(true);
+                            if (f.get(boardView) == null) {
+                                f.set(boardView, cbVm);
+                                NnvcLogger.d(TAG, "⚡ Wire-up: Set boardView." + f.getName() + " (type match) successfully");
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
                 c = c.getSuperclass();
             }
         } catch (Throwable t) {
             NnvcLogger.w(TAG, "wireUpViewModelToBoardView non-fatal error: " + t.getMessage());
         }
     }
-
-    /**
-     * Constructs a native Move object (com.chess.chessboard.l).
-     * Normal move: com.chess.chessboard.o(fromSquare, toSquare)
-     * Queen promotion: com.chess.chessboard.p(fromSquare, toSquare, PieceKind.f)
-     */
     /**
      * Constructs a native Move object (com.chess.chessboard.l).
      * Normal move: com.chess.chessboard.o(fromSquare, toSquare)
