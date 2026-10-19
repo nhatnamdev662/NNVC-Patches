@@ -745,11 +745,11 @@ public class SmartDelayManager {
 
         // A. Chế độ Dirty Flagging & Low Time Panic (Chống Rụng Kim Tức Thời - Chuẩn 100% Extension)
         boolean isFastGame = activeTcIndex <= 5; // Bullet (1m, 1|1, 2|1) và Blitz (3m, 3|2, 5m)
-        boolean isDirtyFlagging = isFastGame && ((oppSec >= 0 && oppSec <= 6.0) || (mySec >= 0 && mySec <= 8.0));
-        boolean isUnder8s = (mySec >= 0 && mySec <= 8.0);
+        boolean isDirtyFlagging = isFastGame && ((oppSec >= 0 && oppSec <= 6.0) || (mySec >= 0 && mySec <= 6.5));
+        boolean isUnder6_5s = (mySec >= 0 && mySec <= 6.5);
 
-        if (isDirtyFlagging || isUnder8s) {
-            lastScenarioLabel = isUnder8s ? "⚡ No Delay (<= 8s)" : "⚡ Dirty Flagging (<= 6s)";
+        if (isDirtyFlagging || isUnder6_5s) {
+            lastScenarioLabel = isUnder6_5s ? "⚡ No Delay (<= 6.5s)" : "⚡ Dirty Flagging (<= 6s)";
             NnvcLogger.d(TAG, "▶ [SMART DELAY] " + lastScenarioLabel + " -> 0ms (mySec=" + mySec + "s, oppSec=" + oppSec + "s)");
             return 0;
         }
@@ -826,11 +826,11 @@ public class SmartDelayManager {
         long minBuffer = isBullet ? 160 : isBlitz ? 260 : 380;
         long netDelay = Math.max(minBuffer, rawDelayMs - engineThinkMs);
 
-        // Cap delay to ensure we NEVER sleep past the 8.0s panic threshold
-        if (mySec > 8.0) {
-            long headroomMs = Math.max(0, (long) ((mySec - 8.0) * 1000.0));
+        // Cap delay to ensure we NEVER sleep past the 6.5s panic threshold
+        if (mySec > 6.5) {
+            long headroomMs = Math.max(0, (long) ((mySec - 6.5) * 1000.0));
             if (netDelay > headroomMs) {
-                NnvcLogger.d(TAG, "⏱️ [SMART DELAY HEADROOM CAP] Capping delay from " + netDelay + "ms to " + headroomMs + "ms to avoid dropping below 8.0s");
+                NnvcLogger.d(TAG, "⏱️ [SMART DELAY HEADROOM CAP] Capping delay from " + netDelay + "ms to " + headroomMs + "ms to avoid dropping below 6.5s");
                 netDelay = headroomMs;
             }
         }

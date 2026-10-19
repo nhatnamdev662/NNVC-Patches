@@ -797,6 +797,35 @@ public class AutoMoveManager {
             pMethod.setAccessible(true);
             pMethod.invoke(cbVm, moveObj, moveVerification, false);
             NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Executed 0ms move directly via CBViewModel.p: " + fromSq + toSq + (isPromo ? promoPiece : ""));
+
+            // Phát âm thanh nước đi của quân cờ chính hãng Chess.com 0ms
+            try {
+                Context ctx = StockfishExtension.getContext();
+                if (ctx != null) {
+                    boolean isCastle = ("e1".equals(fromSq) && ("g1".equals(toSq) || "c1".equals(toSq))) ||
+                                       ("e8".equals(fromSq) && ("g8".equals(toSq) || "c8".equals(toSq)));
+                    String currFen = StockfishExtension.getCurrentBoardFen();
+                    boolean isCapture = false;
+                    if (currFen != null && toSq != null && toSq.length() >= 2) {
+                        char targetPiece = StockfishExtension.getPieceAtSquare(currFen, toSq);
+                        if (targetPiece != '.') {
+                            isCapture = true;
+                        } else if (currFen.contains(" ")) {
+                            String[] parts = currFen.split("\\s+");
+                            if (parts.length >= 4 && toSq.equalsIgnoreCase(parts[3])) {
+                                char fromPiece = StockfishExtension.getPieceAtSquare(currFen, fromSq);
+                                if (Character.toLowerCase(fromPiece) == 'p') {
+                                    isCapture = true;
+                                }
+                            }
+                        }
+                    }
+                    SoundManager.getInstance(ctx).playMoveSound(isCapture, isCastle, isPromo);
+                }
+            } catch (Throwable st) {
+                NnvcLogger.w(TAG, "Failed to play move sound: " + st.getMessage());
+            }
+
             return true;
         } catch (Throwable t) {
             NnvcLogger.w(TAG, "executeDirectModelMove invoke error: " + t.getMessage());

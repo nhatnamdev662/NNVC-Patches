@@ -286,23 +286,38 @@ public class MoveClassifier {
                             fenHistory.add(startPosKey);
                         }
                     }
+                    fenHistory.add(key);
                 } else {
                     String lastKey = fenHistory.get(fenHistory.size() - 1);
                     String deduced = deduceUciMove(lastKey, key);
                     if (deduced == null) {
-                        fenHistory.clear();
-                        clearMaps();
-                        StockfishExtension.isReviewMode = false;
-                        String startPosKey = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w";
-                        if (!startPosKey.equals(key)) {
-                            String fromStart = deduceUciMove(startPosKey, key);
-                            if (fromStart != null) {
-                                fenHistory.add(startPosKey);
-                            }
+                        boolean isStartPos = key.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+                        if (isStartPos) {
+                            fenHistory.clear();
+                            clearMaps();
+                            StockfishExtension.isReviewMode = false;
+                            fenHistory.add(key);
+                            return;
                         }
+
+                        // Check if same turn (intermediate state, castling animation step, or FEN correction)
+                        String[] lastParts = lastKey.split("\\s+");
+                        String[] currParts = key.split("\\s+");
+                        if (lastParts.length >= 2 && currParts.length >= 2 && lastParts[1].equals(currParts[1])) {
+                            // Update the last position snapshot without clearing history or appending a duplicate turn
+                            fenHistory.set(fenHistory.size() - 1, key);
+                            TorchEngine.log("[CLASSIFIER SYNC] Intermediate board state updated: " + key);
+                            return;
+                        }
+
+                        // Different turn but deduceUciMove failed (edge-case / en-passant sync):
+                        // Preserve full prior move history! Do NOT clear history mid-game!
+                        TorchEngine.log("[CLASSIFIER SYNC] Step transition preserved (deduceUciMove null): " + key);
+                        fenHistory.add(key);
+                    } else {
+                        fenHistory.add(key);
                     }
                 }
-                fenHistory.add(key);
             }
         }
     }
@@ -420,8 +435,21 @@ public class MoveClassifier {
         return null;
     }
 
-    private static final android.os.Handler classifyHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static volatile android.os.Handler classifyHandler = null;
     private static Runnable pendingClassifyRunnable = null;
+
+    private static android.os.Handler getClassifyHandler() {
+        if (classifyHandler == null) {
+            synchronized (MoveClassifier.class) {
+                if (classifyHandler == null) {
+                    try {
+                        classifyHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    } catch (Throwable ignored) {}
+                }
+            }
+        }
+        return classifyHandler;
+    }
 
     public static void classifyMoveDebounced(final Context context, final String currentFen) {
         if (context == null || currentFen == null) return;
@@ -430,15 +458,18 @@ public class MoveClassifier {
         final List<String> snapshotMoves = (currentPositionMoves != null) ? new ArrayList<>(currentPositionMoves) : null;
         final Context appContext = context.getApplicationContext();
 
-        if (pendingClassifyRunnable != null) {
-            classifyHandler.removeCallbacks(pendingClassifyRunnable);
+        android.os.Handler handler = getClassifyHandler();
+        if (handler != null && pendingClassifyRunnable != null) {
+            handler.removeCallbacks(pendingClassifyRunnable);
         }
 
         pendingClassifyRunnable = () -> {
             pendingClassifyRunnable = null;
             classifyMoveIfPossible(appContext, currentFen, null, snapshotMoves);
         };
-        classifyHandler.postDelayed(pendingClassifyRunnable, 100);
+        if (handler != null) {
+            handler.postDelayed(pendingClassifyRunnable, 100);
+        }
     }
 
     @android.annotation.SuppressLint("MissingPermission")

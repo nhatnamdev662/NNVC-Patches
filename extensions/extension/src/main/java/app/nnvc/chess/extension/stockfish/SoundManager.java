@@ -24,11 +24,38 @@ public class SoundManager {
     private SoundPool soundPool;
 
     private int brilliantSoundId = -1;
+    private int moveSelfSoundId = -1;
+    private int captureSoundId = -1;
+    private int castleSoundId = -1;
+    private int promoteSoundId = -1;
 
     // Đường dẫn ứng viên cho file âm thanh Brilliant trong APK Chess.com
     private static final String[] BRILLIANT_SOUND_PATHS = {
             "sounds/brilliant.mp3",
             "sounds/delight/brilliant.mp3"
+    };
+
+    private static final String[] MOVE_SELF_PATHS = {
+            "sounds/game-actions/move-self.mp3",
+            "sounds/move-self.mp3",
+            "sounds/click.mp3"
+    };
+
+    private static final String[] CAPTURE_PATHS = {
+            "sounds/game-actions/capture.mp3",
+            "sounds/capture.mp3",
+            "sounds/click.mp3"
+    };
+
+    private static final String[] CASTLE_PATHS = {
+            "sounds/game-actions/castle.mp3",
+            "sounds/castle.mp3",
+            "sounds/game-actions/move-self.mp3"
+    };
+
+    private static final String[] PROMOTE_PATHS = {
+            "sounds/game-actions/promote.mp3",
+            "sounds/game-actions/move-self.mp3"
     };
 
     private SoundManager(Context context) {
@@ -66,12 +93,16 @@ public class SoundManager {
                     .build();
 
             soundPool = new SoundPool.Builder()
-                    .setMaxStreams(2)
+                    .setMaxStreams(4)
                     .setAudioAttributes(attrs)
                     .build();
 
             AssetManager am = context.getAssets();
             brilliantSoundId = loadSoundCandidate(am, BRILLIANT_SOUND_PATHS, "Brilliant");
+            moveSelfSoundId = loadSoundCandidate(am, MOVE_SELF_PATHS, "MoveSelf");
+            captureSoundId = loadSoundCandidate(am, CAPTURE_PATHS, "Capture");
+            castleSoundId = loadSoundCandidate(am, CASTLE_PATHS, "Castle");
+            promoteSoundId = loadSoundCandidate(am, PROMOTE_PATHS, "Promote");
         } catch (Throwable t) {
             Log.e(TAG, "Failed to initialize SoundPool: " + t.getMessage(), t);
         }
@@ -127,6 +158,35 @@ public class SoundManager {
     public void playBrilliantSound() {
         if (!StockfishSettings.isBrilliantSoundEnabled(context)) return;
         playSoundWithFallback(brilliantSoundId, BRILLIANT_SOUND_PATHS, "Brilliant");
+    }
+
+    /**
+     * Phát âm thanh nước đi của quân cờ chính hãng Chess.com với độ trễ 0ms qua SoundPool.
+     */
+    public void playMoveSound(boolean isCapture, boolean isCastle, boolean isPromo) {
+        int soundId;
+        String[] fallback;
+        String label;
+
+        if (isPromo) {
+            soundId = (promoteSoundId > 0) ? promoteSoundId : moveSelfSoundId;
+            fallback = PROMOTE_PATHS;
+            label = "Promote";
+        } else if (isCastle) {
+            soundId = (castleSoundId > 0) ? castleSoundId : moveSelfSoundId;
+            fallback = CASTLE_PATHS;
+            label = "Castle";
+        } else if (isCapture) {
+            soundId = (captureSoundId > 0) ? captureSoundId : moveSelfSoundId;
+            fallback = CAPTURE_PATHS;
+            label = "Capture";
+        } else {
+            soundId = moveSelfSoundId;
+            fallback = MOVE_SELF_PATHS;
+            label = "MoveSelf";
+        }
+
+        playSoundWithFallback(soundId, fallback, label);
     }
 
     /** Phát âm thanh Cảnh báo nguy hiểm khi xuất hiện đòn đe dọa từ đối thủ (Disabled - Brilliant only) */

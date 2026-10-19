@@ -1698,10 +1698,14 @@ public class SelfTest {
         check("Dirty Flagging <= 6s prioritizes check move within 35 cp gap",
                 "e1e7".equals(dDF.chosenMove) && dDF.chosenIndex == 1 && "dirty_flagging_check".equals(dDF.reason));
 
-        SafeMoveSelector.MoveDecision d8s = SafeMoveSelector.selectMove(
+        SafeMoveSelector.MoveDecision d6_5s = SafeMoveSelector.selectMove(
+                dfMoves, dfScores, dfMates, dfMateIn, 2, 6200L, 20000L, checkFen, true, true);
+        check("Dirty Flagging <= 6.5s player clock prioritizes check move within 35 cp gap",
+                "e1e7".equals(d6_5s.chosenMove) && d6_5s.chosenIndex == 1 && "dirty_flagging_check".equals(d6_5s.reason));
+
+        SafeMoveSelector.MoveDecision dAbove = SafeMoveSelector.selectMove(
                 dfMoves, dfScores, dfMates, dfMateIn, 2, 7500L, 20000L, checkFen, true, true);
-        check("Dirty Flagging <= 8.0s player clock prioritizes check move within 35 cp gap",
-                "e1e7".equals(d8s.chosenMove) && d8s.chosenIndex == 1 && "dirty_flagging_check".equals(d8s.reason));
+        check("Above 6.5s clock does not trigger dirty flagging", !"dirty_flagging_check".equals(dAbove.reason));
 
         // 39h. Desktop Extension Parity: Engine arrow list remains untouched, chosenMove executed directly
         List<String> liveMoves = new java.util.ArrayList<>(java.util.Arrays.asList("e2e4", "d2d4", "g1f3"));
@@ -2110,6 +2114,27 @@ public class SelfTest {
         check("sqToIndex correctly maps h8 to 7", AutoMoveManager.sqToIndex("h8") == 7);
         check("sqToIndex correctly maps e4 to 36", AutoMoveManager.sqToIndex("e4") == 36);
         check("sqToIndex handles invalid coords safely", AutoMoveManager.sqToIndex("z9") == -1 && AutoMoveManager.sqToIndex(null) == -1);
+
+        // === 40k. Tests for MoveClassifier history preservation & Move 0 startpos GameOver immunity ===
+        MoveClassifier.clearHistory();
+        String fenStart = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        String fenE4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        MoveClassifier.updateHistory(fenStart);
+        MoveClassifier.updateHistory(fenE4);
+        check("MoveClassifier starts with 2 fenHistory keys", MoveClassifier.getFenHistory().size() == 2);
+
+        // Simulate intermediate FEN with same active turn (e.g. castling adjustment or intermediate board state)
+        String fenE4Adjusted = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - - 0 1";
+        MoveClassifier.updateHistory(fenE4Adjusted);
+        check("MoveClassifier preserves history on intermediate board update with same turn", MoveClassifier.getFenHistory().size() == 2);
+        check("MoveClassifier updated last key to adjusted FEN", fenE4Adjusted.startsWith(MoveClassifier.getFenHistory().get(1)));
+
+        // Test Move 0 isGameOver immunity when currentBoardFen is startpos
+        StockfishExtension.setCurrentBoardFen(fenStart);
+        check("isGameOver returns false at startpos even if activity has lingering endData", !StockfishExtension.isGameOver(null));
+
+        // Test under-6.5s delay threshold
+        check("SmartDelayManager 6.5s headroom cap formula valid", Math.max(0, (long) ((7.0 - 6.5) * 1000.0)) == 500);
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

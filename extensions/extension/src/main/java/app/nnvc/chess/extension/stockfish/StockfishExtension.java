@@ -57,6 +57,10 @@ public class StockfishExtension {
         return currentBoardFen;
     }
 
+    public static void setCurrentBoardFen(String fen) {
+        currentBoardFen = fen;
+    }
+
     static Object getPendingStateImpl() {
         return pendingStateImpl;
     }
@@ -474,8 +478,9 @@ public class StockfishExtension {
             lastGameOverHandled = false;
             AutoFindManager.onNewGameStarted();
         }
+        boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         Activity curAct = getCurrentActivity();
-        if (curAct != null) {
+        if (curAct != null && !isStartPos) {
             if (lastGameOverHandled && !isGameOver(curAct) && !AutoFindManager.isCountingDown() && !AutoFindManager.isSeeking()) {
                 lastGameOverHandled = false;
                 AutoFindManager.onNewGameStarted();
@@ -484,7 +489,6 @@ public class StockfishExtension {
                 return;
             }
         }
-        boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         if (isStartPos) {
             lastGameOverHandled = false;
             AutoFindManager.resetHandledGameEndData();
@@ -1434,6 +1438,9 @@ public class StockfishExtension {
         if (activity == null) return false;
         try {
             // Guard: If current board is at startpos, it is unequivocally a new game!
+            if (currentBoardFen != null && currentBoardFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {
+                return false;
+            }
             try {
                 if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
                     View bv = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());

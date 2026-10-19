@@ -168,9 +168,9 @@ public class SafeMoveSelector {
             return new MoveDecision(topMove, 0, "only_top1_safe", 0);
         }
 
-        // ─── DIRTY FLAGGING: Clock scramble <= 6.0s for opp or <= 8.0s for player ───
+        // ─── DIRTY FLAGGING: Clock scramble <= 6.0s for opp or <= 6.5s for player ───
         boolean isDirtyFlaggingScramble = (oppClockMs >= 0 && oppClockMs <= 6000L) ||
-                                          (playerClockMs >= 0 && playerClockMs <= 8000L);
+                                          (playerClockMs >= 0 && playerClockMs <= 6500L);
         if (isDirtyFlaggingScramble) {
             // Prioritize check candidate within 35 cp gap
             for (CandidateInfo c : safeShortlist) {
