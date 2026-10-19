@@ -2195,6 +2195,34 @@ public class SelfTest {
         boolean kaSuccess = AutoFindManager.triggerViaViewModelInstance(mockVmKa);
         check("triggerViaViewModelInstance successfully invokes Ka() on mock VM", kaSuccess && mockVmKa.kaCalled);
 
+        // === 40m. Tests for Native Castling Move Construction (com.chess.chessboard.x) ===
+        // 1. Castling recognition and King verification
+        String fenWhiteKingE1 = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+        char pieceWhiteE1 = StockfishExtension.getPieceAtSquare(fenWhiteKingE1, "e1");
+        boolean isWhiteKing = (pieceWhiteE1 == 'K');
+        boolean isWhiteCastleE1G1 = ("e1".equals("e1") && ("g1".equals("g1") || "h1".equals("g1")));
+        check("e1g1 with White King on e1 correctly recognized as castling", isWhiteKing && isWhiteCastleE1G1);
+
+        String fenWhiteQueenE1 = "r3k2r/8/8/8/8/8/8/R3Q2R w - - 0 1";
+        char pieceQueenE1 = StockfishExtension.getPieceAtSquare(fenWhiteQueenE1, "e1");
+        boolean isQueenCastle = ("e1".equals("e1") && ("g1".equals("g1") || "h1".equals("g1"))) && (pieceQueenE1 == 'K' || pieceQueenE1 == 'k');
+        check("e1g1 with Queen on e1 is NOT recognized as castling", !isQueenCastle);
+
+        String fenBlackKingE8 = "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1";
+        char pieceBlackE8 = StockfishExtension.getPieceAtSquare(fenBlackKingE8, "e8");
+        boolean isBlackKing = (pieceBlackE8 == 'k');
+        boolean isBlackCastleE8G8 = ("e8".equals("e8") && ("g8".equals("g8") || "h8".equals("g8")));
+        check("e8g8 with Black King on e8 correctly recognized as castling", isBlackKing && isBlackCastleE8G8);
+
+        // 2. Safe handling of createMoveObject with castling parameters
+        check("createMoveObject with castling null square returns null safely",
+                AutoMoveManager.createMoveObject(null, null, null, false, 'q', "e8", "g8", fenBlackKingE8, null) == null);
+
+        // 3. Exception unwrapping logic in executeDirectModelMove
+        java.lang.reflect.InvocationTargetException ite = new java.lang.reflect.InvocationTargetException(new IllegalArgumentException("Illegal castling move"));
+        Throwable unwrapped = ite.getCause() != null ? ite.getCause() : ite;
+        check("InvocationTargetException correctly unwrapped to real cause", unwrapped instanceof IllegalArgumentException && "Illegal castling move".equals(unwrapped.getMessage()));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

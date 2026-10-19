@@ -651,14 +651,27 @@ public class AutoMoveManager {
      * Normal move: com.chess.chessboard.o(fromSquare, toSquare)
      * Queen promotion: com.chess.chessboard.p(fromSquare, toSquare, PieceKind.f)
      */
+    /**
+     * Constructs a native Move object (com.chess.chessboard.l).
+     * Normal move: com.chess.chessboard.o(fromSquare, toSquare)
+     * Castling move: com.chess.chessboard.x(color, castlingFiles, castlingType)
+     * Queen promotion: com.chess.chessboard.p(fromSquare, toSquare, PieceKind.f)
+     */
     public static Object createMoveObject(ClassLoader cl, Object fromSquare, Object toSquare, boolean isPromo) {
-        return createMoveObject(cl, fromSquare, toSquare, isPromo, 'q');
+        return createMoveObject(cl, fromSquare, toSquare, isPromo, 'q', null, null, null, null);
     }
 
     /**
      * Constructs a native Move object with specific promotion piece kind (q, r, b, n).
      */
     public static Object createMoveObject(ClassLoader cl, Object fromSquare, Object toSquare, boolean isPromo, char promoPiece) {
+        return createMoveObject(cl, fromSquare, toSquare, isPromo, promoPiece, null, null, null, null);
+    }
+
+    /**
+     * Comprehensive Move factory supporting standard moves, under-promotions, and native atomic castling.
+     */
+    public static Object createMoveObject(ClassLoader cl, Object fromSquare, Object toSquare, boolean isPromo, char promoPiece, String fromSq, String toSq, String snapshotFen, Object positionObj) {
         if (cl == null || fromSquare == null || toSquare == null) return null;
         Class<?> squareClass = fromSquare.getClass();
         try {
@@ -700,6 +713,126 @@ public class AutoMoveManager {
                             return ctor.newInstance(fromSquare, toSquare, promoKind);
                         }
                     }
+                }
+            }
+
+            // Nhận diện nước đi nhập thành chuẩn (Castling): com.chess.chessboard.x(color, castlingFiles, castlingType)
+            boolean isCastleKingside = ("e1".equals(fromSq) && ("g1".equals(toSq) || "h1".equals(toSq))) ||
+                                       ("e8".equals(fromSq) && ("g8".equals(toSq) || "h8".equals(toSq)));
+            boolean isCastleQueenside = ("e1".equals(fromSq) && ("c1".equals(toSq) || "a1".equals(toSq))) ||
+                                        ("e8".equals(fromSq) && ("c8".equals(toSq) || "a8".equals(toSq)));
+            boolean isCastling = isCastleKingside || isCastleQueenside;
+
+            if (isCastling && snapshotFen != null && fromSq != null) {
+                char fromPiece = StockfishExtension.getPieceAtSquare(snapshotFen, fromSq);
+                if (fromPiece != '.' && fromPiece != 'K' && fromPiece != 'k') {
+                    isCastling = false; // Quân khác vua đi ngang (ví dụ Hậu/Xe)
+                }
+            }
+
+            if (isCastling) {
+                try {
+                    boolean isWhite = "e1".equals(fromSq) || (snapshotFen != null && StockfishExtension.getPieceAtSquare(snapshotFen, fromSq) == 'K');
+
+                    Class<?> colorClass = Class.forName("com.chess.entities.Color", true, cl);
+                    Object colorObj = null;
+                    for (Object c : colorClass.getEnumConstants()) {
+                        if ((isWhite && "WHITE".equalsIgnoreCase(((Enum<?>) c).name())) ||
+                            (!isWhite && "BLACK".equalsIgnoreCase(((Enum<?>) c).name()))) {
+                            colorObj = c;
+                            break;
+                        }
+                    }
+
+                    Class<?> castlingTypeClass = Class.forName("com.chess.chessboard.CastlingType", true, cl);
+                    Object castlingTypeObj = null;
+                    for (Object ct : castlingTypeClass.getEnumConstants()) {
+                        if ((isCastleKingside && "KINGSIDE".equalsIgnoreCase(((Enum<?>) ct).name())) ||
+                            (!isCastleKingside && "QUEENSIDE".equalsIgnoreCase(((Enum<?>) ct).name()))) {
+                            castlingTypeObj = ct;
+                            break;
+                        }
+                    }
+
+                    // Cách 1: Gọi StandardPosition.i(color, castlingType) nếu có
+                    if (positionObj != null && colorObj != null && castlingTypeObj != null) {
+                        try {
+                            for (Method m : positionObj.getClass().getMethods()) {
+                                if ("i".equals(m.getName()) && m.getParameterCount() == 2) {
+                                    Class<?>[] pts = m.getParameterTypes();
+                                    if (pts[0].isAssignableFrom(colorClass) && pts[1].isAssignableFrom(castlingTypeClass)) {
+                                        m.setAccessible(true);
+                                        Object xMove = m.invoke(positionObj, colorObj, castlingTypeObj);
+                                        if (xMove != null) {
+                                            NnvcLogger.i(TAG, "⚡ Constructed Castling Move via position.i: " + fromSq + toSq);
+                                            return xMove;
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+
+                    // Cách 2: Tìm castlingFiles (com.chess.chessboard.c)
+                    Object castlingFilesObj = null;
+                    if (positionObj != null) {
+                        try {
+                            Method jMethod = positionObj.getClass().getMethod("j");
+                            jMethod.setAccessible(true);
+                            castlingFilesObj = jMethod.invoke(positionObj);
+                        } catch (Throwable ignored) {}
+                    }
+                    if (castlingFilesObj == null) {
+                        try {
+                            Class<?> cbClass = Class.forName("com.chess.chessboard.c$b", true, cl);
+                            Field aField = cbClass.getDeclaredField("a");
+                            aField.setAccessible(true);
+                            castlingFilesObj = aField.get(null);
+                        } catch (Throwable ignored) {}
+                    }
+
+                    if (colorObj != null && castlingFilesObj != null && castlingTypeObj != null) {
+                        // Thử qua helper com.chess.chessboard.e.a(castlingFiles, color, castlingType)
+                        try {
+                            Class<?> eClass = Class.forName("com.chess.chessboard.e", true, cl);
+                            for (Method m : eClass.getMethods()) {
+                                if ("a".equals(m.getName()) && m.getParameterCount() == 3) {
+                                    Class<?>[] pts = m.getParameterTypes();
+                                    if (pts[0].isAssignableFrom(castlingFilesObj.getClass()) &&
+                                        pts[1].isAssignableFrom(colorClass) &&
+                                        pts[2].isAssignableFrom(castlingTypeClass)) {
+                                        m.setAccessible(true);
+                                        Object xMove = m.invoke(null, castlingFilesObj, colorObj, castlingTypeObj);
+                                        if (xMove != null) {
+                                            NnvcLogger.i(TAG, "⚡ Constructed Castling Move via e.a: " + fromSq + toSq);
+                                            return xMove;
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+
+                        // Thử khởi tạo trực tiếp new com.chess.chessboard.x(color, castlingFiles, castlingType)
+                        try {
+                            Class<?> xClass = Class.forName("com.chess.chessboard.x", true, cl);
+                            for (Constructor<?> ctor : xClass.getConstructors()) {
+                                Class<?>[] pts = ctor.getParameterTypes();
+                                if (pts.length == 3 &&
+                                    pts[0].isAssignableFrom(colorClass) &&
+                                    pts[1].isAssignableFrom(castlingFilesObj.getClass()) &&
+                                    pts[2].isAssignableFrom(castlingTypeClass)) {
+                                    ctor.setAccessible(true);
+                                    Object xMove = ctor.newInstance(colorObj, castlingFilesObj, castlingTypeObj);
+                                    if (xMove != null) {
+                                        NnvcLogger.i(TAG, "⚡ Constructed Castling Move via x ctor: " + fromSq + toSq);
+                                        return xMove;
+                                    }
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                } catch (Throwable ct) {
+                    NnvcLogger.w(TAG, "Castling move resolution error: " + ct.getMessage());
                 }
             }
 
@@ -755,7 +888,21 @@ public class AutoMoveManager {
                 return false;
             }
 
-            Object moveObj = createMoveObject(cl, fromSquare, toSquare, isPromo, promoPiece);
+            String snapshotFen = (fenBeforeMove != null) ? fenBeforeMove : StockfishExtension.getCurrentBoardFen();
+
+            Object positionObj = null;
+            try {
+                Method getStateMethod = cbVm.getClass().getMethod("getState");
+                getStateMethod.setAccessible(true);
+                Object stateObj = getStateMethod.invoke(cbVm);
+                if (stateObj != null) {
+                    Method getPosMethod = stateObj.getClass().getMethod("getPosition");
+                    getPosMethod.setAccessible(true);
+                    positionObj = getPosMethod.invoke(stateObj);
+                }
+            } catch (Throwable ignored) {}
+
+            Object moveObj = createMoveObject(cl, fromSquare, toSquare, isPromo, promoPiece, fromSq, toSq, snapshotFen, positionObj);
             if (moveObj == null) {
                 NnvcLogger.w(TAG, "executeDirectModelMove: Failed to construct Move object");
                 return false;
@@ -802,11 +949,12 @@ public class AutoMoveManager {
             boolean isCastle = ("e1".equals(fromSq) && ("g1".equals(toSq) || "c1".equals(toSq))) ||
                                ("e8".equals(fromSq) && ("g8".equals(toSq) || "c8".equals(toSq)));
             boolean isCapture = false;
-            String snapshotFen = (fenBeforeMove != null) ? fenBeforeMove : StockfishExtension.getCurrentBoardFen();
             if (snapshotFen != null && toSq != null && toSq.length() >= 2 && fromSq != null && fromSq.length() >= 2) {
                 char targetPiece = StockfishExtension.getPieceAtSquare(snapshotFen, toSq);
                 char fromPiece = StockfishExtension.getPieceAtSquare(snapshotFen, fromSq);
-                if (targetPiece != '.') {
+                if (isCastle && (fromPiece == 'K' || fromPiece == 'k')) {
+                    isCapture = false;
+                } else if (targetPiece != '.') {
                     isCapture = true;
                 } else if (Character.toLowerCase(fromPiece) == 'p' && fromSq.charAt(0) != toSq.charAt(0)) {
                     // En passant: Tốt đi chéo vào ô trống là nước ăn quân
@@ -830,7 +978,8 @@ public class AutoMoveManager {
 
             return true;
         } catch (Throwable t) {
-            NnvcLogger.w(TAG, "executeDirectModelMove invoke error: " + t.getMessage());
+            Throwable cause = t.getCause() != null ? t.getCause() : t;
+            NnvcLogger.w(TAG, "executeDirectModelMove invoke error: " + cause.getMessage());
             return false;
         }
     }
