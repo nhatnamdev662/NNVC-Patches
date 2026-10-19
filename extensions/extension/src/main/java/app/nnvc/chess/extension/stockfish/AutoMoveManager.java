@@ -325,11 +325,73 @@ public class AutoMoveManager {
     }
 
     /**
+     * Extracts the current square size in pixels from ChessBoardView's drawDelegate.
+     * Returns 0.0f if drawDelegate is null, not measured, or uninitialized.
+     */
+    public static float getSquareSizeFromDrawDelegate(View boardView) {
+        return getSquareSizeFromDrawDelegate((Object) boardView);
+    }
+
+    public static float getSquareSizeFromDrawDelegate(Object boardView) {
+        if (boardView == null) return 0f;
+        try {
+            Method getDrawDelegateMethod = boardView.getClass().getMethod("getDrawDelegate");
+            getDrawDelegateMethod.setAccessible(true);
+            Object drawDelegate = getDrawDelegateMethod.invoke(boardView);
+            if (drawDelegate != null) {
+                try {
+                    Method gv = drawDelegate.getClass().getMethod("getValue");
+                    gv.setAccessible(true);
+                    Object unwrapped = gv.invoke(drawDelegate);
+                    if (unwrapped != null) drawDelegate = unwrapped;
+                } catch (Throwable ignored) {}
+
+                Method getSqSize = drawDelegate.getClass().getMethod("getSquareSize");
+                getSqSize.setAccessible(true);
+                return ((Number) getSqSize.invoke(drawDelegate)).floatValue();
+            }
+        } catch (Throwable ignored) {}
+
+        // Fallback: search field "drawDelegate" or "e"
+        try {
+            Class<?> c = boardView.getClass();
+            while (c != null && c != Object.class) {
+                for (String fName : new String[]{"drawDelegate", "e"}) {
+                    try {
+                        Field f = c.getDeclaredField(fName);
+                        f.setAccessible(true);
+                        Object val = f.get(boardView);
+                        if (val != null) {
+                            try {
+                                Method gv = val.getClass().getMethod("getValue");
+                                gv.setAccessible(true);
+                                Object unwrapped = gv.invoke(val);
+                                if (unwrapped != null) val = unwrapped;
+                            } catch (Throwable ignored) {}
+
+                            Method getSqSize = val.getClass().getMethod("getSquareSize");
+                            getSqSize.setAccessible(true);
+                            return ((Number) getSqSize.invoke(val)).floatValue();
+                        }
+                    } catch (NoSuchFieldException ignored) {}
+                }
+                c = c.getSuperclass();
+            }
+        } catch (Throwable ignored) {}
+
+        return 0f;
+    }
+
+    /**
      * Retrieves the native accessibilityContract (implements com.chess.chessboard.accessibility.b)
      * which controls square selection and move execution directly on the board.
      * Searches by obfuscated field name 'o', named 'accessibilityContract', or by interface type.
      */
-    private static Object getAccessibilityContract(View boardView) {
+    static Object getAccessibilityContract(View boardView) {
+        return getAccessibilityContract((Object) boardView);
+    }
+
+    static Object getAccessibilityContract(Object boardView) {
         if (boardView == null) return null;
         Class<?> c = boardView.getClass();
         while (c != null && c != Object.class) {
@@ -360,6 +422,9 @@ public class AutoMoveManager {
                                         return val;
                                     }
                                 }
+                                if (fType.getName().endsWith("$b") || val.getClass().getName().endsWith("$b")) {
+                                    return val;
+                                }
                             }
                         }
                     } catch (Throwable ignored) {}
@@ -383,24 +448,37 @@ public class AutoMoveManager {
     /**
      * Resolves the Direct Move Executor for the board view.
      * Zero fallback: Only uses internal native controller / model logic.
+     * If squareSize <= 0.001f (unmeasured Move 0), bypasses AccessibilityContract
+     * to prevent dropped tap in MoveHandler.b(FFIFZ)Z.
      */
-    private static DirectMoveExecutor resolveDirectMoveExecutor(final View boardView, final Class<?> squareClass) {
+    static DirectMoveExecutor resolveDirectMoveExecutor(final View boardView, final Class<?> squareClass) {
+        return resolveDirectMoveExecutor((Object) boardView, squareClass);
+    }
+
+    static DirectMoveExecutor resolveDirectMoveExecutor(final Object boardView, final Class<?> squareClass) {
         if (boardView == null || squareClass == null) return null;
 
-        // 1. First choice: Native Accessibility Contract (ChessBoardView$b / com.chess.chessboard.accessibility.b)
-        final Object contract = getAccessibilityContract(boardView);
-        if (contract != null) {
-            final Method tapMethod = getTapMethod(contract, squareClass);
-            if (tapMethod != null) {
-                NnvcLogger.d(TAG, "Using DirectMoveExecutor via AccessibilityContract: " + contract.getClass().getName());
-                return new DirectMoveExecutor() {
-                    @Override
-                    public boolean executeTap(Object square, String sqCoord, boolean flipped) throws Exception {
-                        tapMethod.invoke(contract, square);
-                        return true;
-                    }
-                };
+        // 1. Check drawDelegate.getSquareSize().
+        // If <= 0.001f, AccessibilityContract (ChessBoardView$b) drops tap events in MoveHandler.b(FFIFZ)Z.
+        // In that case, bypass Choice 1 and force Choice 2 (MoveHandler) with width/8 fallback.
+        float squareSize = getSquareSizeFromDrawDelegate(boardView);
+        if (squareSize > 0.001f) {
+            final Object contract = getAccessibilityContract(boardView);
+            if (contract != null) {
+                final Method tapMethod = getTapMethod(contract, squareClass);
+                if (tapMethod != null) {
+                    NnvcLogger.d(TAG, "Using DirectMoveExecutor via AccessibilityContract: " + contract.getClass().getName() + " (squareSize=" + squareSize + ")");
+                    return new DirectMoveExecutor() {
+                        @Override
+                        public boolean executeTap(Object square, String sqCoord, boolean flipped) throws Exception {
+                            tapMethod.invoke(contract, square);
+                            return true;
+                        }
+                    };
+                }
             }
+        } else {
+            NnvcLogger.d(TAG, "drawDelegate.getSquareSize() <= 0.001f (" + squareSize + "), bypassing AccessibilityContract to prevent dropped tap");
         }
 
         // 2. Second choice: Direct MoveHandler via dependencies.k1()
@@ -437,45 +515,39 @@ public class AutoMoveManager {
                 final Method fMethod = squareClass.getMethod("f", boolean.class);
                 fMethod.setAccessible(true);
 
-                // Find drawDelegate or compute squareSize directly from boardView.getWidth() / 8.0f
-                Method getDrawDelegateMethod = null;
-                try {
-                    getDrawDelegateMethod = bvClass.getMethod("getDrawDelegate");
-                    getDrawDelegateMethod.setAccessible(true);
-                } catch (Throwable ignored) {}
-
-                final Method finalGetDrawDelegate = getDrawDelegateMethod;
-                final Object finalDeps = deps;
-
                 NnvcLogger.d(TAG, "Using DirectMoveExecutor via MoveHandler (dependencies.k1()): " + moveHandler.getClass().getName());
                 return new DirectMoveExecutor() {
                     @Override
                     public boolean executeTap(Object square, String sqCoord, boolean flipped) throws Exception {
-                        float squareSize = 0f;
-                        if (finalGetDrawDelegate != null) {
+                        float sqSize = getSquareSizeFromDrawDelegate(boardView);
+                        if (sqSize <= 0.001f) {
                             try {
-                                Object drawDelegate = finalGetDrawDelegate.invoke(boardView);
-                                if (drawDelegate != null) {
-                                    Method getSqSize = drawDelegate.getClass().getMethod("getSquareSize");
-                                    getSqSize.setAccessible(true);
-                                    squareSize = ((Number) getSqSize.invoke(drawDelegate)).floatValue();
+                                Method getW = boardView.getClass().getMethod("getWidth");
+                                getW.setAccessible(true);
+                                int w = ((Number) getW.invoke(boardView)).intValue();
+                                if (w > 0) {
+                                    sqSize = w / 8.0f;
+                                } else {
+                                    Method getH = boardView.getClass().getMethod("getHeight");
+                                    getH.setAccessible(true);
+                                    int h = ((Number) getH.invoke(boardView)).intValue();
+                                    sqSize = (h > 0) ? (h / 8.0f) : 100f;
                                 }
                             } catch (Throwable ignored) {}
                         }
-                        if (squareSize <= 0f) {
-                            int w = boardView.getWidth();
-                            squareSize = (w > 0) ? (w / 8.0f) : (boardView.getHeight() / 8.0f);
+                        if (sqSize <= 0.001f) {
+                            sqSize = 100f;
                         }
 
                         int fileIdx = ((Number) eMethod.invoke(square, flipped)).intValue();
                         int rankIdx = ((Number) fMethod.invoke(square, flipped)).intValue();
-                        float fE = (fileIdx + 0.5f) * squareSize;
-                        float f = (rankIdx + 0.5f) * squareSize;
+                        float fE = (fileIdx + 0.5f) * sqSize;
+                        float f = (rankIdx + 0.5f) * sqSize;
 
-                        // cVarK1.b(fE, f, 0, squareSize, flipped);
-                        // cVarK1.b(fE, f, 1, squareSize, flipped);
-                        moveActionMethod.invoke(moveHandler, fE, f, 0, squareSize, flipped);
-                        moveActionMethod.invoke(moveHandler, fE, f, 1, squareSize, flipped);
+                        // cVarK1.b(fE, f, 0, sqSize, flipped);
+                        // cVarK1.b(fE, f, 1, sqSize, flipped);
+                        moveActionMethod.invoke(moveHandler, fE, f, 0, sqSize, flipped);
+                        moveActionMethod.invoke(moveHandler, fE, f, 1, sqSize, flipped);
                         return true;
                     }
                 };
@@ -492,7 +564,13 @@ public class AutoMoveManager {
      */
     private static Method getTapMethod(Object contract, Class<?> squareClass) {
         if (contract == null || squareClass == null) return null;
-        if (cachedTapMethod != null) return cachedTapMethod;
+        Method cached = cachedTapMethod;
+        if (cached != null && cached.getDeclaringClass().isInstance(contract)) {
+            Class<?>[] pTypes = cached.getParameterTypes();
+            if (pTypes.length == 1 && pTypes[0].isAssignableFrom(squareClass)) {
+                return cached;
+            }
+        }
 
         try {
             Method m = contract.getClass().getMethod("b", squareClass);
@@ -579,17 +657,45 @@ public class AutoMoveManager {
 
     /**
      * Resolves the native CBViewModel instance controlling the chessboard.
-     * Priority 1: Direct ChessBoardView.getViewModel()
-     * Priority 2: Method scanning on ChessBoardView returning CBViewModel
-     * Priority 3: RealGameViewModel.J().getValue()
+     * Priority 1: Safe Field Reflection on boardView (viewModel, x, or CBViewModel type)
+     * Priority 2: Synchronous Provider rvm.q().get()
+     * Priority 3: Deep Delegate Reflection on rvm.cbDelegate (field K / b4 / j4: boardViewModel field j, _cbDataSource field c)
      * Priority 4: StockfishExtension.getStateImpl() provider lookup
+     * Back-propagation Wire-up: Reflectively syncs resolved CBViewModel into boardView if missing.
      */
     public static Object resolveCBViewModel(View boardView, Activity activity) {
         return resolveCBViewModel((Object) boardView, activity);
     }
 
     public static Object resolveCBViewModel(Object boardView, Activity activity) {
+        // Priority 1: Safe Field Reflection on boardView
         if (boardView != null) {
+            Class<?> c = boardView.getClass();
+            while (c != null && c != Object.class) {
+                for (String fName : new String[]{"viewModel", "x"}) {
+                    try {
+                        Field f = c.getDeclaredField(fName);
+                        f.setAccessible(true);
+                        Object vm = f.get(boardView);
+                        if (vm != null) return vm;
+                    } catch (NoSuchFieldException ignored) {
+                    } catch (Throwable ignored) {}
+                }
+                try {
+                    for (Field f : c.getDeclaredFields()) {
+                        try {
+                            if (f.getType().getName().contains("CBViewModel")) {
+                                f.setAccessible(true);
+                                Object vm = f.get(boardView);
+                                if (vm != null) return vm;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                } catch (Throwable ignored) {}
+                c = c.getSuperclass();
+            }
+
+            // Safe fallback to getter method if implemented safely (e.g. mock objects)
             try {
                 Method m = boardView.getClass().getMethod("getViewModel");
                 m.setAccessible(true);
@@ -608,6 +714,7 @@ public class AutoMoveManager {
             } catch (Throwable ignored) {}
         }
 
+        // Priority 2 & 3: Resolve from RealGameViewModel (rvm)
         Activity act = (activity != null) ? activity : StockfishExtension.getCurrentActivity();
         Object rvm = null;
         if (act != null) {
@@ -616,34 +723,197 @@ public class AutoMoveManager {
         if (rvm == null) {
             rvm = AutoFindManager.getLastKnownViewModel();
         }
+
+        Object cbVm = null;
         if (rvm != null) {
+            // Priority 2: Synchronous Provider rvm.q().get()
             try {
-                Method jMethod = rvm.getClass().getMethod("J");
-                jMethod.setAccessible(true);
-                Object flow = jMethod.invoke(rvm);
-                if (flow != null) {
-                    Method gv = flow.getClass().getMethod("getValue");
-                    gv.setAccessible(true);
-                    Object vm = gv.invoke(flow);
-                    if (vm != null) return vm;
+                Method qMethod = rvm.getClass().getMethod("q");
+                qMethod.setAccessible(true);
+                Object provider = qMethod.invoke(rvm);
+                if (provider != null) {
+                    Method getMethod = provider.getClass().getMethod("get");
+                    getMethod.setAccessible(true);
+                    cbVm = getMethod.invoke(provider);
+                    if (cbVm != null) {
+                        NnvcLogger.d(TAG, "Resolved CBViewModel via rvm.q() Provider: " + cbVm.getClass().getName());
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            // Priority 3: Deep Delegate Reflection on rvm.cbDelegate (b4 / j4 / field K)
+            if (cbVm == null) {
+                Class<?> rvmCls = rvm.getClass();
+                while (rvmCls != null && rvmCls != Object.class && cbVm == null) {
+                    for (Field f : rvmCls.getDeclaredFields()) {
+                        f.setAccessible(true);
+                        Object delegate = null;
+                        try {
+                            delegate = f.get(rvm);
+                        } catch (Throwable ignored) {}
+                        if (delegate == null) continue;
+
+                        String typeName = f.getType().getName();
+                        String delClsName = delegate.getClass().getName();
+                        boolean isDelegate = f.getName().equals("K") || f.getName().equals("cbDelegate") ||
+                                             typeName.contains("b4") || typeName.contains("j4") ||
+                                             delClsName.contains("b4") || delClsName.contains("j4");
+
+                        if (isDelegate || f.getName().equals("K")) {
+                            // 3a. Try delegate.q() provider
+                            try {
+                                Method qMethod = delegate.getClass().getMethod("q");
+                                qMethod.setAccessible(true);
+                                Object prov = qMethod.invoke(delegate);
+                                if (prov != null) {
+                                    Method getMethod = prov.getClass().getMethod("get");
+                                    getMethod.setAccessible(true);
+                                    cbVm = getMethod.invoke(prov);
+                                    if (cbVm != null) {
+                                        NnvcLogger.d(TAG, "Resolved CBViewModel via cbDelegate.q(): " + cbVm.getClass().getName());
+                                        break;
+                                    }
+                                }
+                            } catch (Throwable ignored) {}
+
+                            // 3b. Try field 'boardViewModel' or 'j'
+                            try {
+                                for (String jName : new String[]{"boardViewModel", "j"}) {
+                                    try {
+                                        Field jField = delegate.getClass().getDeclaredField(jName);
+                                        jField.setAccessible(true);
+                                        Object val = jField.get(delegate);
+                                        if (val != null) {
+                                            cbVm = val;
+                                            NnvcLogger.d(TAG, "Resolved CBViewModel via cbDelegate." + jName + ": " + cbVm.getClass().getName());
+                                            break;
+                                        }
+                                    } catch (NoSuchFieldException ignored) {}
+                                }
+                                if (cbVm != null) break;
+                            } catch (Throwable ignored) {}
+
+                            // 3c. Try field '_cbDataSource' or 'c' (StateFlow)
+                            try {
+                                for (String cName : new String[]{"_cbDataSource", "c"}) {
+                                    try {
+                                        Field cField = delegate.getClass().getDeclaredField(cName);
+                                        cField.setAccessible(true);
+                                        Object flow = cField.get(delegate);
+                                        if (flow != null) {
+                                            Method gv = flow.getClass().getMethod("getValue");
+                                            gv.setAccessible(true);
+                                            Object val = gv.invoke(flow);
+                                            if (val != null) {
+                                                cbVm = val;
+                                                NnvcLogger.d(TAG, "Resolved CBViewModel via cbDelegate." + cName + ".getValue(): " + cbVm.getClass().getName());
+                                                break;
+                                            }
+                                        }
+                                    } catch (Throwable ignored) {}
+                                }
+                                if (cbVm != null) break;
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                    rvmCls = rvmCls.getSuperclass();
+                }
+            }
+
+            // Fallback: check rvm.J().getValue() in case J() is a StateFlow
+            if (cbVm == null) {
+                try {
+                    Method jMethod = rvm.getClass().getMethod("J");
+                    jMethod.setAccessible(true);
+                    Object flow = jMethod.invoke(rvm);
+                    if (flow != null) {
+                        Method gv = flow.getClass().getMethod("getValue");
+                        gv.setAccessible(true);
+                        cbVm = gv.invoke(flow);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        // Priority 4: StockfishExtension.getStateImpl()
+        if (cbVm == null) {
+            try {
+                Object state = StockfishExtension.getStateImpl();
+                if (state != null) {
+                    for (Method m : state.getClass().getMethods()) {
+                        if (m.getParameterTypes().length == 0 && m.getReturnType().getName().contains("CBViewModel")) {
+                            m.setAccessible(true);
+                            cbVm = m.invoke(state);
+                            if (cbVm != null) break;
+                        }
+                    }
                 }
             } catch (Throwable ignored) {}
         }
 
+        // Back-propagation Wire-up: If resolved from rvm/state and boardView is missing viewModel, sync it
+        if (cbVm != null && boardView != null) {
+            wireUpViewModelToBoardView(boardView, cbVm);
+        }
+
+        return cbVm;
+    }
+
+    /**
+     * Reflectively syncs the resolved CBViewModel into ChessBoardView so the View
+     * is immediately fully configured without waiting for the Activity coroutine.
+     */
+    public static void wireUpViewModelToBoardView(Object boardView, Object cbVm) {
+        if (boardView == null || cbVm == null) return;
         try {
-            Object state = StockfishExtension.getStateImpl();
-            if (state != null) {
-                for (Method m : state.getClass().getMethods()) {
-                    if (m.getParameterTypes().length == 0 && m.getReturnType().getName().contains("CBViewModel")) {
+            Class<?> c = boardView.getClass();
+            boolean alreadySet = false;
+            // Check if boardView already has viewModel non-null
+            while (c != null && c != Object.class) {
+                for (String fName : new String[]{"viewModel", "x"}) {
+                    try {
+                        Field f = c.getDeclaredField(fName);
+                        f.setAccessible(true);
+                        if (f.get(boardView) != null) {
+                            alreadySet = true;
+                            break;
+                        }
+                    } catch (NoSuchFieldException ignored) {}
+                }
+                if (alreadySet) break;
+                c = c.getSuperclass();
+            }
+
+            if (alreadySet) return;
+
+            // 1. Try calling setViewModel(cbVm)
+            for (Method m : boardView.getClass().getMethods()) {
+                if ("setViewModel".equals(m.getName()) && m.getParameterTypes().length == 1) {
+                    try {
                         m.setAccessible(true);
-                        Object vm = m.invoke(state);
-                        if (vm != null) return vm;
-                    }
+                        m.invoke(boardView, cbVm);
+                        NnvcLogger.d(TAG, "⚡ Wire-up: Invoked boardView.setViewModel() successfully");
+                        break;
+                    } catch (Throwable ignored) {}
                 }
             }
-        } catch (Throwable ignored) {}
 
-        return null;
+            // 2. Set field directly (field 'x' or 'viewModel')
+            c = boardView.getClass();
+            while (c != null && c != Object.class) {
+                for (String fName : new String[]{"viewModel", "x"}) {
+                    try {
+                        Field f = c.getDeclaredField(fName);
+                        f.setAccessible(true);
+                        f.set(boardView, cbVm);
+                        NnvcLogger.d(TAG, "⚡ Wire-up: Set boardView." + fName + " field successfully");
+                    } catch (NoSuchFieldException ignored) {}
+                }
+                c = c.getSuperclass();
+            }
+        } catch (Throwable t) {
+            NnvcLogger.w(TAG, "wireUpViewModelToBoardView non-fatal error: " + t.getMessage());
+        }
     }
 
     /**

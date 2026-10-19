@@ -2054,36 +2054,133 @@ public class SelfTest {
         Object resolvedVm = AutoMoveManager.resolveCBViewModel(mockBvWithVm, null);
         check("resolveCBViewModel resolves from ChessBoardView.getViewModel()", resolvedVm == mockBvWithVm.getViewModel());
 
-        class MockFlow {
+        class MockPureFlow {
+            // Pure Kotlin Flow without getValue() method
+        }
+
+        class MockProvider {
             private final MockCBViewModel vm = new MockCBViewModel();
-            public MockCBViewModel getValue() {
+            public MockCBViewModel get() {
                 return vm;
             }
         }
 
         class MockRealGameViewModelWithJ {
-            private final MockFlow flow = new MockFlow();
-            public MockFlow J() {
+            private final MockPureFlow flow = new MockPureFlow();
+            private final MockProvider provider = new MockProvider();
+            public MockPureFlow J() {
                 return flow;
+            }
+            public MockProvider q() {
+                return provider;
             }
         }
 
         MockRealGameViewModelWithJ mockRvmWithJ = new MockRealGameViewModelWithJ();
+        // Verify mockRvmWithJ.J() does NOT have getValue() method (reflecting real Flow behavior)
+        boolean jHasGetValue = false;
         try {
-            java.lang.reflect.Method jM = mockRvmWithJ.getClass().getMethod("J");
-            Object flowObj = jM.invoke(mockRvmWithJ);
-            java.lang.reflect.Method gvM = flowObj.getClass().getMethod("getValue");
-            Object vmFromJ = gvM.invoke(flowObj);
-            check("resolveCBViewModel can fallback to RealGameViewModel.J().getValue()", vmFromJ == mockRvmWithJ.flow.vm);
-        } catch (Throwable t) {
-            check("Fallback to RealGameViewModel.J().getValue() failed", false);
-        }
+            mockRvmWithJ.J().getClass().getMethod("getValue");
+            jHasGetValue = true;
+        } catch (NoSuchMethodException ignored) {}
+        check("RealGameViewModel.J() pure Flow does not have getValue()", !jHasGetValue);
 
-        // Test fallback to AutoFindManager.getLastKnownViewModel()
+        // Test fallback to AutoFindManager.getLastKnownViewModel() via rvm.q() Provider
         AutoFindManager.setLastKnownViewModel(mockRvmWithJ);
         Object vmFromLastKnown = AutoMoveManager.resolveCBViewModel((Object) null, null);
-        check("resolveCBViewModel falls back to AutoFindManager.getLastKnownViewModel()", vmFromLastKnown == mockRvmWithJ.flow.vm);
+        check("resolveCBViewModel falls back to AutoFindManager.getLastKnownViewModel() via q() Provider", vmFromLastKnown == mockRvmWithJ.provider.vm);
+
+        // Test resolveCBViewModel when boardView.getViewModel() throws UninitializedPropertyAccessException (Kotlin lateinit)
+        class MockBoardViewThrowing {
+            public MockCBViewModel viewModel = null;
+            public MockCBViewModel getViewModel() {
+                throw new IllegalStateException("Property viewModel has not been initialized");
+            }
+            public void setViewModel(Object vm) {
+                this.viewModel = (MockCBViewModel) vm;
+            }
+        }
+
+        MockBoardViewThrowing mockBvThrowing = new MockBoardViewThrowing();
+        Object resolvedWhenThrowing = AutoMoveManager.resolveCBViewModel(mockBvThrowing, null);
+        check("resolveCBViewModel resolves via q() when boardView.getViewModel() throws UninitializedPropertyAccessException",
+                resolvedWhenThrowing == mockRvmWithJ.provider.vm);
+        check("resolveCBViewModel back-propagation wire-up sets viewModel on boardView",
+                mockBvThrowing.viewModel == mockRvmWithJ.provider.vm);
         AutoFindManager.setLastKnownViewModel(null);
+
+        // Test resolveDirectMoveExecutor selection logic based on squareSize <= 0.001f
+        class MockSquare {
+            public int e(boolean flipped) { return 4; }
+            public int f(boolean flipped) { return 4; }
+        }
+
+        class MockAccessibilityContract {
+            public boolean bCalled = false;
+            public void b(MockSquare sq) {
+                bCalled = true;
+            }
+        }
+
+        class MockDrawDelegate {
+            public float squareSize = 0f;
+            public float getSquareSize() {
+                return squareSize;
+            }
+        }
+
+        class MockMoveHandler {
+            public boolean bCalled = false;
+            public float lastSquareSize = 0f;
+            public boolean b(float fE, float f, int action, float sqSize, boolean flipped) {
+                bCalled = true;
+                lastSquareSize = sqSize;
+                return true;
+            }
+        }
+
+        class MockDependencies {
+            public final MockMoveHandler moveHandler = new MockMoveHandler();
+            public MockMoveHandler k1() {
+                return moveHandler;
+            }
+        }
+
+        class MockBoardViewForExecutor {
+            public final MockAccessibilityContract accessibilityContract = new MockAccessibilityContract();
+            public final MockDrawDelegate drawDelegate = new MockDrawDelegate();
+            public final MockDependencies u = new MockDependencies();
+            public int getWidth() { return 800; }
+            public int getHeight() { return 800; }
+            public MockDrawDelegate getDrawDelegate() { return drawDelegate; }
+        }
+
+        MockBoardViewForExecutor mockBvExec = new MockBoardViewForExecutor();
+        // 1. When squareSize == 0.0f (Move 0 unmeasured), bypass AccessibilityContract and choose MoveHandler
+        mockBvExec.drawDelegate.squareSize = 0.0f;
+        AutoMoveManager.DirectMoveExecutor executor0 = AutoMoveManager.resolveDirectMoveExecutor(mockBvExec, MockSquare.class);
+        check("resolveDirectMoveExecutor is non-null when squareSize <= 0.001f", executor0 != null);
+        try {
+            executor0.executeTap(new MockSquare(), "e4", false);
+            check("resolveDirectMoveExecutor bypasses ChessBoardView$b and uses MoveHandler when squareSize <= 0.001f",
+                    !mockBvExec.accessibilityContract.bCalled && mockBvExec.u.moveHandler.bCalled && mockBvExec.u.moveHandler.lastSquareSize == 100f);
+        } catch (Exception e) {
+            check("Executor executeTap failed: " + e.getMessage(), false);
+        }
+
+        // 2. When squareSize == 100.0f (> 0.001f, normal measured board), choose AccessibilityContract
+        mockBvExec.drawDelegate.squareSize = 100.0f;
+        mockBvExec.accessibilityContract.bCalled = false;
+        mockBvExec.u.moveHandler.bCalled = false;
+        AutoMoveManager.DirectMoveExecutor executor100 = AutoMoveManager.resolveDirectMoveExecutor(mockBvExec, MockSquare.class);
+        check("resolveDirectMoveExecutor is non-null when squareSize > 0.001f", executor100 != null);
+        try {
+            executor100.executeTap(new MockSquare(), "e4", false);
+            check("resolveDirectMoveExecutor uses AccessibilityContract when squareSize > 0.001f",
+                    mockBvExec.accessibilityContract.bCalled && !mockBvExec.u.moveHandler.bCalled);
+        } catch (Exception e) {
+            check("Executor executeTap failed: " + e.getMessage(), false);
+        }
 
         // Test mock execution of CBViewModel.p directly
         MockCBViewModel directVm = new MockCBViewModel();
