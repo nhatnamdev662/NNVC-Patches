@@ -188,7 +188,7 @@ public class StockfishExtension {
                 }
             }
         } catch (Throwable t) {
-            Log.e(TAG, "getCurrentActivity failed: " + t.getMessage());
+            NnvcLogger.e(TAG, "getCurrentActivity failed: " + t.getMessage(), t);
         }
         return null;
     }
@@ -383,6 +383,9 @@ public class StockfishExtension {
     public static void onGameOverNative(Object viewModel, Object gameEndData) {
         try {
             NnvcLogger.i(TAG, "Native onGameOverNative hooked directly from RealGameViewModel.Gb!");
+            lastLoadedMove0Fen = null;
+            isMove0AnalysisScheduled = false;
+            isMove0AnalysisCompleted = false;
             AutoFindManager.onGameOverNative(viewModel, gameEndData);
         } catch (Throwable t) {
             NnvcLogger.e(TAG, "onGameOverNative error: " + t.getMessage(), t);

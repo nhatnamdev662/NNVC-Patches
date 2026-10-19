@@ -609,21 +609,25 @@ public class AutoMoveManager {
         }
 
         Activity act = (activity != null) ? activity : StockfishExtension.getCurrentActivity();
+        Object rvm = null;
         if (act != null) {
-            Object rvm = AutoFindManager.getRealGameViewModel(act);
-            if (rvm != null) {
-                try {
-                    Method jMethod = rvm.getClass().getMethod("J");
-                    jMethod.setAccessible(true);
-                    Object flow = jMethod.invoke(rvm);
-                    if (flow != null) {
-                        Method gv = flow.getClass().getMethod("getValue");
-                        gv.setAccessible(true);
-                        Object vm = gv.invoke(flow);
-                        if (vm != null) return vm;
-                    }
-                } catch (Throwable ignored) {}
-            }
+            rvm = AutoFindManager.getRealGameViewModel(act);
+        }
+        if (rvm == null) {
+            rvm = AutoFindManager.getLastKnownViewModel();
+        }
+        if (rvm != null) {
+            try {
+                Method jMethod = rvm.getClass().getMethod("J");
+                jMethod.setAccessible(true);
+                Object flow = jMethod.invoke(rvm);
+                if (flow != null) {
+                    Method gv = flow.getClass().getMethod("getValue");
+                    gv.setAccessible(true);
+                    Object vm = gv.invoke(flow);
+                    if (vm != null) return vm;
+                }
+            } catch (Throwable ignored) {}
         }
 
         try {
@@ -648,32 +652,52 @@ public class AutoMoveManager {
      * Queen promotion: com.chess.chessboard.p(fromSquare, toSquare, PieceKind.f)
      */
     public static Object createMoveObject(ClassLoader cl, Object fromSquare, Object toSquare, boolean isPromo) {
+        return createMoveObject(cl, fromSquare, toSquare, isPromo, 'q');
+    }
+
+    /**
+     * Constructs a native Move object with specific promotion piece kind (q, r, b, n).
+     */
+    public static Object createMoveObject(ClassLoader cl, Object fromSquare, Object toSquare, boolean isPromo, char promoPiece) {
         if (cl == null || fromSquare == null || toSquare == null) return null;
         Class<?> squareClass = fromSquare.getClass();
         try {
             if (isPromo) {
                 Class<?> pClass = Class.forName("com.chess.chessboard.p", true, cl);
                 Class<?> pieceKindClass = Class.forName("com.chess.chessboard.PieceKind", true, cl);
-                Object queenKind = null;
+                Object promoKind = null;
+                char pChar = Character.toLowerCase(promoPiece);
+                String fieldName = "f";
+                String enumName = "QUEEN";
+                if (pChar == 'n') {
+                    fieldName = "c";
+                    enumName = "KNIGHT";
+                } else if (pChar == 'b') {
+                    fieldName = "d";
+                    enumName = "BISHOP";
+                } else if (pChar == 'r') {
+                    fieldName = "e";
+                    enumName = "ROOK";
+                }
                 try {
-                    Field f = pieceKindClass.getDeclaredField("f");
+                    Field f = pieceKindClass.getDeclaredField(fieldName);
                     f.setAccessible(true);
-                    queenKind = f.get(null);
+                    promoKind = f.get(null);
                 } catch (Throwable ignored) {}
-                if (queenKind == null) {
+                if (promoKind == null) {
                     for (Object enumConst : pieceKindClass.getEnumConstants()) {
-                        if ("QUEEN".equalsIgnoreCase(((Enum<?>) enumConst).name())) {
-                            queenKind = enumConst;
+                        if (enumName.equalsIgnoreCase(((Enum<?>) enumConst).name())) {
+                            promoKind = enumConst;
                             break;
                         }
                     }
                 }
-                if (queenKind != null) {
+                if (promoKind != null) {
                     for (Constructor<?> ctor : pClass.getConstructors()) {
                         Class<?>[] pts = ctor.getParameterTypes();
                         if (pts.length == 3 && pts[0].isAssignableFrom(squareClass) && pts[1].isAssignableFrom(squareClass) && pts[2].isAssignableFrom(pieceKindClass)) {
                             ctor.setAccessible(true);
-                            return ctor.newInstance(fromSquare, toSquare, queenKind);
+                            return ctor.newInstance(fromSquare, toSquare, promoKind);
                         }
                     }
                 }
@@ -714,6 +738,10 @@ public class AutoMoveManager {
      * Invokes CBViewModel.p(com.chess.chessboard.l, MoveVerification, boolean).
      */
     public static boolean executeDirectModelMove(ClassLoader cl, Object cbVm, String fromSq, String toSq, boolean isPromo) {
+        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo, 'q');
+    }
+
+    public static boolean executeDirectModelMove(ClassLoader cl, Object cbVm, String fromSq, String toSq, boolean isPromo, char promoPiece) {
         if (cl == null || cbVm == null) return false;
         try {
             Object fromSquare = getSquare(cl, fromSq);
@@ -723,7 +751,7 @@ public class AutoMoveManager {
                 return false;
             }
 
-            Object moveObj = createMoveObject(cl, fromSquare, toSquare, isPromo);
+            Object moveObj = createMoveObject(cl, fromSquare, toSquare, isPromo, promoPiece);
             if (moveObj == null) {
                 NnvcLogger.w(TAG, "executeDirectModelMove: Failed to construct Move object");
                 return false;
@@ -768,7 +796,7 @@ public class AutoMoveManager {
 
             pMethod.setAccessible(true);
             pMethod.invoke(cbVm, moveObj, moveVerification, false);
-            NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Executed 0ms move directly via CBViewModel.p: " + fromSq + toSq + (isPromo ? "q" : ""));
+            NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Executed 0ms move directly via CBViewModel.p: " + fromSq + toSq + (isPromo ? promoPiece : ""));
             return true;
         } catch (Throwable t) {
             NnvcLogger.w(TAG, "executeDirectModelMove invoke error: " + t.getMessage());
@@ -777,9 +805,13 @@ public class AutoMoveManager {
     }
 
     public static boolean executeDirectModelMove(ClassLoader cl, View boardView, Activity activity, String fromSq, String toSq, boolean isPromo) {
+        return executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, 'q');
+    }
+
+    public static boolean executeDirectModelMove(ClassLoader cl, View boardView, Activity activity, String fromSq, String toSq, boolean isPromo, char promoPiece) {
         Object cbVm = resolveCBViewModel(boardView, activity);
         if (cbVm == null) return false;
-        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo);
+        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo, promoPiece);
     }
 
     /**
@@ -799,6 +831,24 @@ public class AutoMoveManager {
                                             final boolean isPromo,
                                             final long fittsDelay,
                                             final int retryCount) {
+        executeMoveWithRetry(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, fromSq, toSq, isPromo, (uciMove != null && uciMove.length() >= 5) ? Character.toLowerCase(uciMove.charAt(4)) : 'q', fittsDelay, retryCount);
+    }
+
+    public static void executeMoveWithRetry(final Context context,
+                                            final View boardView,
+                                            final String uciMove,
+                                            final boolean flipped,
+                                            final String currentFen,
+                                            final float evalScore,
+                                            final long engineThinkMs,
+                                            final boolean userWhite,
+                                            final Activity activity,
+                                            final String fromSq,
+                                            final String toSq,
+                                            final boolean isPromo,
+                                            final char promoChar,
+                                            final long fittsDelay,
+                                            final int retryCount) {
         try {
             // 1. Just-In-Time (JIT) check: verify board is still on target position and it is user's turn
             if (!isTurnAndPositionMatching(boardView, currentFen)) {
@@ -811,9 +861,9 @@ public class AutoMoveManager {
             clearBoardSelection(boardView, flipped);
 
             // 2. Direct Model Hook (0ms execution, 100% Desktop Extension Parity)
-            boolean directSuccess = executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo);
+            boolean directSuccess = executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, promoChar);
             if (directSuccess) {
-                if (isPromo) {
+                if (isPromo && promoChar == 'q') {
                     applyPromotionQueen(boardView);
                 }
                 NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Nước đi đã được đẩy trực tiếp vào CBViewModel (0ms): " + uciMove);
@@ -827,7 +877,7 @@ public class AutoMoveManager {
                 postDelayedToMain(new Runnable() {
                     @Override
                     public void run() {
-                        executeMoveWithRetry(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, fromSq, toSq, isPromo, fittsDelay, retryCount + 1);
+                        executeMoveWithRetry(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, fromSq, toSq, isPromo, promoChar, fittsDelay, retryCount + 1);
                     }
                 }, 50);
                 return;
@@ -852,7 +902,7 @@ public class AutoMoveManager {
                 return;
             }
 
-            if (isPromo) {
+            if (isPromo && promoChar == 'q') {
                 applyPromotionQueen(boardView);
             }
 
@@ -870,7 +920,7 @@ public class AutoMoveManager {
                             return;
                         }
 
-                        if (isPromo) {
+                        if (isPromo && promoChar == 'q') {
                             applyPromotionQueen(boardView);
                         }
 
@@ -969,6 +1019,7 @@ public class AutoMoveManager {
         final String fromSq = uciMove.substring(0, 2);
         final String toSq = uciMove.substring(2, 4);
         final boolean isPromo = isPromotion(uciMove, currentFen);
+        final char promoChar = (uciMove.length() >= 5) ? Character.toLowerCase(uciMove.charAt(4)) : 'q';
         final long fittsDelay = calculateFittsDelay(fromSq, toSq);
 
         // Tính toán độ trễ thông minh Smart Delay (chuẩn 100% Desktop Extension)
@@ -992,7 +1043,7 @@ public class AutoMoveManager {
         final Runnable moveExecutionTask = new Runnable() {
             @Override
             public void run() {
-                executeMoveWithRetry(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, fromSq, toSq, isPromo, fittsDelay, 0);
+                executeMoveWithRetry(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, fromSq, toSq, isPromo, promoChar, fittsDelay, 0);
             }
         };
 

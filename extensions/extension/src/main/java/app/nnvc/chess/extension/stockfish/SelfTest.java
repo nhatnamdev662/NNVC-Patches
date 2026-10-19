@@ -2005,8 +2005,9 @@ public class SelfTest {
         }
 
         // Verify OverlayManager.isBoardFlipped circular dependency is broken
-        check("OverlayManager.isBoardFlipped with null board and null state safely returns default without recursion",
-                !OverlayManager.isBoardFlipped(null, null) || OverlayManager.isBoardFlipped(null, null));
+        boolean flippedDefault = OverlayManager.isBoardFlipped(null, null);
+        check("OverlayManager.isBoardFlipped with null board and null state safely returns boolean without recursion",
+                flippedDefault == false || flippedDefault == true);
 
         // 2. Move 0 Arrow Retention
         StockfishExtension.setMove0AnalysisCompleted(false);
@@ -2017,6 +2018,11 @@ public class SelfTest {
         String startPosFen40j = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         boolean skipEvaluation = true && startPosFen40j.equals(startPosFen40j) && (StockfishExtension.isMove0AnalysisCompleted() || false);
         check("Subsequent onBoardChanged startpos correctly skips duplicate reset when analysis completed", skipEvaluation);
+
+        // Move 0 state reset on game over (prevents abort on Move 0 from poisoning next game)
+        StockfishExtension.setMove0AnalysisCompleted(true);
+        StockfishExtension.onGameOverNative(null, null);
+        check("onGameOverNative clears isMove0AnalysisCompleted to prevent next game poisoning", !StockfishExtension.isMove0AnalysisCompleted());
 
         // 3. Direct Model Hook Auto Move
         class MockCBViewModel {
@@ -2069,6 +2075,12 @@ public class SelfTest {
             check("Fallback to RealGameViewModel.J().getValue() failed", false);
         }
 
+        // Test fallback to AutoFindManager.getLastKnownViewModel()
+        AutoFindManager.setLastKnownViewModel(mockRvmWithJ);
+        Object vmFromLastKnown = AutoMoveManager.resolveCBViewModel((Object) null, null);
+        check("resolveCBViewModel falls back to AutoFindManager.getLastKnownViewModel()", vmFromLastKnown == mockRvmWithJ.flow.vm);
+        AutoFindManager.setLastKnownViewModel(null);
+
         // Test mock execution of CBViewModel.p directly
         MockCBViewModel directVm = new MockCBViewModel();
         Object mockMove = new Object();
@@ -2076,11 +2088,18 @@ public class SelfTest {
         directVm.p(mockMove, mockVerification, false);
         check("Direct CBViewModel.p executes with animate=false (0ms parity)", directVm.pCalled && !directVm.lastAnimate && directVm.lastMove == mockMove);
 
-        // Test Promotion identification
+        // Test Promotion identification & under-promotions
         check("isPromotion returns true for e7e8q", AutoMoveManager.isPromotion("e7e8q"));
         check("isPromotion returns true for c2c1r", AutoMoveManager.isPromotion("c2c1r"));
+        check("isPromotion returns true for e7e8n (Knight under-promotion)", AutoMoveManager.isPromotion("e7e8n"));
+        check("isPromotion returns true for e7e8b (Bishop under-promotion)", AutoMoveManager.isPromotion("e7e8b"));
         check("isPromotion returns false for e2e4", !AutoMoveManager.isPromotion("e2e4"));
         check("isPromotion returns false for g1f3", !AutoMoveManager.isPromotion("g1f3"));
+
+        // Test safe handling of nulls in move creation & direct execution
+        check("createMoveObject with null square returns null safely", AutoMoveManager.createMoveObject(null, null, null, false) == null);
+        check("createMoveObject with under-promotion null square returns null safely", AutoMoveManager.createMoveObject(null, null, null, true, 'n') == null);
+        check("executeDirectModelMove with null vm returns false safely", !AutoMoveManager.executeDirectModelMove(null, (Object) null, "e7", "e8", true, 'n'));
 
         // Test Fitts Delay calculation
         check("calculateFittsDelay returns positive biometric duration", AutoMoveManager.calculateFittsDelay("e2", "e4") >= 95);

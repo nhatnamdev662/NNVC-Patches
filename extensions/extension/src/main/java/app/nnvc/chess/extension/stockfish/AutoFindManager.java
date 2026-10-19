@@ -101,6 +101,10 @@ public class AutoFindManager {
         return null;
     }
 
+    public static void setLastKnownViewModel(Object vm) {
+        lastNativeViewModelRef = (vm != null) ? new WeakReference<>(vm) : null;
+    }
+
     public static boolean isCurrentGameHandled(Activity activity) {
         if (currentState == State.COUNTDOWN || currentState == State.SEEKING) {
             return true;
