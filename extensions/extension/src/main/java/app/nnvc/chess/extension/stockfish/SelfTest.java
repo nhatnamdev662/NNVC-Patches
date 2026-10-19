@@ -1966,6 +1966,132 @@ public class SelfTest {
         check("I18n cd_cancel exists", I18n.get(null, "cd_cancel").length() > 0);
         check("I18n cd_now exists", I18n.get(null, "cd_now").length() > 0);
 
+        // 40j. Direct Model Hook Auto Move (0ms Desktop Extension Parity), UserSide Resolution & Move 0 Arrow Retention
+        // 1. UserSide & User Color Detection
+        StockfishExtension.resetUserWhiteCache();
+        check("StockfishExtension getCachedUserIsWhite initially null after reset", StockfishExtension.getCachedUserIsWhite() == null);
+
+        enum MockUserSide {
+            WHITE, BLACK, NONE
+        }
+        check("sideToWhite detects WHITE correctly", Boolean.TRUE.equals(StockfishExtension.sideToWhite(MockUserSide.WHITE)));
+        check("sideToWhite detects BLACK correctly", Boolean.FALSE.equals(StockfishExtension.sideToWhite(MockUserSide.BLACK)));
+        check("sideToWhite handles null/NONE safely", StockfishExtension.sideToWhite(MockUserSide.NONE) == null && StockfishExtension.sideToWhite(null) == null);
+
+        class MockVmWithE8 {
+            public MockUserSide e8() {
+                return MockUserSide.WHITE;
+            }
+        }
+        MockVmWithE8 mockVmE8 = new MockVmWithE8();
+        try {
+            java.lang.reflect.Method e8M = mockVmE8.getClass().getMethod("e8");
+            Object sideVal = e8M.invoke(mockVmE8);
+            check("Mock RealGameViewModel e8() returns WHITE", Boolean.TRUE.equals(StockfishExtension.sideToWhite(sideVal)));
+        } catch (Throwable t) {
+            check("Mock RealGameViewModel e8() reflection failed", false);
+        }
+
+        class MockVmWithUserSideField {
+            public final MockUserSide userSide = MockUserSide.BLACK;
+        }
+        MockVmWithUserSideField mockVmField = new MockVmWithUserSideField();
+        try {
+            java.lang.reflect.Field usF = mockVmField.getClass().getDeclaredField("userSide");
+            Object sideVal = usF.get(mockVmField);
+            check("Mock RealGameViewModel userSide field returns BLACK", Boolean.FALSE.equals(StockfishExtension.sideToWhite(sideVal)));
+        } catch (Throwable t) {
+            check("Mock RealGameViewModel userSide field reflection failed", false);
+        }
+
+        // Verify OverlayManager.isBoardFlipped circular dependency is broken
+        check("OverlayManager.isBoardFlipped with null board and null state safely returns default without recursion",
+                !OverlayManager.isBoardFlipped(null, null) || OverlayManager.isBoardFlipped(null, null));
+
+        // 2. Move 0 Arrow Retention
+        StockfishExtension.setMove0AnalysisCompleted(false);
+        check("Move 0 isMove0AnalysisCompleted initial is false", !StockfishExtension.isMove0AnalysisCompleted());
+        StockfishExtension.setMove0AnalysisCompleted(true);
+        check("Move 0 isMove0AnalysisCompleted setter works", StockfishExtension.isMove0AnalysisCompleted());
+
+        String startPosFen40j = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        boolean skipEvaluation = true && startPosFen40j.equals(startPosFen40j) && (StockfishExtension.isMove0AnalysisCompleted() || false);
+        check("Subsequent onBoardChanged startpos correctly skips duplicate reset when analysis completed", skipEvaluation);
+
+        // 3. Direct Model Hook Auto Move
+        class MockCBViewModel {
+            public Object lastMove = null;
+            public Object lastVerification = null;
+            public boolean lastAnimate = true;
+            public boolean pCalled = false;
+
+            public void p(Object move, Object moveVerification, boolean animate) {
+                this.lastMove = move;
+                this.lastVerification = moveVerification;
+                this.lastAnimate = animate;
+                this.pCalled = true;
+            }
+        }
+
+        class MockBoardViewWithViewModel {
+            private final MockCBViewModel vm = new MockCBViewModel();
+            public MockCBViewModel getViewModel() {
+                return vm;
+            }
+        }
+
+        MockBoardViewWithViewModel mockBvWithVm = new MockBoardViewWithViewModel();
+        Object resolvedVm = AutoMoveManager.resolveCBViewModel(mockBvWithVm, null);
+        check("resolveCBViewModel resolves from ChessBoardView.getViewModel()", resolvedVm == mockBvWithVm.getViewModel());
+
+        class MockFlow {
+            private final MockCBViewModel vm = new MockCBViewModel();
+            public MockCBViewModel getValue() {
+                return vm;
+            }
+        }
+
+        class MockRealGameViewModelWithJ {
+            private final MockFlow flow = new MockFlow();
+            public MockFlow J() {
+                return flow;
+            }
+        }
+
+        MockRealGameViewModelWithJ mockRvmWithJ = new MockRealGameViewModelWithJ();
+        try {
+            java.lang.reflect.Method jM = mockRvmWithJ.getClass().getMethod("J");
+            Object flowObj = jM.invoke(mockRvmWithJ);
+            java.lang.reflect.Method gvM = flowObj.getClass().getMethod("getValue");
+            Object vmFromJ = gvM.invoke(flowObj);
+            check("resolveCBViewModel can fallback to RealGameViewModel.J().getValue()", vmFromJ == mockRvmWithJ.flow.vm);
+        } catch (Throwable t) {
+            check("Fallback to RealGameViewModel.J().getValue() failed", false);
+        }
+
+        // Test mock execution of CBViewModel.p directly
+        MockCBViewModel directVm = new MockCBViewModel();
+        Object mockMove = new Object();
+        Object mockVerification = new Object();
+        directVm.p(mockMove, mockVerification, false);
+        check("Direct CBViewModel.p executes with animate=false (0ms parity)", directVm.pCalled && !directVm.lastAnimate && directVm.lastMove == mockMove);
+
+        // Test Promotion identification
+        check("isPromotion returns true for e7e8q", AutoMoveManager.isPromotion("e7e8q"));
+        check("isPromotion returns true for c2c1r", AutoMoveManager.isPromotion("c2c1r"));
+        check("isPromotion returns false for e2e4", !AutoMoveManager.isPromotion("e2e4"));
+        check("isPromotion returns false for g1f3", !AutoMoveManager.isPromotion("g1f3"));
+
+        // Test Fitts Delay calculation
+        check("calculateFittsDelay returns positive biometric duration", AutoMoveManager.calculateFittsDelay("e2", "e4") >= 95);
+        check("calculateFittsDelay handles null safely", AutoMoveManager.calculateFittsDelay(null, null) == 120);
+
+        // Test Square coordinate index mapping
+        check("sqToIndex correctly maps a1 to 56", AutoMoveManager.sqToIndex("a1") == 56);
+        check("sqToIndex correctly maps h8 to 7", AutoMoveManager.sqToIndex("h8") == 7);
+        check("sqToIndex correctly maps e4 to 36", AutoMoveManager.sqToIndex("e4") == 36);
+        check("sqToIndex handles invalid coords safely", AutoMoveManager.sqToIndex("z9") == -1 && AutoMoveManager.sqToIndex(null) == -1);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.PopupWindow;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
@@ -577,6 +578,338 @@ public class AutoMoveManager {
     }
 
     /**
+     * Resolves the native CBViewModel instance controlling the chessboard.
+     * Priority 1: Direct ChessBoardView.getViewModel()
+     * Priority 2: Method scanning on ChessBoardView returning CBViewModel
+     * Priority 3: RealGameViewModel.J().getValue()
+     * Priority 4: StockfishExtension.getStateImpl() provider lookup
+     */
+    public static Object resolveCBViewModel(View boardView, Activity activity) {
+        return resolveCBViewModel((Object) boardView, activity);
+    }
+
+    public static Object resolveCBViewModel(Object boardView, Activity activity) {
+        if (boardView != null) {
+            try {
+                Method m = boardView.getClass().getMethod("getViewModel");
+                m.setAccessible(true);
+                Object vm = m.invoke(boardView);
+                if (vm != null) return vm;
+            } catch (Throwable ignored) {}
+
+            try {
+                for (Method m : boardView.getClass().getMethods()) {
+                    if (m.getParameterTypes().length == 0 && m.getReturnType().getName().contains("CBViewModel")) {
+                        m.setAccessible(true);
+                        Object vm = m.invoke(boardView);
+                        if (vm != null) return vm;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        Activity act = (activity != null) ? activity : StockfishExtension.getCurrentActivity();
+        if (act != null) {
+            Object rvm = AutoFindManager.getRealGameViewModel(act);
+            if (rvm != null) {
+                try {
+                    Method jMethod = rvm.getClass().getMethod("J");
+                    jMethod.setAccessible(true);
+                    Object flow = jMethod.invoke(rvm);
+                    if (flow != null) {
+                        Method gv = flow.getClass().getMethod("getValue");
+                        gv.setAccessible(true);
+                        Object vm = gv.invoke(flow);
+                        if (vm != null) return vm;
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        try {
+            Object state = StockfishExtension.getStateImpl();
+            if (state != null) {
+                for (Method m : state.getClass().getMethods()) {
+                    if (m.getParameterTypes().length == 0 && m.getReturnType().getName().contains("CBViewModel")) {
+                        m.setAccessible(true);
+                        Object vm = m.invoke(state);
+                        if (vm != null) return vm;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        return null;
+    }
+
+    /**
+     * Constructs a native Move object (com.chess.chessboard.l).
+     * Normal move: com.chess.chessboard.o(fromSquare, toSquare)
+     * Queen promotion: com.chess.chessboard.p(fromSquare, toSquare, PieceKind.f)
+     */
+    public static Object createMoveObject(ClassLoader cl, Object fromSquare, Object toSquare, boolean isPromo) {
+        if (cl == null || fromSquare == null || toSquare == null) return null;
+        Class<?> squareClass = fromSquare.getClass();
+        try {
+            if (isPromo) {
+                Class<?> pClass = Class.forName("com.chess.chessboard.p", true, cl);
+                Class<?> pieceKindClass = Class.forName("com.chess.chessboard.PieceKind", true, cl);
+                Object queenKind = null;
+                try {
+                    Field f = pieceKindClass.getDeclaredField("f");
+                    f.setAccessible(true);
+                    queenKind = f.get(null);
+                } catch (Throwable ignored) {}
+                if (queenKind == null) {
+                    for (Object enumConst : pieceKindClass.getEnumConstants()) {
+                        if ("QUEEN".equalsIgnoreCase(((Enum<?>) enumConst).name())) {
+                            queenKind = enumConst;
+                            break;
+                        }
+                    }
+                }
+                if (queenKind != null) {
+                    for (Constructor<?> ctor : pClass.getConstructors()) {
+                        Class<?>[] pts = ctor.getParameterTypes();
+                        if (pts.length == 3 && pts[0].isAssignableFrom(squareClass) && pts[1].isAssignableFrom(squareClass) && pts[2].isAssignableFrom(pieceKindClass)) {
+                            ctor.setAccessible(true);
+                            return ctor.newInstance(fromSquare, toSquare, queenKind);
+                        }
+                    }
+                }
+            }
+
+            Class<?> oClass = Class.forName("com.chess.chessboard.o", true, cl);
+            for (Constructor<?> ctor : oClass.getConstructors()) {
+                Class<?>[] pts = ctor.getParameterTypes();
+                if (pts.length == 2 && pts[0].isAssignableFrom(squareClass) && pts[1].isAssignableFrom(squareClass)) {
+                    ctor.setAccessible(true);
+                    return ctor.newInstance(fromSquare, toSquare);
+                }
+            }
+        } catch (Throwable t) {
+            NnvcLogger.w(TAG, "createMoveObject failed: " + t.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Resolves the MoveVerification singleton instance (com.chess.chessboard.vm.movesinput.j0.a).
+     */
+    public static Object getMoveVerification(ClassLoader cl) {
+        if (cl == null) return null;
+        try {
+            Class<?> j0Class = Class.forName("com.chess.chessboard.vm.movesinput.j0", true, cl);
+            Field aField = j0Class.getDeclaredField("a");
+            aField.setAccessible(true);
+            return aField.get(null);
+        } catch (Throwable t) {
+            NnvcLogger.w(TAG, "getMoveVerification failed: " + t.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Executes a move directly on the native CBViewModel instance in 0ms (Desktop Extension Parity).
+     * Invokes CBViewModel.p(com.chess.chessboard.l, MoveVerification, boolean).
+     */
+    public static boolean executeDirectModelMove(ClassLoader cl, Object cbVm, String fromSq, String toSq, boolean isPromo) {
+        if (cl == null || cbVm == null) return false;
+        try {
+            Object fromSquare = getSquare(cl, fromSq);
+            Object toSquare = getSquare(cl, toSq);
+            if (fromSquare == null || toSquare == null) {
+                NnvcLogger.w(TAG, "executeDirectModelMove: Square objects not resolved (" + fromSq + ", " + toSq + ")");
+                return false;
+            }
+
+            Object moveObj = createMoveObject(cl, fromSquare, toSquare, isPromo);
+            if (moveObj == null) {
+                NnvcLogger.w(TAG, "executeDirectModelMove: Failed to construct Move object");
+                return false;
+            }
+
+            Object moveVerification = getMoveVerification(cl);
+            if (moveVerification == null) {
+                NnvcLogger.w(TAG, "executeDirectModelMove: MoveVerification not found");
+                return false;
+            }
+
+            Method pMethod = null;
+            for (Method m : cbVm.getClass().getMethods()) {
+                if ("p".equals(m.getName()) && m.getParameterCount() == 3) {
+                    Class<?>[] pts = m.getParameterTypes();
+                    if (pts[2] == boolean.class) {
+                        pMethod = m;
+                        break;
+                    }
+                }
+            }
+            if (pMethod == null) {
+                Class<?> c = cbVm.getClass();
+                while (c != null && c != Object.class) {
+                    for (Method m : c.getDeclaredMethods()) {
+                        if ("p".equals(m.getName()) && m.getParameterCount() == 3) {
+                            Class<?>[] pts = m.getParameterTypes();
+                            if (pts[2] == boolean.class) {
+                                pMethod = m;
+                                break;
+                            }
+                        }
+                    }
+                    if (pMethod != null) break;
+                    c = c.getSuperclass();
+                }
+            }
+            if (pMethod == null) {
+                NnvcLogger.w(TAG, "executeDirectModelMove: Method p not found on " + cbVm.getClass().getName());
+                return false;
+            }
+
+            pMethod.setAccessible(true);
+            pMethod.invoke(cbVm, moveObj, moveVerification, false);
+            NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Executed 0ms move directly via CBViewModel.p: " + fromSq + toSq + (isPromo ? "q" : ""));
+            return true;
+        } catch (Throwable t) {
+            NnvcLogger.w(TAG, "executeDirectModelMove invoke error: " + t.getMessage());
+            return false;
+        }
+    }
+
+    public static boolean executeDirectModelMove(ClassLoader cl, View boardView, Activity activity, String fromSq, String toSq, boolean isPromo) {
+        Object cbVm = resolveCBViewModel(boardView, activity);
+        if (cbVm == null) return false;
+        return executeDirectModelMove(cl, cbVm, fromSq, toSq, isPromo);
+    }
+
+    /**
+     * Executes Auto Move with retry and graceful fallback between Direct Model Hook and Controller Executor.
+     */
+    public static void executeMoveWithRetry(final Context context,
+                                            final View boardView,
+                                            final String uciMove,
+                                            final boolean flipped,
+                                            final String currentFen,
+                                            final float evalScore,
+                                            final long engineThinkMs,
+                                            final boolean userWhite,
+                                            final Activity activity,
+                                            final String fromSq,
+                                            final String toSq,
+                                            final boolean isPromo,
+                                            final long fittsDelay,
+                                            final int retryCount) {
+        try {
+            // 1. Just-In-Time (JIT) check: verify board is still on target position and it is user's turn
+            if (!isTurnAndPositionMatching(boardView, currentFen)) {
+                NnvcLogger.i(TAG, "🛑 [AUTO MOVE JIT ABORT] Ván cờ đã đổi hoặc không còn là lượt người chơi. Hủy nước đi chống PREMOVE: " + uciMove);
+                cancelPendingAutoMove("JIT mismatch (prevented PREMOVE)");
+                return;
+            }
+
+            ClassLoader cl = boardView.getContext().getClassLoader();
+            clearBoardSelection(boardView, flipped);
+
+            // 2. Direct Model Hook (0ms execution, 100% Desktop Extension Parity)
+            boolean directSuccess = executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo);
+            if (directSuccess) {
+                if (isPromo) {
+                    applyPromotionQueen(boardView);
+                }
+                NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Nước đi đã được đẩy trực tiếp vào CBViewModel (0ms): " + uciMove);
+                schedulePostMoveValidation(boardView, currentFen, uciMove);
+                return;
+            }
+
+            // 3. Retry if CBViewModel is temporarily null at Move 0
+            if (retryCount < 3 && resolveCBViewModel(boardView, activity) == null) {
+                NnvcLogger.d(TAG, "⏳ CBViewModel tạm thời null (Move 0 setup), tự động thử lại sau 50ms (lần " + (retryCount + 1) + ")");
+                postDelayedToMain(new Runnable() {
+                    @Override
+                    public void run() {
+                        executeMoveWithRetry(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, fromSq, toSq, isPromo, fittsDelay, retryCount + 1);
+                    }
+                }, 50);
+                return;
+            }
+
+            // 4. Graceful Fallback: Controller-based executor
+            NnvcLogger.w(TAG, "⚠️ Direct Model Move không khả dụng, chuyển sang cơ chế Controller Executor...");
+            final Object fromSquare = getSquare(cl, fromSq);
+            final Object toSquare = getSquare(cl, toSq);
+            if (fromSquare == null || toSquare == null) {
+                NnvcLogger.e(TAG, "❌ Auto Move FAILED: Không thể tìm thấy Square objects (" + fromSq + ", " + toSq + ")");
+                isExecutingMove = false;
+                pendingMoveRunnable = null;
+                return;
+            }
+
+            final DirectMoveExecutor moveExecutor = resolveDirectMoveExecutor(boardView, fromSquare.getClass());
+            if (moveExecutor == null) {
+                NnvcLogger.e(TAG, "❌ Auto Move FAILED: Không tìm thấy DirectMoveExecutor trên ChessBoardView.");
+                isExecutingMove = false;
+                pendingMoveRunnable = null;
+                return;
+            }
+
+            if (isPromo) {
+                applyPromotionQueen(boardView);
+            }
+
+            NnvcLogger.i(TAG, "⚡ Controller Auto Move executing (Fallback): " + uciMove + " (" + fromSq + " -> " + toSq + ", delay=" + fittsDelay + "ms)");
+            moveExecutor.executeTap(fromSquare, fromSq, flipped);
+            NnvcLogger.d(TAG, "▶ [AUTO MOVE STEP 1] Đã chọn ô nguồn: " + fromSq);
+
+            postDelayedToMain(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (!isTurnAndPositionMatching(boardView, currentFen)) {
+                            NnvcLogger.i(TAG, "🛑 [AUTO MOVE STEP 2 ABORT] Lượt đi thay đổi trước khi tap ô đích: " + toSq);
+                            cancelPendingAutoMove("Turn changed before step 2");
+                            return;
+                        }
+
+                        if (isPromo) {
+                            applyPromotionQueen(boardView);
+                        }
+
+                        moveExecutor.executeTap(toSquare, toSq, flipped);
+                        NnvcLogger.d(TAG, "▶ [AUTO MOVE STEP 2] Đã chọn ô đích: " + toSq + " (hoàn tất nước đi)");
+
+                        if (isPromo) {
+                            postDelayedToMain(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        dismissOrResolvePromoDialog(boardView);
+                                    } catch (Throwable ignored) {
+                                    } finally {
+                                        schedulePostMoveValidation(boardView, currentFen, uciMove);
+                                    }
+                                }
+                            }, 120);
+                        } else {
+                            schedulePostMoveValidation(boardView, currentFen, uciMove);
+                        }
+                    } catch (Throwable t) {
+                        NnvcLogger.e(TAG, "❌ Controller Auto Move toSquare execution failed: " + t.getMessage(), t);
+                        isExecutingMove = false;
+                        pendingMoveRunnable = null;
+                        lastAttemptedFen = null;
+                    }
+                }
+            }, fittsDelay);
+
+        } catch (Throwable t) {
+            NnvcLogger.e(TAG, "❌ executeMoveWithRetry failed: " + t.getMessage(), t);
+            isExecutingMove = false;
+            pendingMoveRunnable = null;
+            lastAttemptedFen = null;
+        }
+    }
+
+    /**
      * Executes Auto Move using Direct Controller/Model invocation (Extension Style).
      * 
      * STRICT REQUIREMENT: NO TOUCH SIMULATION FALLBACK.
@@ -659,97 +992,7 @@ public class AutoMoveManager {
         final Runnable moveExecutionTask = new Runnable() {
             @Override
             public void run() {
-                try {
-                    // 1. Just-In-Time (JIT) check: verify board is still on target position and it is user's turn
-                    if (!isTurnAndPositionMatching(boardView, currentFen)) {
-                        NnvcLogger.i(TAG, "🛑 [AUTO MOVE JIT ABORT] Ván cờ đã đổi hoặc không còn là lượt người chơi. Hủy nước đi chống PREMOVE: " + uciMove);
-                        cancelPendingAutoMove("JIT mismatch (prevented PREMOVE)");
-                        return;
-                    }
-
-                    ClassLoader cl = boardView.getContext().getClassLoader();
-                    final Object fromSquare = getSquare(cl, fromSq);
-                    final Object toSquare = getSquare(cl, toSq);
-
-                    if (fromSquare == null || toSquare == null) {
-                        NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: Unable to resolve Square objects (" + fromSq + "=" + fromSquare + ", " + toSq + "=" + toSquare + "). NO FALLBACK.");
-                        isExecutingMove = false;
-                        pendingMoveRunnable = null;
-                        return;
-                    }
-
-                    final DirectMoveExecutor moveExecutor = resolveDirectMoveExecutor(boardView, fromSquare.getClass());
-                    if (moveExecutor == null) {
-                        NnvcLogger.e(TAG, "❌ Direct Auto Move FAILED: No DirectMoveExecutor (neither accessibilityContract nor moveHandler) found on ChessBoardView. NO FALLBACK.");
-                        isExecutingMove = false;
-                        pendingMoveRunnable = null;
-                        return;
-                    }
-
-                    // Pre-apply Auto-Queen promotion targets
-                    if (isPromo) {
-                        applyPromotionQueen(boardView);
-                    }
-
-                    // 2. Clear any active user square selection/dragging before executing tap to prevent conflict
-                    clearBoardSelection(boardView, flipped);
-
-                    NnvcLogger.i(TAG, "⚡ Direct Auto Move executing (Extension Style): " + uciMove + " (" + fromSq + " -> " + toSq + ", delay=" + fittsDelay + "ms, promo=" + isPromo + ")");
-
-                    // Step 1: Select source square
-                    moveExecutor.executeTap(fromSquare, fromSq, flipped);
-                    NnvcLogger.d(TAG, "▶ [AUTO MOVE STEP 1] Đã chọn ô nguồn: " + fromSq);
-
-                    // Step 2: Delay matching Fitts's Law before selecting destination square
-                    postDelayedToMain(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                // JIT check before final tap: ensure turn did not abruptly change
-                                if (!isTurnAndPositionMatching(boardView, currentFen)) {
-                                    NnvcLogger.i(TAG, "🛑 [AUTO MOVE STEP 2 ABORT] Lượt đi thay đổi trước khi tap ô đích: " + toSq);
-                                    cancelPendingAutoMove("Turn changed before step 2");
-                                    return;
-                                }
-
-                                if (isPromo) {
-                                    applyPromotionQueen(boardView);
-                                }
-
-                                // Step 3: Complete move to target square
-                                moveExecutor.executeTap(toSquare, toSq, flipped);
-                                NnvcLogger.d(TAG, "▶ [AUTO MOVE STEP 2] Đã chọn ô đích: " + toSq + " (hoàn tất nước đi)");
-
-                                if (isPromo) {
-                                    postDelayedToMain(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            try {
-                                                dismissOrResolvePromoDialog(boardView);
-                                            } catch (Throwable ignored) {
-                                            } finally {
-                                                schedulePostMoveValidation(boardView, currentFen, uciMove);
-                                            }
-                                        }
-                                    }, 120);
-                                } else {
-                                    schedulePostMoveValidation(boardView, currentFen, uciMove);
-                                }
-                            } catch (Throwable t) {
-                                NnvcLogger.e(TAG, "❌ Direct Auto Move toSquare execution failed: " + t.getMessage(), t);
-                                isExecutingMove = false;
-                                pendingMoveRunnable = null;
-                                lastAttemptedFen = null;
-                            }
-                        }
-                    }, fittsDelay);
-
-                } catch (Throwable t) {
-                    NnvcLogger.e(TAG, "❌ Direct Auto Move fromSquare execution failed: " + t.getMessage(), t);
-                    isExecutingMove = false;
-                    pendingMoveRunnable = null;
-                    lastAttemptedFen = null;
-                }
+                executeMoveWithRetry(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, fromSq, toSq, isPromo, fittsDelay, 0);
             }
         };
 

@@ -94,6 +94,13 @@ public class AutoFindManager {
         return currentState == State.COUNTDOWN;
     }
 
+    public static Object getLastKnownViewModel() {
+        if (lastNativeViewModelRef != null) {
+            return lastNativeViewModelRef.get();
+        }
+        return null;
+    }
+
     public static boolean isCurrentGameHandled(Activity activity) {
         if (currentState == State.COUNTDOWN || currentState == State.SEEKING) {
             return true;

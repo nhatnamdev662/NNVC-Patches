@@ -486,8 +486,9 @@ public class StockfishExtension {
             lastGameOverHandled = false;
             AutoFindManager.resetHandledGameEndData();
             AutoFindManager.onNewGameStarted();
-            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && (OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
-                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already scheduled and rendered, skipping duplicate reset.");
+            if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) &&
+                    ((currentJob != null && !currentJob.isDone()) || OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
+                Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already in progress or completed, skipping duplicate reset.");
                 return;
             }
             lastLoadedMove0Fen = fen;
@@ -934,9 +935,7 @@ public class StockfishExtension {
 
         if (!isFinal) return;
         if (isStartPos) {
-            if (!showArrows || OverlayManager.hasArrows()) {
-                isMove0AnalysisCompleted = true;
-            }
+            isMove0AnalysisCompleted = true;
         }
         OverlayManager.hideMateAnnouncement();
 
@@ -2122,37 +2121,55 @@ public class StockfishExtension {
         cachedUserIsWhite = null;
     }
 
+    public static Boolean getCachedUserIsWhite() {
+        return cachedUserIsWhite;
+    }
+
     public static Boolean isUserWhite(Object stateImplObject) {
-        // Priority 1: Inspect userSide directly from RealGameActivity / RealGameViewModel / RealGameUiSetup
-        // (CRITICAL: In live match Move 0, flipBoard defaults to false before layout! userSide from Intent/ViewModel is the source of truth)
+        // Priority 1: Direct inspection from active RealGameViewModel (authoritative for live match)
         try {
             Activity act = getCurrentActivity();
+            Object vm = null;
             if (act != null) {
-                // Check RealGameActivity.N6() -> RealGameUiSetup.getUserSide()
+                vm = AutoFindManager.getRealGameViewModel(act);
+            }
+            if (vm == null) {
+                vm = AutoFindManager.getLastKnownViewModel();
+            }
+            if (vm != null) {
+                // 1a. Check synthetic getter e8() on RealGameViewModel
                 try {
-                    Method n6 = act.getClass().getMethod("N6");
-                    Object uiSetup = n6.invoke(act);
-                    if (uiSetup != null) {
-                        Method getSide = uiSetup.getClass().getMethod("getUserSide");
-                        Object side = getSide.invoke(uiSetup);
-                        Boolean sw = sideToWhite(side);
-                        if (sw != null) {
-                            cachedUserIsWhite = sw;
-                            return sw;
-                        }
+                    Method e8 = vm.getClass().getMethod("e8");
+                    e8.setAccessible(true);
+                    Object sideVal = e8.invoke(vm);
+                    Boolean sw = sideToWhite(sideVal);
+                    if (sw != null) {
+                        cachedUserIsWhite = sw;
+                        return sw;
                     }
                 } catch (Throwable ignored) {}
 
-                // Check RealGameActivity.X6() -> RealGameViewModel.userSide / gameSetup.getUserSide()
-                Object vm = null;
-                try {
-                    Method x6 = act.getClass().getMethod("X6");
-                    vm = x6.invoke(act);
-                } catch (Throwable ignored) {}
-                if (vm != null) {
-                    for (Field vf : vm.getClass().getDeclaredFields()) {
-                        String vfn = vf.getName().toLowerCase(java.util.Locale.US);
-                        if (vfn.contains("userside") || vfn.contains("side")) {
+                // 1b. Check methods returning UserSide or getUserSide()
+                for (Method m : vm.getClass().getMethods()) {
+                    if (m.getParameterTypes().length == 0 && (m.getReturnType().getName().contains("UserSide") || m.getName().equalsIgnoreCase("getUserSide"))) {
+                        try {
+                            m.setAccessible(true);
+                            Object sideVal = m.invoke(vm);
+                            Boolean sw = sideToWhite(sideVal);
+                            if (sw != null) {
+                                cachedUserIsWhite = sw;
+                                return sw;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+
+                // 1c. Scan declared fields on RealGameViewModel for UserSide
+                Class<?> vc = vm.getClass();
+                while (vc != null && vc != Object.class) {
+                    for (Field vf : vc.getDeclaredFields()) {
+                        String typeName = vf.getType().getName();
+                        if (typeName.contains("UserSide") || vf.getName().equalsIgnoreCase("userSide")) {
                             try {
                                 vf.setAccessible(true);
                                 Object sideVal = vf.get(vm);
@@ -2163,22 +2180,37 @@ public class StockfishExtension {
                                 }
                             } catch (Throwable ignored) {}
                         }
-                        if (vfn.contains("gamesetup")) {
+                    }
+                    vc = vc.getSuperclass();
+                }
+
+                // 1d. Scan declared fields on RealGameViewModel for gameSetup / RealGameUiSetup
+                vc = vm.getClass();
+                while (vc != null && vc != Object.class) {
+                    for (Field vf : vc.getDeclaredFields()) {
+                        String vfn = vf.getName().toLowerCase(java.util.Locale.US);
+                        String typeName = vf.getType().getName();
+                        if (vfn.contains("gamesetup") || typeName.contains("RealGameUiSetup")) {
                             try {
                                 vf.setAccessible(true);
                                 Object setupVal = vf.get(vm);
                                 if (setupVal != null) {
-                                    Method gs = setupVal.getClass().getMethod("getUserSide");
-                                    Object side = gs.invoke(setupVal);
-                                    Boolean sw = sideToWhite(side);
-                                    if (sw != null) {
-                                        cachedUserIsWhite = sw;
-                                        return sw;
+                                    for (Method m : setupVal.getClass().getMethods()) {
+                                        if (m.getParameterTypes().length == 0 && (m.getName().equalsIgnoreCase("getUserSide") || m.getReturnType().getName().contains("UserSide"))) {
+                                            m.setAccessible(true);
+                                            Object sideVal = m.invoke(setupVal);
+                                            Boolean sw = sideToWhite(sideVal);
+                                            if (sw != null) {
+                                                cachedUserIsWhite = sw;
+                                                return sw;
+                                            }
+                                        }
                                     }
                                 }
                             } catch (Throwable ignored) {}
                         }
                     }
+                    vc = vc.getSuperclass();
                 }
             }
         } catch (Throwable ignored) {}
@@ -2194,6 +2226,17 @@ public class StockfishExtension {
                         if ((n.equals("getFlipBoard") || n.equals("isFlipped") || n.equals("getFlipped"))
                                 && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
                             boolean flipped = (boolean) m.invoke(bv);
+                            boolean userWhite = !flipped;
+                            cachedUserIsWhite = userWhite;
+                            return userWhite;
+                        }
+                    }
+                    for (Field f : bv.getClass().getDeclaredFields()) {
+                        String n = f.getName();
+                        if ((n.equals("flipBoard") || n.equals("flipped") || n.equals("isFlipped") || n.equals("t"))
+                                && f.getType() == boolean.class) {
+                            f.setAccessible(true);
+                            boolean flipped = f.getBoolean(bv);
                             boolean userWhite = !flipped;
                             cachedUserIsWhite = userWhite;
                             return userWhite;
@@ -2216,10 +2259,20 @@ public class StockfishExtension {
                         return userWhite;
                     }
                 }
+                for (Field f : stateImplObject.getClass().getDeclaredFields()) {
+                    String n = f.getName();
+                    if ((n.equals("flipped") || n.equals("isFlipped")) && f.getType() == boolean.class) {
+                        f.setAccessible(true);
+                        boolean flipped = f.getBoolean(stateImplObject);
+                        boolean userWhite = !flipped;
+                        cachedUserIsWhite = userWhite;
+                        return userWhite;
+                    }
+                }
             } catch (Throwable ignored) {}
         }
 
-        // Priority 4: Check live board orientation via OverlayManager (which checks ChessBoardView)
+        // Priority 4: Check live board orientation via OverlayManager (which checks ChessBoardView without recursion)
         try {
             boolean flipped = OverlayManager.isBoardFlipped(stateImplObject);
             boolean userWhite = !flipped;
