@@ -331,8 +331,34 @@ public class SmartDelayManager {
         public boolean isAutoDetected = false;
     }
 
+    private static volatile long sLastWhiteMillis = -1;
+    private static volatile long sLastBlackMillis = -1;
+    private static volatile String sLastRunningColor = null;
+
+    public static void onClockUpdatedNative(long whiteMillis, long blackMillis, Object runningColor) {
+        sLastWhiteMillis = whiteMillis;
+        sLastBlackMillis = blackMillis;
+        sLastRunningColor = runningColor != null ? runningColor.toString() : null;
+    }
+
+    public static void resetClockNative() {
+        sLastWhiteMillis = -1;
+        sLastBlackMillis = -1;
+        sLastRunningColor = null;
+    }
+
     public static LiveClockInfo detectLiveClocks(Activity activity, boolean userWhite) {
         LiveClockInfo info = new LiveClockInfo();
+
+        // ── Tầng 0: Bytecode Native Hook từ b.<init> (0ms delay, Zero-Fallback) ──
+        if (sLastWhiteMillis >= 0 && sLastBlackMillis >= 0) {
+            info.mySec = (userWhite ? sLastWhiteMillis : sLastBlackMillis) / 1000.0;
+            info.oppSec = (userWhite ? sLastBlackMillis : sLastWhiteMillis) / 1000.0;
+            info.source = "native_clock";
+            info.isAutoDetected = true;
+            return info;
+        }
+
         if (activity == null) return info;
 
         // ── Tầng 1: Native ViewModel Hooking (Authoritative Time Control & State) ──

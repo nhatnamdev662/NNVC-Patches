@@ -377,6 +377,8 @@ public class StockfishExtension {
         }
     }
 
+    private static volatile Boolean nativeUserSideIsWhite = null;
+
     /**
      * Native hook invoked directly by Chess.com bytecode in RealGameViewModel.Gb(GameEndData, GameplayAnimationPreferences)
      * when ANY game finishes (checkmate, timeout, resignation, draw, abandonment).
@@ -390,9 +392,54 @@ public class StockfishExtension {
             lastLoadedMove0Fen = null;
             isMove0AnalysisScheduled = false;
             isMove0AnalysisCompleted = false;
+            nativeUserSideIsWhite = null;
+            SmartDelayManager.resetClockNative();
+            EloScanner.reset();
             AutoFindManager.onGameOverNative(viewModel, gameEndData);
         } catch (Throwable t) {
             NnvcLogger.e(TAG, "onGameOverNative error: " + t.getMessage(), t);
+        }
+    }
+
+    /**
+     * Native hook invoked directly by Chess.com bytecode in b.<init>(JJColor;Color;)
+     * whenever clocks are updated.
+     */
+    public static void onClockUpdatedNative(long whiteMillis, long blackMillis, Object runningColor) {
+        try {
+            SmartDelayManager.onClockUpdatedNative(whiteMillis, blackMillis, runningColor);
+        } catch (Throwable t) {
+            NnvcLogger.e(TAG, "onClockUpdatedNative error: " + t.getMessage(), t);
+        }
+    }
+
+    /**
+     * Native hook invoked directly by Chess.com bytecode in RealGameViewModel.<init>
+     * when UserSide field V is assigned.
+     */
+    public static void setUserSideNative(Object userSide) {
+        try {
+            NnvcLogger.i(TAG, "Native setUserSideNative hooked directly from RealGameViewModel.<init>: " + userSide);
+            Boolean sw = sideToWhite(userSide);
+            if (sw != null) {
+                nativeUserSideIsWhite = sw;
+                cachedUserIsWhite = sw;
+            }
+        } catch (Throwable t) {
+            NnvcLogger.e(TAG, "setUserSideNative error: " + t.getMessage(), t);
+        }
+    }
+
+    /**
+     * Native hook invoked directly by Chess.com bytecode in RealGameViewModel.Bb / p
+     * when UserInfo objects (players) are loaded.
+     */
+    public static void onPlayersLoadedNative(Object firstPlayer, Object secondPlayer) {
+        try {
+            NnvcLogger.i(TAG, "Native onPlayersLoadedNative hooked directly from RealGameViewModel!");
+            EloScanner.onPlayersLoadedNative(firstPlayer, secondPlayer);
+        } catch (Throwable t) {
+            NnvcLogger.e(TAG, "onPlayersLoadedNative error: " + t.getMessage(), t);
         }
     }
 
@@ -2143,6 +2190,11 @@ public class StockfishExtension {
     }
 
     public static Boolean isUserWhite(Object stateImplObject) {
+        // Priority 0: Native Bytecode Hook directly from RealGameViewModel.<init> field V (0ms, Zero-Fallback)
+        if (nativeUserSideIsWhite != null) {
+            return nativeUserSideIsWhite;
+        }
+
         // Priority 1: Direct inspection from active RealGameViewModel (authoritative for live match)
         try {
             Activity act = getCurrentActivity();

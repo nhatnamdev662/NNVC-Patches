@@ -66,11 +66,11 @@ def inject_patched_dex_if_needed(apk_path):
     with zipfile.ZipFile(apk_path, "r") as z:
         if "classes9.dex" in z.namelist():
             current_dex = z.read("classes9.dex")
-            if b"onGameOverNative" in current_dex:
-                print("[OK] classes9.dex already contains onGameOverNative hook.")
+            if current_dex == patched_dex_bytes:
+                print("[OK] classes9.dex is already up to date with patched_classes9.dex.")
                 return
 
-    print("[*] Injecting native RealGameViewModel onGameOverNative hook into classes9.dex...")
+    print("[*] Injecting native patched_classes9.dex hooks into classes9.dex...")
     temp_apk = apk_path + ".dex_patch.tmp"
     with zipfile.ZipFile(apk_path, "r") as zin:
         with zipfile.ZipFile(temp_apk, "w", compression=zipfile.ZIP_DEFLATED) as zout:

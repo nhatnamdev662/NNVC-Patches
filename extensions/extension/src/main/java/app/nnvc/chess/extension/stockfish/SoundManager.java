@@ -119,56 +119,27 @@ public class SoundManager {
         }
     }
 
-    private void playSoundWithFallback(int soundId, String[] fallbackPaths, String soundLabel) {
+    private void playSoundDirect(int soundId, String soundLabel) {
         try {
             if (soundPool != null && soundId > 0 && loadedSoundIds.contains(soundId)) {
                 int streamId = soundPool.play(soundId, 1.0f, 1.0f, 1, 0, 1.0f);
-                if (streamId == 0) {
-                    playFallback(fallbackPaths, soundLabel);
-                } else {
+                if (streamId != 0) {
                     TorchEngine.log("[SOUND] Played " + soundLabel + " via SoundPool (stream=" + streamId + ")");
+                } else {
+                    TorchEngine.log("[SOUND WARNING] Could not play stream for " + soundLabel + " (SoundPool returned 0)");
                 }
             } else {
-                playFallback(fallbackPaths, soundLabel);
+                TorchEngine.log("[SOUND WARNING] " + soundLabel + " sound is not loaded in SoundPool");
             }
         } catch (Throwable t) {
-            Log.w(TAG, "playSoundWithFallback error (" + soundLabel + "): " + t.getMessage());
-            playFallback(fallbackPaths, soundLabel);
-        }
-    }
-
-    private void playFallback(String[] paths, String soundLabel) {
-        if (paths == null) return;
-        try {
-            AssetManager am = context.getAssets();
-            for (String path : paths) {
-                try (AssetFileDescriptor afd = am.openFd(path)) {
-                    android.media.MediaPlayer mp = new android.media.MediaPlayer();
-                    if (Build.VERSION.SDK_INT >= 21) {
-                        AudioAttributes attrs = new AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_GAME)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build();
-                        mp.setAudioAttributes(attrs);
-                    }
-                    mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
-                    afd.close();
-                    mp.prepare();
-                    mp.setOnCompletionListener(android.media.MediaPlayer::release);
-                    mp.start();
-                    TorchEngine.log("[SOUND] Played " + soundLabel + " via MediaPlayer fallback (" + path + ")");
-                    return;
-                } catch (Throwable ignored) {}
-            }
-        } catch (Throwable t) {
-            TorchEngine.log("[SOUND FALLBACK ERROR] " + soundLabel + ": " + t.getMessage());
+            Log.w(TAG, "playSoundDirect error (" + soundLabel + "): " + t.getMessage());
         }
     }
 
     /** Phát âm thanh Brilliant khi có nước đi thiên tài */
     public void playBrilliantSound() {
         if (!StockfishSettings.isBrilliantSoundEnabled(context)) return;
-        playSoundWithFallback(brilliantSoundId, BRILLIANT_SOUND_PATHS, "Brilliant");
+        playSoundDirect(brilliantSoundId, "Brilliant");
     }
 
     /**
@@ -176,28 +147,23 @@ public class SoundManager {
      */
     public void playMoveSound(boolean isCapture, boolean isCastle, boolean isPromo) {
         int soundId;
-        String[] fallback;
         String label;
 
         if (isPromo) {
             soundId = (promoteSoundId > 0) ? promoteSoundId : moveSelfSoundId;
-            fallback = PROMOTE_PATHS;
             label = "Promote";
         } else if (isCastle) {
             soundId = (castleSoundId > 0) ? castleSoundId : moveSelfSoundId;
-            fallback = CASTLE_PATHS;
             label = "Castle";
         } else if (isCapture) {
             soundId = (captureSoundId > 0) ? captureSoundId : moveSelfSoundId;
-            fallback = CAPTURE_PATHS;
             label = "Capture";
         } else {
             soundId = moveSelfSoundId;
-            fallback = MOVE_SELF_PATHS;
             label = "MoveSelf";
         }
 
-        playSoundWithFallback(soundId, fallback, label);
+        playSoundDirect(soundId, label);
     }
 
     /** Phát âm thanh Cảnh báo nguy hiểm khi xuất hiện đòn đe dọa từ đối thủ (Disabled - Brilliant only) */

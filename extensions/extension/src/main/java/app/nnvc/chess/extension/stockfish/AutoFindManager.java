@@ -71,10 +71,6 @@ public class AutoFindManager {
     private static final int MAX_SEEK_RETRIES = 5;
     private static Runnable seekingWatchdogRunnable = null;
 
-    private static final Pattern NEW_GAME_BTN_PATTERN = Pattern.compile(
-            "(?i)(v[áa]n m[ớo]i|ch[ơo]i l[ạa]i|ch[ơo]i ti[ếe]p|t[ìi]m tr[ậa]n|new game|play again|find opponent|next game)"
-    );
-
     private static synchronized Handler getMainHandler() {
         if (mainHandler == null) {
             mainHandler = new Handler(Looper.getMainLooper());
@@ -375,11 +371,29 @@ public class AutoFindManager {
         getMainHandler().postDelayed(seekingWatchdogRunnable, 2500L);
     }
 
+    public static boolean triggerNewGameNative() {
+        try {
+            Class<?> vmClz = Class.forName("com.chess.realchess.ui.game.RealGameViewModel");
+            Method m = vmClz.getMethod("triggerNewGameNative");
+            Object res = m.invoke(null);
+            if (res instanceof Boolean && (Boolean) res) {
+                NnvcLogger.i(TAG, "⚡ Auto Find triggered directly via RealGameViewModel.triggerNewGameNative()!");
+                return true;
+            }
+        } catch (Throwable t) {
+            NnvcLogger.e(TAG, "triggerNewGameNative error: " + t.getMessage(), t);
+        }
+        return false;
+    }
+
     private static boolean executeTrigger(final Activity activity) {
         if (activity == null) return false;
-        // Tầng 0: Direct Cached Native ViewModel (highest priority, 100% reliable)
-        boolean triggered = false;
-        if (lastNativeViewModelRef != null) {
+
+        // Tầng 0: Bytecode Hook RealGameViewModel.triggerNewGameNative() (0ms, Zero-Fallback)
+        boolean triggered = triggerNewGameNative();
+
+        // Tầng 1: Direct Cached Native ViewModel
+        if (!triggered && lastNativeViewModelRef != null) {
             Object vm = lastNativeViewModelRef.get();
             if (vm != null) {
                 triggered = triggerViaViewModelInstance(vm);
@@ -389,28 +403,29 @@ public class AutoFindManager {
             }
         }
 
-        // Tầng 1: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
+        // Tầng 2: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
         if (!triggered) {
             triggered = triggerViaViewModel(activity);
-        }
-
-        // Tầng 2: UI View Button Scanner
-        if (!triggered) {
-            triggered = triggerViaButtonScan(activity);
         }
 
         if (triggered) {
             NnvcLogger.i(TAG, "Auto Find match triggered successfully!");
         } else {
-            NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller or action button on first attempt. Scheduling retry in 400ms...");
+            NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller on first attempt. Scheduling retry in 400ms...");
             getMainHandler().postDelayed(() -> {
                 if (currentState == State.SEEKING && !userExplicitlyCancelled) {
-                    boolean retry = triggerViaButtonScan(activity);
+                    boolean retry = triggerNewGameNative();
+                    if (!retry && lastNativeViewModelRef != null) {
+                        Object vm = lastNativeViewModelRef.get();
+                        if (vm != null) retry = triggerViaViewModelInstance(vm);
+                    }
                     if (!retry) {
                         retry = triggerViaViewModel(activity);
                     }
                     if (retry) {
                         NnvcLogger.i(TAG, "Auto Find match triggered on retry!");
+                    } else {
+                        NnvcLogger.e(TAG, "❌ Auto Find match FAILED: Native RealGameViewModel không khả dụng (Zero-Fallback Architecture).");
                     }
                 }
             }, 400L);
@@ -1134,118 +1149,6 @@ public class AutoFindManager {
         }
         Object inner = extractInnerGameId(idObj);
         return inner != null ? inner.toString() : null;
-    }
-
-    /**
-     * Tầng 2: Scans view hierarchy for New Game / Play Again buttons and clicks.
-     */
-    public static boolean triggerViaButtonScan(Activity activity) {
-        if (activity == null || activity.getWindow() == null) return false;
-        View decor = activity.getWindow().getDecorView();
-        if (decor != null) {
-            View targetBtn = findNewGameButton(decor);
-            if (targetBtn != null) {
-                targetBtn.performClick();
-                NnvcLogger.d(TAG, "Clicked New Game button from decorView: " + targetBtn);
-                return true;
-            }
-        }
-
-        // Scan FragmentManager
-        try {
-            Method getFm = null;
-            try {
-                getFm = activity.getClass().getMethod("getSupportFragmentManager");
-            } catch (NoSuchMethodException e) {
-                try {
-                    getFm = activity.getClass().getMethod("getFragmentManager");
-                } catch (Throwable ignored) {}
-            }
-            if (getFm != null) {
-                Object fm = getFm.invoke(activity);
-                if (fm != null) {
-                    Method getFrags = fm.getClass().getMethod("getFragments");
-                    Object fragsList = getFrags.invoke(fm);
-                    if (fragsList instanceof List) {
-                        for (Object frag : (List<?>) fragsList) {
-                            if (frag == null) continue;
-                            try {
-                                Method getView = frag.getClass().getMethod("getView");
-                                Object v = getView.invoke(frag);
-                                if (v instanceof View) {
-                                    View target = findNewGameButton((View) v);
-                                    if (target != null) {
-                                        target.performClick();
-                                        NnvcLogger.d(TAG, "Clicked New Game button from fragment: " + frag.getClass().getSimpleName());
-                                        return true;
-                                    }
-                                }
-                            } catch (Throwable ignored) {}
-                        }
-                    }
-                }
-            }
-        } catch (Throwable ignored) {}
-
-        return false;
-    }
-
-    private static View findNewGameButton(View root) {
-        if (root == null || root.getVisibility() != View.VISIBLE) return null;
-
-        if (root.isClickable()) {
-            if (isMatchingNewGameButton(root)) {
-                return root;
-            }
-        }
-
-        if (root instanceof ViewGroup) {
-            ViewGroup vg = (ViewGroup) root;
-            int count = vg.getChildCount();
-            for (int i = 0; i < count; i++) {
-                View found = findNewGameButton(vg.getChildAt(i));
-                if (found != null) return found;
-            }
-        }
-        return null;
-    }
-
-    private static boolean isMatchingNewGameButton(View view) {
-        if (view == null) return false;
-
-        // Check text if TextView/Button
-        if (view instanceof TextView) {
-            CharSequence text = ((TextView) view).getText();
-            if (text != null && text.length() > 0) {
-                if (NEW_GAME_BTN_PATTERN.matcher(text).find()) {
-                    return true;
-                }
-            }
-        }
-
-        // Check contentDescription
-        CharSequence desc = view.getContentDescription();
-        if (desc != null && desc.length() > 0) {
-            if (NEW_GAME_BTN_PATTERN.matcher(desc).find()) {
-                return true;
-            }
-        }
-
-        // Check resource id entry name
-        try {
-            int id = view.getId();
-            if (id != View.NO_ID && view.getResources() != null) {
-                String entry = view.getResources().getResourceEntryName(id);
-                if (entry != null) {
-                    String lower = entry.toLowerCase(java.util.Locale.US);
-                    if (lower.contains("new_game") || lower.contains("play_again") || lower.contains("find_opponent") || lower.contains("next_game")) {
-                        return true;
-                    }
-                }
-            }
-        } catch (Throwable ignored) {}
-
-        return false;
     }
 
     // ── UI Countdown Card (Extension Parity) ──────────────────────────────────

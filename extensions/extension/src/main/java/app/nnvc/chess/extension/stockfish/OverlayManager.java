@@ -683,16 +683,8 @@ public class OverlayManager {
                 return cached;
             }
         }
-        // 1. First priority: Find the actual, inner ChessBoardView (NOT a Layout or Container)
+        // Direct Resolution: Find the actual, inner ChessBoardView (Zero-Fallback Architecture)
         View board = findInnerChessBoardView(root);
-        if (board == null) {
-            // 2. Second priority: Any view with "BoardView" in class name (excluding Layouts)
-            board = findFallbackBoardView(root);
-        }
-        if (board == null) {
-            // 3. Third priority: Last resort fallback (any layout matching ChessBoard)
-            board = findAnyBoardLayout(root);
-        }
         if (board != null) {
             cachedBoardViewRef = new java.lang.ref.WeakReference<>(board);
             if (hookedBoardViews.add(System.identityHashCode(board))) {
@@ -770,48 +762,6 @@ public class OverlayManager {
             }
         }
 
-        return null;
-    }
-
-    private static View findFallbackBoardView(View view) {
-        if (view == null) return null;
-
-        String name = view.getClass().getName();
-        boolean isLayoutOrContainer = name.contains("Layout")
-                || name.contains("Container")
-                || name.contains("Binding")
-                || name.contains("Manager");
-
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                View found = findFallbackBoardView(group.getChildAt(i));
-                if (found != null) return found;
-            }
-        }
-
-        if (!isLayoutOrContainer) {
-            if (name.contains("ChessBoard") || name.contains("BoardView")) {
-                return view;
-            }
-        }
-
-        return null;
-    }
-
-    private static View findAnyBoardLayout(View view) {
-        if (view == null) return null;
-        String name = view.getClass().getName();
-        if (name.contains("ChessBoardLayout") || name.endsWith("ChessBoardView")) {
-            return view;
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                View found = findAnyBoardLayout(group.getChildAt(i));
-                if (found != null) return found;
-            }
-        }
         return null;
     }
 

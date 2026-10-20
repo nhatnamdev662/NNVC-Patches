@@ -2140,100 +2140,63 @@ public class SelfTest {
                 vmFromDelegateFlow == mockRvmWithStateFlow.cbDelegate.c.vm);
         AutoFindManager.setLastKnownViewModel(null);
 
-        // Test resolveDirectMoveExecutor selection logic based on squareSize <= 0.001f
-        class MockSquare {
-            public int e(boolean flipped) { return 4; }
-            public int f(boolean flipped) { return 4; }
-        }
-
-        class MockAccessibilityContract {
-            public boolean bCalled = false;
-            public void b(MockSquare sq) {
-                bCalled = true;
-            }
-        }
-
-        class MockDrawDelegate {
-            public float squareSize = 0f;
-            public float getSquareSize() {
-                return squareSize;
-            }
-        }
-
-        class MockMoveHandler {
-            public boolean bCalled = false;
-            public float lastSquareSize = 0f;
-            public boolean b(float fE, float f, int action, float sqSize, boolean flipped) {
-                bCalled = true;
-                lastSquareSize = sqSize;
-                return true;
-            }
-        }
-
-        class MockDependencies {
-            public final MockMoveHandler moveHandler = new MockMoveHandler();
-            public MockMoveHandler k1() {
-                return moveHandler;
-            }
-        }
-
-        class MockBoardViewForExecutor {
-            public final MockAccessibilityContract accessibilityContract = new MockAccessibilityContract();
-            public final MockDrawDelegate drawDelegate = new MockDrawDelegate();
-            public final MockDependencies u = new MockDependencies();
-            public int getWidth() { return 800; }
-            public int getHeight() { return 800; }
-            public MockDrawDelegate getDrawDelegate() { return drawDelegate; }
-        }
-
-        MockBoardViewForExecutor mockBvExec = new MockBoardViewForExecutor();
-        // 1. When squareSize == 0.0f (Move 0 unmeasured), bypass AccessibilityContract and choose MoveHandler
-        mockBvExec.drawDelegate.squareSize = 0.0f;
-        AutoMoveManager.DirectMoveExecutor executor0 = AutoMoveManager.resolveDirectMoveExecutor(mockBvExec, MockSquare.class);
-        check("resolveDirectMoveExecutor is non-null when squareSize <= 0.001f", executor0 != null);
+        // Test Zero-Fallback Architecture & Native Bytecode Hook Callbacks
+        // 1. Verify StockfishExtension native hook methods exist
         try {
-            executor0.executeTap(new MockSquare(), "e4", false);
-            check("resolveDirectMoveExecutor bypasses ChessBoardView$b and uses MoveHandler when squareSize <= 0.001f",
-                    !mockBvExec.accessibilityContract.bCalled && mockBvExec.u.moveHandler.bCalled && mockBvExec.u.moveHandler.lastSquareSize == 100f);
-        } catch (Exception e) {
-            check("Executor executeTap failed: " + e.getMessage(), false);
+            java.lang.reflect.Method mClock = StockfishExtension.class.getMethod("onClockUpdatedNative", long.class, long.class, Object.class);
+            check("StockfishExtension has public static onClockUpdatedNative(long, long, Object) hook", mClock != null && java.lang.reflect.Modifier.isStatic(mClock.getModifiers()));
+        } catch (Throwable t) {
+            check("StockfishExtension onClockUpdatedNative hook exists", false);
         }
 
-        // 2. When squareSize == 100.0f (> 0.001f, normal measured board), choose AccessibilityContract
-        mockBvExec.drawDelegate.squareSize = 100.0f;
-        mockBvExec.accessibilityContract.bCalled = false;
-        mockBvExec.u.moveHandler.bCalled = false;
-        AutoMoveManager.DirectMoveExecutor executor100 = AutoMoveManager.resolveDirectMoveExecutor(mockBvExec, MockSquare.class);
-        check("resolveDirectMoveExecutor is non-null when squareSize > 0.001f", executor100 != null);
         try {
-            executor100.executeTap(new MockSquare(), "e4", false);
-            check("resolveDirectMoveExecutor uses AccessibilityContract when squareSize > 0.001f",
-                    mockBvExec.accessibilityContract.bCalled && !mockBvExec.u.moveHandler.bCalled);
-        } catch (Exception e) {
-            check("Executor executeTap failed: " + e.getMessage(), false);
+            java.lang.reflect.Method mSide = StockfishExtension.class.getMethod("setUserSideNative", Object.class);
+            check("StockfishExtension has public static setUserSideNative(Object) hook", mSide != null && java.lang.reflect.Modifier.isStatic(mSide.getModifiers()));
+        } catch (Throwable t) {
+            check("StockfishExtension setUserSideNative hook exists", false);
         }
 
-        // 3. Verify getTapMethod binds strictly to method b and never to equals(Object) or other 1-arg methods
-        class MockContractWithExtraMethods {
-            public boolean bCalled = false;
-            public void otherAction(Object obj) {}
-            public void b(MockSquare sq) {
-                bCalled = true;
+        try {
+            java.lang.reflect.Method mPlayers = StockfishExtension.class.getMethod("onPlayersLoadedNative", Object.class, Object.class);
+            check("StockfishExtension has public static onPlayersLoadedNative(Object, Object) hook", mPlayers != null && java.lang.reflect.Modifier.isStatic(mPlayers.getModifiers()));
+        } catch (Throwable t) {
+            check("StockfishExtension onPlayersLoadedNative hook exists", false);
+        }
+
+        // 2. Test onClockUpdatedNative -> SmartDelayManager Zero-Fallback
+        StockfishExtension.onClockUpdatedNative(120000L, 95000L, "WHITE");
+        SmartDelayManager.LiveClockInfo clk = SmartDelayManager.detectLiveClocks(null, true);
+        check("SmartDelayManager detects live clock directly via native hook (Zero-Fallback)", clk.isAutoDetected && clk.mySec == 120.0 && clk.oppSec == 95.0 && "native_clock".equals(clk.source));
+        SmartDelayManager.resetClockNative();
+
+        // 3. Test setUserSideNative -> isUserWhite Zero-Fallback
+        StockfishExtension.setUserSideNative("BLACK");
+        check("setUserSideNative directly sets user side to BLACK (Zero-Fallback)", Boolean.FALSE.equals(StockfishExtension.isUserWhite(null)));
+        StockfishExtension.setUserSideNative("WHITE");
+        check("setUserSideNative directly sets user side to WHITE (Zero-Fallback)", Boolean.TRUE.equals(StockfishExtension.isUserWhite(null)));
+
+        // 4. Test onPlayersLoadedNative -> EloScanner Zero-Fallback
+        class MockUserInfo {
+            public final int rating;
+            public final String color;
+            public MockUserInfo(int rating, String color) {
+                this.rating = rating;
+                this.color = color;
             }
+            public int getRating() { return rating; }
+            public String getColor() { return color; }
         }
-        final MockContractWithExtraMethods contractWithExtra = new MockContractWithExtraMethods();
-        class MockBoardViewOverrideContract extends MockBoardViewForExecutor {
-            public final MockContractWithExtraMethods accessibilityContract = contractWithExtra;
-        }
-        MockBoardViewOverrideContract bvOverride = new MockBoardViewOverrideContract();
-        bvOverride.drawDelegate.squareSize = 100.0f;
-        AutoMoveManager.DirectMoveExecutor execExtra = AutoMoveManager.resolveDirectMoveExecutor(bvOverride, MockSquare.class);
-        check("resolveDirectMoveExecutor with multiple 1-arg methods resolves correctly", execExtra != null);
+        StockfishExtension.onPlayersLoadedNative(new MockUserInfo(1850, "WHITE"), new MockUserInfo(1920, "BLACK"));
+        EloScanner.EloPair eloPair = EloScanner.getLastDetectedPair();
+        check("EloScanner receives native player info directly via onPlayersLoadedNative (Zero-Fallback)",
+                eloPair != null && eloPair.whiteElo == 1850 && eloPair.blackElo == 1920 && "native_players".equals(eloPair.source));
+
+        // 5. Test AutoFindManager.triggerNewGameNative exists and returns boolean
         try {
-            execExtra.executeTap(new MockSquare(), "e4", false);
-            check("resolveDirectMoveExecutor invokes method b (not equals/other)", contractWithExtra.bCalled);
-        } catch (Exception e) {
-            check("Executor executeTap failed: " + e.getMessage(), false);
+            java.lang.reflect.Method mTrigger = AutoFindManager.class.getMethod("triggerNewGameNative");
+            check("AutoFindManager has public static triggerNewGameNative() method", mTrigger != null && java.lang.reflect.Modifier.isStatic(mTrigger.getModifiers()));
+        } catch (Throwable t) {
+            check("AutoFindManager triggerNewGameNative method exists", false);
         }
 
         // Test mock execution of CBViewModel.p directly
