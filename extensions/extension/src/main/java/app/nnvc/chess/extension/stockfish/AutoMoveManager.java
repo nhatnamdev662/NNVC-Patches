@@ -39,6 +39,18 @@ public class AutoMoveManager {
     /** Cached 64 static Square instances from com.chess.chessboard.w.b */
     private static volatile List<?> cachedSquaresList = null;
 
+    // Fast Reflection Cache for 0ms Direct Model Move (Zero-Overhead)
+    private static volatile Method cachedPMethod = null;
+    private static volatile Class<?> cachedPMethodClass = null;
+    private static volatile Object cachedMoveVerification = null;
+    private static volatile ClassLoader cachedMoveVerificationCl = null;
+    private static volatile Constructor<?> cachedOConstructor = null;
+    private static volatile Constructor<?> cachedPConstructor = null;
+    private static volatile Constructor<?> cachedXConstructor = null;
+    private static volatile Method cachedCastlingEMethod = null;
+    private static volatile Method cachedGetStateMethod = null;
+    private static volatile Method cachedGetPositionMethod = null;
+
     /** Minimum cooldown between moves (ms) */
     private static final long COOLDOWN_MS = 35;
 
@@ -770,10 +782,16 @@ public class AutoMoveManager {
                     }
                 }
                 if (promoKind != null) {
+                    if (cachedPConstructor != null) {
+                        try {
+                            return cachedPConstructor.newInstance(fromSquare, toSquare, promoKind);
+                        } catch (Throwable ignored) {}
+                    }
                     for (Constructor<?> ctor : pClass.getConstructors()) {
                         Class<?>[] pts = ctor.getParameterTypes();
                         if (pts.length == 3 && pts[0].isAssignableFrom(squareClass) && pts[1].isAssignableFrom(squareClass) && pts[2].isAssignableFrom(pieceKindClass)) {
                             ctor.setAccessible(true);
+                            cachedPConstructor = ctor;
                             return ctor.newInstance(fromSquare, toSquare, promoKind);
                         }
                     }
@@ -856,6 +874,12 @@ public class AutoMoveManager {
                     }
 
                     if (colorObj != null && castlingFilesObj != null && castlingTypeObj != null) {
+                        if (cachedCastlingEMethod != null) {
+                            try {
+                                Object xMove = cachedCastlingEMethod.invoke(null, castlingFilesObj, colorObj, castlingTypeObj);
+                                if (xMove != null) return xMove;
+                            } catch (Throwable ignored) {}
+                        }
                         // Thử qua helper com.chess.chessboard.e.a(castlingFiles, color, castlingType)
                         try {
                             Class<?> eClass = Class.forName("com.chess.chessboard.e", true, cl);
@@ -866,6 +890,7 @@ public class AutoMoveManager {
                                         pts[1].isAssignableFrom(colorClass) &&
                                         pts[2].isAssignableFrom(castlingTypeClass)) {
                                         m.setAccessible(true);
+                                        cachedCastlingEMethod = m;
                                         Object xMove = m.invoke(null, castlingFilesObj, colorObj, castlingTypeObj);
                                         if (xMove != null) {
                                             NnvcLogger.i(TAG, "⚡ Constructed Castling Move via e.a: " + fromSq + toSq);
@@ -876,6 +901,12 @@ public class AutoMoveManager {
                             }
                         } catch (Throwable ignored) {}
 
+                        if (cachedXConstructor != null) {
+                            try {
+                                Object xMove = cachedXConstructor.newInstance(colorObj, castlingFilesObj, castlingTypeObj);
+                                if (xMove != null) return xMove;
+                            } catch (Throwable ignored) {}
+                        }
                         // Thử khởi tạo trực tiếp new com.chess.chessboard.x(color, castlingFiles, castlingType)
                         try {
                             Class<?> xClass = Class.forName("com.chess.chessboard.x", true, cl);
@@ -886,6 +917,7 @@ public class AutoMoveManager {
                                     pts[1].isAssignableFrom(castlingFilesObj.getClass()) &&
                                     pts[2].isAssignableFrom(castlingTypeClass)) {
                                     ctor.setAccessible(true);
+                                    cachedXConstructor = ctor;
                                     Object xMove = ctor.newInstance(colorObj, castlingFilesObj, castlingTypeObj);
                                     if (xMove != null) {
                                         NnvcLogger.i(TAG, "⚡ Constructed Castling Move via x ctor: " + fromSq + toSq);
@@ -900,11 +932,17 @@ public class AutoMoveManager {
                 }
             }
 
+            if (cachedOConstructor != null) {
+                try {
+                    return cachedOConstructor.newInstance(fromSquare, toSquare);
+                } catch (Throwable ignored) {}
+            }
             Class<?> oClass = Class.forName("com.chess.chessboard.o", true, cl);
             for (Constructor<?> ctor : oClass.getConstructors()) {
                 Class<?>[] pts = ctor.getParameterTypes();
                 if (pts.length == 2 && pts[0].isAssignableFrom(squareClass) && pts[1].isAssignableFrom(squareClass)) {
                     ctor.setAccessible(true);
+                    cachedOConstructor = ctor;
                     return ctor.newInstance(fromSquare, toSquare);
                 }
             }
@@ -919,11 +957,17 @@ public class AutoMoveManager {
      */
     public static Object getMoveVerification(ClassLoader cl) {
         if (cl == null) return null;
+        if (cachedMoveVerification != null && cachedMoveVerificationCl == cl) {
+            return cachedMoveVerification;
+        }
         try {
             Class<?> j0Class = Class.forName("com.chess.chessboard.vm.movesinput.j0", true, cl);
             Field aField = j0Class.getDeclaredField("a");
             aField.setAccessible(true);
-            return aField.get(null);
+            Object inst = aField.get(null);
+            cachedMoveVerification = inst;
+            cachedMoveVerificationCl = cl;
+            return inst;
         } catch (Throwable t) {
             NnvcLogger.w(TAG, "getMoveVerification failed: " + t.getMessage());
         }
@@ -956,12 +1000,20 @@ public class AutoMoveManager {
 
             Object positionObj = null;
             try {
-                Method getStateMethod = cbVm.getClass().getMethod("getState");
-                getStateMethod.setAccessible(true);
+                Method getStateMethod = cachedGetStateMethod;
+                if (getStateMethod == null || getStateMethod.getDeclaringClass() != cbVm.getClass()) {
+                    getStateMethod = cbVm.getClass().getMethod("getState");
+                    getStateMethod.setAccessible(true);
+                    cachedGetStateMethod = getStateMethod;
+                }
                 Object stateObj = getStateMethod.invoke(cbVm);
                 if (stateObj != null) {
-                    Method getPosMethod = stateObj.getClass().getMethod("getPosition");
-                    getPosMethod.setAccessible(true);
+                    Method getPosMethod = cachedGetPositionMethod;
+                    if (getPosMethod == null || getPosMethod.getDeclaringClass() != stateObj.getClass()) {
+                        getPosMethod = stateObj.getClass().getMethod("getPosition");
+                        getPosMethod.setAccessible(true);
+                        cachedGetPositionMethod = getPosMethod;
+                    }
                     positionObj = getPosMethod.invoke(stateObj);
                 }
             } catch (Throwable ignored) {}
@@ -978,30 +1030,37 @@ public class AutoMoveManager {
                 return false;
             }
 
-            Method pMethod = null;
-            for (Method m : cbVm.getClass().getMethods()) {
-                if ("p".equals(m.getName()) && m.getParameterCount() == 3) {
-                    Class<?>[] pts = m.getParameterTypes();
-                    if (pts[2] == boolean.class) {
-                        pMethod = m;
-                        break;
-                    }
-                }
-            }
-            if (pMethod == null) {
-                Class<?> c = cbVm.getClass();
-                while (c != null && c != Object.class) {
-                    for (Method m : c.getDeclaredMethods()) {
-                        if ("p".equals(m.getName()) && m.getParameterCount() == 3) {
-                            Class<?>[] pts = m.getParameterTypes();
-                            if (pts[2] == boolean.class) {
-                                pMethod = m;
-                                break;
-                            }
+            Method pMethod = cachedPMethod;
+            if (pMethod == null || cachedPMethodClass != cbVm.getClass()) {
+                for (Method m : cbVm.getClass().getMethods()) {
+                    if ("p".equals(m.getName()) && m.getParameterCount() == 3) {
+                        Class<?>[] pts = m.getParameterTypes();
+                        if (pts[2] == boolean.class) {
+                            pMethod = m;
+                            break;
                         }
                     }
-                    if (pMethod != null) break;
-                    c = c.getSuperclass();
+                }
+                if (pMethod == null) {
+                    Class<?> c = cbVm.getClass();
+                    while (c != null && c != Object.class) {
+                        for (Method m : c.getDeclaredMethods()) {
+                            if ("p".equals(m.getName()) && m.getParameterCount() == 3) {
+                                Class<?>[] pts = m.getParameterTypes();
+                                if (pts[2] == boolean.class) {
+                                    pMethod = m;
+                                    break;
+                                }
+                            }
+                        }
+                        if (pMethod != null) break;
+                        c = c.getSuperclass();
+                    }
+                }
+                if (pMethod != null) {
+                    pMethod.setAccessible(true);
+                    cachedPMethod = pMethod;
+                    cachedPMethodClass = cbVm.getClass();
                 }
             }
             if (pMethod == null) {

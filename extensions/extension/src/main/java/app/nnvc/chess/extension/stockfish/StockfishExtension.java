@@ -1040,20 +1040,26 @@ public class StockfishExtension {
         if (file < 0 || file > 7 || rank < 0 || rank > 7) return '.';
 
         int targetRow = 7 - rank; // 0 is 8th rank, 7 is 1st rank
-        String boardPart = fen.trim().split("\\s+")[0];
-        String[] rows = boardPart.split("/");
-        if (rows.length != 8 || targetRow < 0 || targetRow >= 8) return '.';
+        int rowIdx = 0;
+        int i = 0;
+        int len = fen.length();
+        while (i < len && fen.charAt(i) == ' ') i++;
 
-        String row = rows[targetRow];
+        while (i < len && rowIdx < targetRow) {
+            char c = fen.charAt(i++);
+            if (c == '/') rowIdx++;
+            else if (c == ' ') return '.';
+        }
+        if (rowIdx != targetRow || i >= len) return '.';
+
         int col = 0;
-        for (int i = 0; i < row.length(); i++) {
-            char c = row.charAt(i);
-            if (Character.isDigit(c)) {
+        while (i < len) {
+            char c = fen.charAt(i++);
+            if (c == '/' || c == ' ') break;
+            if (c >= '1' && c <= '8') {
                 col += (c - '0');
             } else {
-                if (col == file) {
-                    return c;
-                }
+                if (col == file) return c;
                 col++;
             }
             if (col > file) break;
@@ -1069,8 +1075,10 @@ public class StockfishExtension {
 
     private static boolean isWhiteTurnFromFen(String fen) {
         if (fen == null) return true;
-        String[] parts = fen.trim().split("\\s+");
-        return parts.length < 2 || !"b".equalsIgnoreCase(parts[1]);
+        int spaceIdx = fen.indexOf(' ');
+        if (spaceIdx < 0 || spaceIdx + 1 >= fen.length()) return true;
+        char side = fen.charAt(spaceIdx + 1);
+        return side != 'b' && side != 'B';
     }
 
     private static void registerLifecycleCallbacks(Application app) {

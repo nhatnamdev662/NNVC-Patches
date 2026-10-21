@@ -154,9 +154,63 @@ public class ArrowOverlayView extends View {
 
     private final Path reusableArrowPath = new Path();
     private final Path reusableThreatHeadPath = new Path();
+    private final Path reusableKnightLinePath = new Path();
+    private final Path reusableKnightHeadPath = new Path();
+    private final RectF reusablePillRectF = new RectF();
+    private BlurMaskFilter cachedPillBlurFilter = null;
+    private float cachedPillBlurRadius = -1f;
+
+    private float lastThreatDashSqSize = -1f;
+    private DashPathEffect cachedThreatDepth2DashEffect = null;
+    private DashPathEffect cachedThreatNonDangerDashEffect = null;
+
+    private LinearGradient cachedPremoveShader = null;
+    private float cachedPremoveX1, cachedPremoveY1, cachedPremoveX2, cachedPremoveY2;
+
+    private static class ShaderSlot {
+        float x1, y1, x2, y2;
+        int c1, c2, c3;
+        LinearGradient shader;
+        boolean matches(float x1, float y1, float x2, float y2, int c1, int c2, int c3) {
+            return shader != null && this.x1 == x1 && this.y1 == y1 && this.x2 == x2 && this.y2 == y2
+                    && this.c1 == c1 && this.c2 == c2 && this.c3 == c3;
+        }
+        void set(float x1, float y1, float x2, float y2, int c1, int c2, int c3, LinearGradient s) {
+            this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2;
+            this.c1 = c1; this.c2 = c2; this.c3 = c3;
+            this.shader = s;
+        }
+    }
+    private final ShaderSlot[] cachedFillShaders = new ShaderSlot[8];
+    private final ShaderSlot[] cachedEdgeShaders = new ShaderSlot[8];
+
+    private static final String[] BOARD_SQUARES = new String[64];
+    static {
+        for (int r = 0; r < 8; r++) {
+            for (int f = 0; f < 8; f++) {
+                BOARD_SQUARES[r * 8 + f] = "" + (char) ('a' + f) + (char) ('1' + r);
+            }
+        }
+    }
+    private final float[][] squareCenters = new float[64][2];
+    private float lastCenterSqSize = -1f;
+    private boolean lastCenterFlipped = false;
+
+    private final String[] corridorSq = new String[32];
+    private final char[] corridorAxis = new char[32];
+    private int corridorCount = 0;
+
+    private final float[][] placedBoxes = new float[16][4]; // x, y, w, h
+    private int placedBoxCount = 0;
+
+    private final float[][] candidateCoords = new float[12][2];
 
     public ArrowOverlayView(Context context) {
         super(context);
+        for (int i = 0; i < 8; i++) {
+            cachedFillShaders[i] = new ShaderSlot();
+            cachedEdgeShaders[i] = new ShaderSlot();
+        }
         setClickable(false);
         setFocusable(false);
         try {
@@ -473,9 +527,17 @@ public class ArrowOverlayView extends View {
         edgePaint.setAlpha((int)(opacity * 255));
 
         if (arrow.threatDepth == 2) {
-            edgePaint.setPathEffect(new DashPathEffect(new float[]{sqSize * 0.06f, sqSize * 0.03f}, 0));
+            if (cachedThreatDepth2DashEffect == null || Math.abs(lastThreatDashSqSize - sqSize) > 0.01f) {
+                cachedThreatDepth2DashEffect = new DashPathEffect(new float[]{sqSize * 0.06f, sqSize * 0.03f}, 0);
+                lastThreatDashSqSize = sqSize;
+            }
+            edgePaint.setPathEffect(cachedThreatDepth2DashEffect);
         } else if (!isDanger) {
-            edgePaint.setPathEffect(new DashPathEffect(new float[]{sqSize * 0.05f, sqSize * 0.025f}, 0));
+            if (cachedThreatNonDangerDashEffect == null || Math.abs(lastThreatDashSqSize - sqSize) > 0.01f) {
+                cachedThreatNonDangerDashEffect = new DashPathEffect(new float[]{sqSize * 0.05f, sqSize * 0.025f}, 0);
+                lastThreatDashSqSize = sqSize;
+            }
+            edgePaint.setPathEffect(cachedThreatNonDangerDashEffect);
         } else {
             edgePaint.setPathEffect(null);
         }
@@ -517,26 +579,26 @@ public class ArrowOverlayView extends View {
             float rightPtX = headBaseX - p2x * (headWidth / 2.0f);
             float rightPtY = headBaseY - p2y * (headWidth / 2.0f);
 
-            Path linePath = new Path();
-            linePath.moveTo(sx, sy);
-            linePath.lineTo(elbowShiftX, elbowShiftY);
-            linePath.lineTo(headBaseX, headBaseY);
+            reusableKnightLinePath.reset();
+            reusableKnightLinePath.moveTo(sx, sy);
+            reusableKnightLinePath.lineTo(elbowShiftX, elbowShiftY);
+            reusableKnightLinePath.lineTo(headBaseX, headBaseY);
 
-            canvas.drawPath(linePath, glowPaint);
-            canvas.drawPath(linePath, edgePaint);
+            canvas.drawPath(reusableKnightLinePath, glowPaint);
+            canvas.drawPath(reusableKnightLinePath, edgePaint);
 
-            Path headPath = new Path();
-            headPath.moveTo(tipX, tipY);
-            headPath.lineTo(leftPtX, leftPtY);
-            headPath.lineTo(rightPtX, rightPtY);
-            headPath.close();
+            reusableKnightHeadPath.reset();
+            reusableKnightHeadPath.moveTo(tipX, tipY);
+            reusableKnightHeadPath.lineTo(leftPtX, leftPtY);
+            reusableKnightHeadPath.lineTo(rightPtX, rightPtY);
+            reusableKnightHeadPath.close();
 
-            canvas.drawPath(headPath, fillPaint);
+            canvas.drawPath(reusableKnightHeadPath, fillPaint);
 
             edgePaint.setColor(0xFFFFFFFF);
             edgePaint.setStrokeWidth(Math.max(1.1f, sqSize * 0.012f));
             edgePaint.setPathEffect(null);
-            canvas.drawPath(headPath, edgePaint);
+            canvas.drawPath(reusableKnightHeadPath, edgePaint);
         } else {
             float ux = dx / dist;
             float uy = dy / dist;
@@ -623,10 +685,17 @@ public class ArrowOverlayView extends View {
             canvas.drawPath(arrowPath, glowPaint);
 
             // 2. Linear Gradient Fill Cam Hổ Phách
-            fillPaint.setShader(new LinearGradient(x1, y1, x2, y2,
-                    new int[]{premoveDark, premoveColor},
-                    new float[]{0.0f, 1.0f},
-                    Shader.TileMode.CLAMP));
+            if (cachedPremoveShader == null || cachedPremoveX1 != x1 || cachedPremoveY1 != y1 || cachedPremoveX2 != x2 || cachedPremoveY2 != y2) {
+                cachedPremoveShader = new LinearGradient(x1, y1, x2, y2,
+                        new int[]{premoveDark, premoveColor},
+                        new float[]{0.0f, 1.0f},
+                        Shader.TileMode.CLAMP);
+                cachedPremoveX1 = x1;
+                cachedPremoveY1 = y1;
+                cachedPremoveX2 = x2;
+                cachedPremoveY2 = y2;
+            }
+            fillPaint.setShader(cachedPremoveShader);
             canvas.drawPath(arrowPath, fillPaint);
 
             // 3. Viền mảnh tương phản cao
@@ -666,20 +735,29 @@ public class ArrowOverlayView extends View {
         int cTail = Color.argb((int)(0.88f * opacity * 255), colTail[0], colTail[1], colTail[2]);
         int cMid  = Color.argb((int)(0.96f * opacity * 255), colMid[0], colMid[1], colMid[2]);
         int cHead = Color.argb((int)(1.0f  * opacity * 255), colHeadLight[0], colHeadLight[1], colHeadLight[2]);
-        fillPaint.setShader(new LinearGradient(x1, y1, x2, y2,
-                new int[]{cTail, cMid, cHead},
-                new float[]{0.0f, 0.45f, 1.0f},
-                Shader.TileMode.CLAMP));
+        int slotIdx = Math.max(0, Math.min(cachedFillShaders.length - 1, arrow.tier));
+        ShaderSlot fillSlot = cachedFillShaders[slotIdx];
+        if (!fillSlot.matches(x1, y1, x2, y2, cTail, cMid, cHead)) {
+            fillSlot.set(x1, y1, x2, y2, cTail, cMid, cHead, new LinearGradient(x1, y1, x2, y2,
+                    new int[]{cTail, cMid, cHead},
+                    new float[]{0.0f, 0.45f, 1.0f},
+                    Shader.TileMode.CLAMP));
+        }
+        fillPaint.setShader(fillSlot.shader);
         canvas.drawPath(arrowPath, fillPaint);
 
         // 3. Highlight Edge Stroke
         int cEdgeTail = Color.argb((int)(0.75f * opacity * 255), colEdge[0], colEdge[1], colEdge[2]);
         int cEdgeHead = Color.argb((int)(0.65f * opacity * 255), 255, 255, 255);
         edgePaint.setStrokeWidth(edgeStroke);
-        edgePaint.setShader(new LinearGradient(x1, y1, x2, y2,
-                new int[]{cEdgeTail, cEdgeHead},
-                new float[]{0.0f, 1.0f},
-                Shader.TileMode.CLAMP));
+        ShaderSlot edgeSlot = cachedEdgeShaders[slotIdx];
+        if (!edgeSlot.matches(x1, y1, x2, y2, cEdgeTail, cEdgeHead, 0)) {
+            edgeSlot.set(x1, y1, x2, y2, cEdgeTail, cEdgeHead, 0, new LinearGradient(x1, y1, x2, y2,
+                    new int[]{cEdgeTail, cEdgeHead},
+                    new float[]{0.0f, 1.0f},
+                    Shader.TileMode.CLAMP));
+        }
+        edgePaint.setShader(edgeSlot.shader);
         canvas.drawPath(arrowPath, edgePaint);
     }
 
@@ -803,12 +881,21 @@ public class ArrowOverlayView extends View {
         int rank = sq.charAt(1) - '1';
         if (file < 0 || file > 7 || rank < 0 || rank > 7) return null;
 
-        int col = flipped ? (7 - file) : file;
-        int row = flipped ? rank : (7 - rank);
+        if (sqSize != lastCenterSqSize || flipped != lastCenterFlipped) {
+            for (int r = 0; r < 8; r++) {
+                for (int f = 0; f < 8; f++) {
+                    int col = flipped ? (7 - f) : f;
+                    int row = flipped ? r : (7 - r);
+                    int idx = r * 8 + f;
+                    squareCenters[idx][0] = col * sqSize + sqSize / 2.0f;
+                    squareCenters[idx][1] = row * sqSize + sqSize / 2.0f;
+                }
+            }
+            lastCenterSqSize = sqSize;
+            lastCenterFlipped = flipped;
+        }
 
-        float cx = col * sqSize + sqSize / 2.0f;
-        float cy = row * sqSize + sqSize / 2.0f;
-        return new float[]{cx, cy};
+        return squareCenters[rank * 8 + file];
     }
 
     private static int[] getBaseRgb(Context context, int tier, boolean isThreat, boolean isPremove) {
@@ -859,26 +946,17 @@ public class ArrowOverlayView extends View {
      * - Clamped inside target square / board bounds.
      * - Extension style: shade(rgb, 0.58) background, tint(rgb, 0.54) border, JetBrains Mono font.
      */
-    private static class RectBox {
-        final float x, y, w, h;
-        RectBox(float x, float y, float w, float h) {
-            this.x = x; this.y = y; this.w = w; this.h = h;
+    private boolean hasBoxCollision(float bx, float by, float bw, float bh, float pad) {
+        for (int i = 0; i < placedBoxCount; i++) {
+            float px = placedBoxes[i][0];
+            float py = placedBoxes[i][1];
+            float pw = placedBoxes[i][2];
+            float ph = placedBoxes[i][3];
+            if (!(bx + bw + pad < px || px + pw + pad < bx || by + bh + pad < py || py + ph + pad < by)) {
+                return true;
+            }
         }
-    }
-
-    private static boolean checkOverlap(RectBox b1, RectBox b2, float pad) {
-        return !(b1.x + b1.w + pad < b2.x
-                || b2.x + b2.w + pad < b1.x
-                || b1.y + b1.h + pad < b2.y
-                || b2.y + b2.h + pad < b1.y);
-    }
-
-    private static class Corridor {
-        final String sq;
-        final char axis; // 'v', 'h', 'd'
-        Corridor(String sq, char axis) {
-            this.sq = sq; this.axis = axis;
-        }
+        return false;
     }
 
     /**
@@ -895,7 +973,7 @@ public class ArrowOverlayView extends View {
         if (bWidth <= 0 || bHeight <= 0) return;
 
         // 1. Compute passing corridors (mũi tên dài đi xuyên qua các ô trung gian)
-        List<Corridor> passingCorridors = new ArrayList<>();
+        corridorCount = 0;
         for (ArrowData a : arrows) {
             if (a.from == null || a.to == null || a.from.length() < 2 || a.to.length() < 2) continue;
             int fFile = a.from.charAt(0) - 'a';
@@ -914,14 +992,20 @@ public class ArrowOverlayView extends View {
                     for (int s = 1; s < dist; s++) {
                         int midFile = fFile + stepX * s;
                         int midRank = fRank + stepY * s;
-                        String midSq = "" + (char) ('a' + midFile) + (char) ('1' + midRank);
-                        passingCorridors.add(new Corridor(midSq, axis));
+                        if (midRank >= 0 && midRank < 8 && midFile >= 0 && midFile < 8) {
+                            String midSq = BOARD_SQUARES[midRank * 8 + midFile];
+                            if (corridorCount < corridorSq.length) {
+                                corridorSq[corridorCount] = midSq;
+                                corridorAxis[corridorCount] = axis;
+                                corridorCount++;
+                            }
+                        }
                     }
                 }
             }
         }
 
-        List<RectBox> placedLabelBoxes = new ArrayList<>();
+        placedBoxCount = 0;
 
         // Tránh bị Eval Bar che lấp: Nếu Eval Bar hiển thị ở mép trái bàn cờ
         float density = getContext().getResources().getDisplayMetrics().density;
@@ -935,7 +1019,17 @@ public class ArrowOverlayView extends View {
         }
         final float minSafeX = Math.max(2f, evalBarOverlap);
         if (evalBarOverlap > 0f) {
-            placedLabelBoxes.add(new RectBox(0f, 0f, evalBarOverlap, bHeight));
+            placedBoxes[0][0] = 0f;
+            placedBoxes[0][1] = 0f;
+            placedBoxes[0][2] = evalBarOverlap;
+            placedBoxes[0][3] = bHeight;
+            placedBoxCount = 1;
+        }
+
+        float blurRadius = Math.max(1.5f, sqSize * 0.035f);
+        if (cachedPillBlurFilter == null || Math.abs(cachedPillBlurRadius - blurRadius) > 0.01f) {
+            cachedPillBlurFilter = new BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL);
+            cachedPillBlurRadius = blurRadius;
         }
 
         for (int i = 0; i < arrows.size(); i++) {
@@ -946,18 +1040,11 @@ public class ArrowOverlayView extends View {
             float[] toCenter   = getSquareCenter(arrow.to,   flipped, sqSize);
             if (fromCenter == null || toCenter == null) continue;
 
-            float x1 = fromCenter[0], y1 = fromCenter[1];
-            float x2 = toCenter[0],   y2 = toCenter[1];
+            float x2 = toCenter[0], y2 = toCenter[1];
 
             int tierVal = arrow.tier;
             String lblText = arrow.evalText.trim();
 
-            // Sizing metrics matching NNVC Extension:
-            // fontSize = Math.max(9, sqSize * 0.125)
-            // padH = Math.max(4, sqSize * 0.065)
-            // padV = Math.max(2, sqSize * 0.035)
-            // pillW = Math.max(24, Math.min(sqSize * 0.62, (lblText.length * 0.58 + 0.3) * fontSize + padH * 2))
-            // pillH = fontSize * 1.1 + padV * 2
             float fontSize = Math.max(9f, sqSize * 0.125f);
             float padH = Math.max(4f, sqSize * 0.065f);
             float padV = Math.max(2f, sqSize * 0.035f);
@@ -974,143 +1061,147 @@ public class ArrowOverlayView extends View {
             float sqRight = x2 + sqSize / 2f;
             float sqBottom = y2 + sqSize / 2f;
 
-            // Kiểm tra xem ô đích to có bị mũi tên nào khác đi xuyên qua không
-            Corridor passCorridor = null;
-            for (Corridor c : passingCorridors) {
-                if (c.sq.equals(arrow.to)) {
-                    passCorridor = c;
+            char passAxis = 0;
+            for (int c = 0; c < corridorCount; c++) {
+                if (arrow.to.equals(corridorSq[c])) {
+                    passAxis = corridorAxis[c];
                     break;
                 }
             }
 
-            // 8 Candidates quanh ô đích: Tuyệt đối không đặt trên thân mũi tên!
-            List<float[]> candidates = new ArrayList<>();
-            if (passCorridor != null && passCorridor.axis == 'v') {
-                // Mũi tên dài chạy dọc: dạt lệch hẳn sang Trái / Phải
-                candidates.add(new float[]{sqLeft + 2f, sqTop + sqSize * 0.06f});
-                candidates.add(new float[]{sqRight - pillW - 2f, sqTop + sqSize * 0.06f});
-                candidates.add(new float[]{sqLeft + 2f, sqBottom - pillH - sqSize * 0.06f});
-                candidates.add(new float[]{sqRight - pillW - 2f, sqBottom - pillH - sqSize * 0.06f});
-                candidates.add(new float[]{sqLeft - pillW - 2f, sqTop + (sqSize - pillH) / 2f});
-                candidates.add(new float[]{sqRight + 2f, sqTop + (sqSize - pillH) / 2f});
-            } else if (passCorridor != null && passCorridor.axis == 'h') {
-                // Mũi tên dài chạy ngang: dạt lệch hẳn lên Trên / Dưới
-                candidates.add(new float[]{sqLeft + sqSize * 0.06f, sqTop + 2f});
-                candidates.add(new float[]{sqRight - pillW - sqSize * 0.06f, sqTop + 2f});
-                candidates.add(new float[]{sqLeft + sqSize * 0.06f, sqBottom - pillH - 2f});
-                candidates.add(new float[]{sqRight - pillW - sqSize * 0.06f, sqBottom - pillH - 2f});
-                candidates.add(new float[]{sqLeft + (sqSize - pillW) / 2f, sqTop - pillH - 2f});
-                candidates.add(new float[]{sqLeft + (sqSize - pillW) / 2f, sqBottom + 2f});
+            int candCount = 0;
+            if (passAxis == 'v') {
+                candidateCoords[0][0] = sqLeft + 2f; candidateCoords[0][1] = sqTop + sqSize * 0.06f;
+                candidateCoords[1][0] = sqRight - pillW - 2f; candidateCoords[1][1] = sqTop + sqSize * 0.06f;
+                candidateCoords[2][0] = sqLeft + 2f; candidateCoords[2][1] = sqBottom - pillH - sqSize * 0.06f;
+                candidateCoords[3][0] = sqRight - pillW - 2f; candidateCoords[3][1] = sqBottom - pillH - sqSize * 0.06f;
+                candidateCoords[4][0] = sqLeft - pillW - 2f; candidateCoords[4][1] = sqTop + (sqSize - pillH) / 2f;
+                candidateCoords[5][0] = sqRight + 2f; candidateCoords[5][1] = sqTop + (sqSize - pillH) / 2f;
+                candCount = 6;
+            } else if (passAxis == 'h') {
+                candidateCoords[0][0] = sqLeft + sqSize * 0.06f; candidateCoords[0][1] = sqTop + 2f;
+                candidateCoords[1][0] = sqRight - pillW - sqSize * 0.06f; candidateCoords[1][1] = sqTop + 2f;
+                candidateCoords[2][0] = sqLeft + sqSize * 0.06f; candidateCoords[2][1] = sqBottom - pillH - 2f;
+                candidateCoords[3][0] = sqRight - pillW - sqSize * 0.06f; candidateCoords[3][1] = sqBottom - pillH - 2f;
+                candidateCoords[4][0] = sqLeft + (sqSize - pillW) / 2f; candidateCoords[4][1] = sqTop - pillH - 2f;
+                candidateCoords[5][0] = sqLeft + (sqSize - pillW) / 2f; candidateCoords[5][1] = sqBottom + 2f;
+                candCount = 6;
             } else {
-                // 0: Góc Trên - Trái ô đích
-                candidates.add(new float[]{sqLeft + sqSize * 0.04f, sqTop + sqSize * 0.04f});
-                // 1: Góc Trên - Phải ô đích
-                candidates.add(new float[]{sqRight - pillW - sqSize * 0.04f, sqTop + sqSize * 0.04f});
-                // 2: Góc Dưới - Trái ô đích
-                candidates.add(new float[]{sqLeft + sqSize * 0.04f, sqBottom - pillH - sqSize * 0.04f});
-                // 3: Góc Dưới - Phải ô đích
-                candidates.add(new float[]{sqRight - pillW - sqSize * 0.04f, sqBottom - pillH - sqSize * 0.04f});
-                // 4: Cạnh ngoài phía trên ô đích
-                candidates.add(new float[]{sqLeft + (sqSize - pillW) / 2f, sqTop - pillH - 2f});
-                // 5: Cạnh ngoài phía dưới ô đích
-                candidates.add(new float[]{sqLeft + (sqSize - pillW) / 2f, sqBottom + 2f});
-                // 6: Cạnh ngoài bên trái ô đích
-                candidates.add(new float[]{sqLeft - pillW - 2f, sqTop + (sqSize - pillH) / 2f});
-                // 7: Cạnh ngoài bên phải ô đích
-                candidates.add(new float[]{sqRight + 2f, sqTop + (sqSize - pillH) / 2f});
+                candidateCoords[0][0] = sqLeft + sqSize * 0.04f; candidateCoords[0][1] = sqTop + sqSize * 0.04f;
+                candidateCoords[1][0] = sqRight - pillW - sqSize * 0.04f; candidateCoords[1][1] = sqTop + sqSize * 0.04f;
+                candidateCoords[2][0] = sqLeft + sqSize * 0.04f; candidateCoords[2][1] = sqBottom - pillH - sqSize * 0.04f;
+                candidateCoords[3][0] = sqRight - pillW - sqSize * 0.04f; candidateCoords[3][1] = sqBottom - pillH - sqSize * 0.04f;
+                candidateCoords[4][0] = sqLeft + (sqSize - pillW) / 2f; candidateCoords[4][1] = sqTop - pillH - 2f;
+                candidateCoords[5][0] = sqLeft + (sqSize - pillW) / 2f; candidateCoords[5][1] = sqBottom + 2f;
+                candidateCoords[6][0] = sqLeft - pillW - 2f; candidateCoords[6][1] = sqTop + (sqSize - pillH) / 2f;
+                candidateCoords[7][0] = sqRight + 2f; candidateCoords[7][1] = sqTop + (sqSize - pillH) / 2f;
+                candCount = 8;
             }
 
             int prefIdx = tierVal == 1 ? 0 : (tierVal == 2 ? 1 : (tierVal == 3 ? 2 : (tierVal == 4 ? 3 : 0)));
-            if (prefIdx >= candidates.size()) prefIdx = 0;
+            if (prefIdx >= candCount) prefIdx = 0;
 
-            // Nếu ô đích ở sát mép trái (bị Eval Bar che lấp), ưu tiên các vị trí bên phải ô đích
             if (sqLeft < minSafeX) {
-                if (passCorridor != null && passCorridor.axis == 'v') {
-                    prefIdx = 1; // Bên phải trên
-                } else if (passCorridor == null) {
-                    prefIdx = (tierVal == 1 || tierVal == 3) ? 1 : 3; // Top-Right hoặc Bottom-Right
+                if (passAxis == 'v') {
+                    prefIdx = 1;
+                } else if (passAxis == 0) {
+                    prefIdx = (tierVal == 1 || tierVal == 3) ? 1 : 3;
                 }
             }
 
-            List<Integer> order = new ArrayList<>();
-            order.add(prefIdx);
-            for (int k = 0; k < candidates.size(); k++) {
-                if (k != prefIdx) order.add(k);
-            }
+            float labelX = -1f, labelY = -1f;
+            float candX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[prefIdx][0]));
+            float candY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[prefIdx][1]));
 
-            RectBox chosen = null;
-            for (int candIdx : order) {
-                float[] cand = candidates.get(candIdx);
-                float clampedX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, cand[0]));
-                float clampedY = Math.max(2f, Math.min(bHeight - pillH - 2f, cand[1]));
-                RectBox box = new RectBox(clampedX, clampedY, pillW, pillH);
-
-                boolean hasCollision = false;
-                for (RectBox placed : placedLabelBoxes) {
-                    if (checkOverlap(box, placed, 3f)) {
-                        hasCollision = true;
+            if (!hasBoxCollision(candX, candY, pillW, pillH, 3f)) {
+                labelX = candX;
+                labelY = candY;
+            } else {
+                for (int k = 0; k < candCount; k++) {
+                    if (k == prefIdx) continue;
+                    candX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[k][0]));
+                    candY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[k][1]));
+                    if (!hasBoxCollision(candX, candY, pillW, pillH, 3f)) {
+                        labelX = candX;
+                        labelY = candY;
                         break;
                     }
                 }
-                if (!hasCollision) {
-                    chosen = box;
-                    break;
-                }
             }
 
-            if (chosen == null) {
-                float[] fallbackCand = candidates.get(prefIdx);
-                chosen = new RectBox(
-                        Math.max(minSafeX, Math.min(bWidth - pillW - 2f, fallbackCand[0])),
-                        Math.max(2f, Math.min(bHeight - pillH - 2f, fallbackCand[1])),
-                        pillW, pillH
-                );
+            if (labelX < 0f) {
+                labelX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[prefIdx][0]));
+                labelY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[prefIdx][1]));
             }
-            placedLabelBoxes.add(chosen);
 
-            float labelX = chosen.x;
-            float labelY = chosen.y;
+            if (placedBoxCount < placedBoxes.length) {
+                placedBoxes[placedBoxCount][0] = labelX;
+                placedBoxes[placedBoxCount][1] = labelY;
+                placedBoxes[placedBoxCount][2] = pillW;
+                placedBoxes[placedBoxCount][3] = pillH;
+                placedBoxCount++;
+            }
 
             // Styling & Colors matching NNVC Extension:
             boolean isBookLabel = "BOOK".equals(lblText);
-            int[] rawRgb = getBaseRgb(getContext(), arrow.tier, arrow.isThreat, arrow.isPremove);
-            int[] rgb = (arrow.tier == 2) ? tint(rawRgb, 0.12f)
-                    : (arrow.tier >= 3) ? tint(rawRgb, 0.30f)
-                    : rawRgb;
+            int baseColor = (arrow.isPremove) ? 0xFFF59E0B
+                    : (arrow.isThreat) ? 0xFFEF4444
+                    : (getContext() != null ? StockfishSettings.getArrowTierColor(getContext(), arrow.tier)
+                    : StockfishSettings.DEFAULT_TIER_COLORS[Math.max(1, Math.min(5, arrow.tier)) - 1]);
 
-            int[] shadeRgb = shade(rgb, 0.58f);
+            int br = (baseColor >> 16) & 0xFF;
+            int bg = (baseColor >> 8) & 0xFF;
+            int bb = baseColor & 0xFF;
+
+            if (arrow.tier == 2) {
+                br = clamp((int)(br + (255 - br) * 0.12f));
+                bg = clamp((int)(bg + (255 - bg) * 0.12f));
+                bb = clamp((int)(bb + (255 - bb) * 0.12f));
+            } else if (arrow.tier >= 3) {
+                br = clamp((int)(br + (255 - br) * 0.30f));
+                bg = clamp((int)(bg + (255 - bg) * 0.30f));
+                bb = clamp((int)(bb + (255 - bb) * 0.30f));
+            }
+
+            int sr = clamp((int)(br * (1.0f - 0.58f)));
+            int sg = clamp((int)(bg * (1.0f - 0.58f)));
+            int sb = clamp((int)(bb * (1.0f - 0.58f)));
+
             float bgAlpha = tierVal == 1 ? 0.92f : 0.82f;
             int bgCol = isBookLabel
                     ? Color.argb((int)(0.94f * 255), 28, 25, 23)
-                    : Color.argb((int)(bgAlpha * 255), shadeRgb[0], shadeRgb[1], shadeRgb[2]);
+                    : Color.argb((int)(bgAlpha * 255), sr, sg, sb);
 
-            int[] tintBorder = tint(rgb, 0.54f);
+            int tr = clamp((int)(br + (255 - br) * 0.54f));
+            int tg = clamp((int)(bg + (255 - bg) * 0.54f));
+            int tb = clamp((int)(bb + (255 - bb) * 0.54f));
+
             float borderAlpha = tierVal == 1 ? 0.64f : 0.44f;
             int borderCol = isBookLabel
                     ? Color.argb((int)(0.85f * 255), 245, 158, 11)
-                    : Color.argb((int)(borderAlpha * 255), tintBorder[0], tintBorder[1], tintBorder[2]);
+                    : Color.argb((int)(borderAlpha * 255), tr, tg, tb);
 
             int textColor = isBookLabel ? 0xFFFBBF24 : 0xFFF8FBFF;
             float cornerRadius = Math.max(5f, sqSize * 0.09f);
 
-            android.graphics.RectF rect = new android.graphics.RectF(labelX, labelY, labelX + pillW, labelY + pillH);
+            reusablePillRectF.set(labelX, labelY, labelX + pillW, labelY + pillH);
 
             // Subtle drop shadow matching extension (0 5px 16px rgba(0,0,0,0.32))
             badgeGlowPaint.setColor(Color.argb(82, 0, 0, 0));
             badgeGlowPaint.setStrokeWidth(Math.max(1f, sqSize * 0.02f));
-            badgeGlowPaint.setMaskFilter(new BlurMaskFilter(Math.max(1.5f, sqSize * 0.035f), BlurMaskFilter.Blur.NORMAL));
-            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, badgeGlowPaint);
+            badgeGlowPaint.setMaskFilter(cachedPillBlurFilter);
+            canvas.drawRoundRect(reusablePillRectF, cornerRadius, cornerRadius, badgeGlowPaint);
             badgeGlowPaint.setMaskFilter(null);
 
             // Background Fill (Frosted Glass with tint/shade)
             badgeBgPaint.setColor(bgCol);
-            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, badgeBgPaint);
+            canvas.drawRoundRect(reusablePillRectF, cornerRadius, cornerRadius, badgeBgPaint);
 
             // 1px Border Stroke
             badgeStrokePaint.setColor(borderCol);
             badgeStrokePaint.setStrokeWidth(Math.max(1.0f, sqSize * 0.012f));
             badgeStrokePaint.setMaskFilter(null);
-            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, badgeStrokePaint);
+            canvas.drawRoundRect(reusablePillRectF, cornerRadius, cornerRadius, badgeStrokePaint);
 
             // Text Draw
             badgeTextPaint.setColor(textColor);
