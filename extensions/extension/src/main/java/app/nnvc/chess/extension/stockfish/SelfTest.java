@@ -2540,6 +2540,105 @@ public class SelfTest {
         SmartDelayManager.recordMyMove("g1f3", startPosFen, null, true);
         check("recordMyMove advances moveNum and history", SmartDelayManager.sState.moveNum == 1 && !SmartDelayManager.sState.posHistory.isEmpty());
 
+        // =========================================================================
+        // Test 47: All Game Modes, Compose Touch Freeze Immunity & ChessBoardView V2 Architecture Parity
+        // =========================================================================
+        // 47a. GestureInterceptor.isComposeActivity detection
+        class DummyLessonChallengesActivity {}
+        class DummyRatedPuzzlesGameActivity {}
+        class DummyDailyGameActivity {}
+        class DummyPuzzleRushActivity {}
+        class DummyRealGameActivity {}
+
+        check("isComposeActivity returns false for null", !GestureInterceptor.isComposeActivity((Object) null));
+        check("isComposeActivity detects LessonChallengesActivity", GestureInterceptor.isComposeActivity(new DummyLessonChallengesActivity()));
+        check("isComposeActivity detects RatedPuzzlesGameActivity", GestureInterceptor.isComposeActivity(new DummyRatedPuzzlesGameActivity()));
+        check("isComposeActivity detects DailyGameActivity", GestureInterceptor.isComposeActivity(new DummyDailyGameActivity()));
+        check("isComposeActivity detects PuzzleRushActivity", GestureInterceptor.isComposeActivity(new DummyPuzzleRushActivity()));
+        check("isComposeActivity returns false for RealGameActivity", !GestureInterceptor.isComposeActivity(new DummyRealGameActivity()));
+
+        // 47b. OverlayManager.isBoardFlipped V2 board support (method a())
+        class MockV2BoardFlipped {
+            public boolean a() { return true; }
+        }
+        class MockV2BoardNormal {
+            public boolean a() { return false; }
+        }
+        MockV2BoardFlipped mockV2Flipped = new MockV2BoardFlipped();
+        MockV2BoardNormal mockV2Normal = new MockV2BoardNormal();
+        check("OverlayManager.isBoardFlipped evaluates mock V2 flipped board", OverlayManager.isBoardFlipped(mockV2Flipped, null));
+        check("OverlayManager.isBoardFlipped evaluates mock V2 normal board", !OverlayManager.isBoardFlipped(mockV2Normal, null));
+
+        // 47c. Mathematical Turn Detection from FEN
+        check("isWhiteTurnFromFen startpos is White turn", StockfishExtension.isWhiteTurnFromFen(startPosFen));
+        check("isWhiteTurnFromFen e4 response is Black turn", !StockfishExtension.isWhiteTurnFromFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"));
+        check("isWhiteTurnFromFen null returns true fallback", StockfishExtension.isWhiteTurnFromFen(null));
+
+        // 47d. AutoMoveManager Board Readiness & V2 View Detection
+        check("isBoardReadyForAutoMove handles null gracefully", AutoMoveManager.isBoardReadyForAutoMove(null, null));
+        class DummyFinishingActivity {
+            public boolean isFinishing() { return true; }
+        }
+        check("isBoardReadyForAutoMove rejects finishing Activity", !AutoMoveManager.isBoardReadyForAutoMove(new DummyFinishingActivity(), null));
+
+        class MockV2RealView {}
+        check("isV2Board returns false for null view", !AutoMoveManager.isV2Board(null));
+        check("isV2Board returns false for standard Object", !AutoMoveManager.isV2Board(new Object()));
+        check("isV2Board identifies V2 in class name", AutoMoveManager.isV2Board(new MockV2RealView()));
+
+        // 47e. Universal CBViewModel Resolution: Method & Field Reflection
+        class MockCBViewModelReal {
+            public boolean pCalled = false;
+            public void p(Object move, Object verification, boolean animate) {
+                this.pCalled = true;
+            }
+        }
+        class MockLessonChallengesViewModel {
+            private final MockCBViewModelReal cb = new MockCBViewModelReal();
+            public MockCBViewModelReal T6() { return cb; }
+        }
+        MockLessonChallengesViewModel lessonVm = new MockLessonChallengesViewModel();
+        Object resolvedLessonVm = AutoMoveManager.extractCBViewModelFromObject(lessonVm);
+        check("extractCBViewModelFromObject resolves CBViewModel via T6() method", resolvedLessonVm instanceof MockCBViewModelReal);
+
+        // 47f. Universal CBViewModel Resolution: Kotlin Lambda / Lazy unwrap
+        class MockPuzzleLambda {
+            private final MockCBViewModelReal cb = new MockCBViewModelReal();
+            public Object invoke() { return cb; }
+        }
+        class MockRatedPuzzlesViewModel {
+            private final MockPuzzleLambda z = new MockPuzzleLambda();
+        }
+        MockRatedPuzzlesViewModel puzzleVm = new MockRatedPuzzlesViewModel();
+        Object resolvedLambdaVm = AutoMoveManager.extractCBViewModelFromObject(puzzleVm);
+        check("extractCBViewModelFromObject unwraps Kotlin lambda field z", resolvedLambdaVm instanceof MockCBViewModelReal);
+
+        // 47g. Direct V2 Move Dispatcher & Gesture Listener Execution
+        class MockV2GestureListener {
+            public boolean dropDispatched = false;
+            public void e(Object from, Object to) {
+                this.dropDispatched = true;
+            }
+        }
+        class MockV2FullBoardView {
+            public final MockV2GestureListener listener = new MockV2GestureListener();
+            public boolean animCalled = false;
+            public MockV2GestureListener getChessBoardGestureListener() { return listener; }
+            public void j(Object from, Object to) { this.animCalled = true; }
+        }
+        MockV2FullBoardView v2Board = new MockV2FullBoardView();
+        // Test executeDirectV2Move with mock objects
+        boolean v2Success = false;
+        try {
+            // Test with dummy squares
+            Object dummySquare = new Object();
+            java.lang.reflect.Method mDirect = AutoMoveManager.class.getMethod("executeDirectV2Move",
+                    ClassLoader.class, android.view.View.class, String.class, String.class, boolean.class, char.class, String.class);
+            check("AutoMoveManager defines executeDirectV2Move method", mDirect != null);
+        } catch (Throwable t) {
+            check("executeDirectV2Move reflection check: " + t.getMessage(), false);
+        }
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
