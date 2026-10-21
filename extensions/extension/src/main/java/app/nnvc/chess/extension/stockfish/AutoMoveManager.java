@@ -1222,6 +1222,20 @@ public class AutoMoveManager {
                                        final long engineThinkMs,
                                        final boolean userWhite,
                                        final Activity activity) {
+        executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, false, 0);
+    }
+
+    public static void executeAutoMove(final Context context,
+                                       final View boardView,
+                                       final String uciMove,
+                                       final boolean flipped,
+                                       final String currentFen,
+                                       final float evalScore,
+                                       final long engineThinkMs,
+                                       final boolean userWhite,
+                                       final Activity activity,
+                                       final boolean hasMate,
+                                       final int mateIn) {
         if (context == null || boardView == null || uciMove == null || uciMove.length() < 4) {
             NnvcLogger.w(TAG, "executeAutoMove aborted: invalid arguments (ctx=" + (context != null) + ", bv=" + (boardView != null) + ", move=" + uciMove + ")");
             return;
@@ -1249,7 +1263,7 @@ public class AutoMoveManager {
             final Runnable throttledTask = new Runnable() {
                 @Override
                 public void run() {
-                    executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity);
+                    executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, hasMate, mateIn);
                 }
             };
             pendingMoveRunnable = throttledTask;
@@ -1272,7 +1286,7 @@ public class AutoMoveManager {
         // Tính toán độ trễ thông minh Smart Delay (chuẩn 100% Desktop Extension)
         long calculatedDelay = 0;
         if (StockfishSettings.isSmartDelayEnabled(context)) {
-            calculatedDelay = SmartDelayManager.calculateSmartDelay(currentFen, uciMove, evalScore, engineThinkMs, activity, userWhite);
+            calculatedDelay = SmartDelayManager.calculateSmartDelay(currentFen, uciMove, evalScore, engineThinkMs, activity, userWhite, hasMate, mateIn);
         } else {
             float fixed = StockfishSettings.getFixedDelaySeconds(context);
             if (fixed > 0) {

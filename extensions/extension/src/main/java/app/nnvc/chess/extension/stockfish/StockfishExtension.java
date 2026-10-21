@@ -1029,7 +1029,7 @@ public class StockfishExtension {
                             boolean flipped = OverlayManager.isBoardFlipped(bv, getStateImpl());
                             boolean finalUserIsWhite = (userWhite != null) ? userWhite.booleanValue() : true;
                             NnvcLogger.i("NNVC_AutoMove", "⚡ [AUTO MOVE TRIGGER] Chuẩn bị đi nước: " + bestMove + " (flipped=" + flipped + ", thinkMs=" + lastEngineThinkMs + "ms)");
-                            AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen, result.score, lastEngineThinkMs, finalUserIsWhite, activity);
+                            AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen, result.score, lastEngineThinkMs, finalUserIsWhite, activity, result.hasMate, result.mateIn);
                         } else {
                             NnvcLogger.w("NNVC_AutoMove", "❌ [AUTO MOVE ERROR] Không tìm thấy ChessBoardView trên giao diện.");
                         }

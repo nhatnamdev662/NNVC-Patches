@@ -760,13 +760,24 @@ public class SmartDelayManager {
         }, 3000);
     }
 
-    // ── 9. Thuật Toán Tính Độ Trễ Smart Delay Chính (_smartDelay Dòng 8149-8308) ──
+    // ── 9. Thuật Toán Tính Độ Trễ Smart Delay Chính (_smartDelay Dòng 8149-8308 & 16425-16436) ──
     public static long calculateSmartDelay(String currentFen,
                                            String chosenMove,
                                            float evalScore,
                                            long engineThinkMs,
                                            Activity activity,
                                            boolean userWhite) {
+        return calculateSmartDelay(currentFen, chosenMove, evalScore, engineThinkMs, activity, userWhite, false, 0);
+    }
+
+    public static long calculateSmartDelay(String currentFen,
+                                           String chosenMove,
+                                           float evalScore,
+                                           long engineThinkMs,
+                                           Activity activity,
+                                           boolean userWhite,
+                                           boolean hasMate,
+                                           int mateIn) {
         Context ctx = activity != null ? activity : null;
         if (ctx != null && !StockfishSettings.isSmartDelayEnabled(ctx)) {
             float fixed = StockfishSettings.getFixedDelaySeconds(ctx);
@@ -861,7 +872,40 @@ public class SmartDelayManager {
 
         // D. Khử trừ thời gian tính toán của engine (Dòng 16420-16437)
         double finalSec = clamp(sec, floor, cap);
+
+        // Áp dụng Tương quan thời gian 2 bên Clock Ratio & Rush Sec (Chuẩn 100% Extension dòng 8204-8224)
+        if (mySec > 0 && oppSec > 0) {
+            double rushSec = isBullet ? 8.5 : isBlitz ? 10.5 : 14.0;
+            double panicSec = 5.0;
+            double clockRatio = mySec / Math.max(oppSec, 1.0);
+
+            if (oppSec < 6.0) {
+                finalSec *= 0.18 + RANDOM.nextDouble() * 0.14;
+            } else if (clockRatio >= 1.6 && mySec > rushSec * 1.2) {
+                double leadBonus = isBullet ? 1.08 : isBlitz ? 1.16 : 1.24;
+                finalSec *= leadBonus + RANDOM.nextDouble() * 0.14;
+            } else if (clockRatio < 0.72) {
+                double urgency = clamp((0.72 - clockRatio) / 0.5, 0.0, 1.0);
+                finalSec *= 0.74 - urgency * 0.18 + RANDOM.nextDouble() * 0.10;
+            }
+
+            if (mySec < rushSec && mySec > 6.5) {
+                double softSqueeze = (0.94 + clamp((mySec - panicSec) / Math.max(0.5, rushSec - panicSec), 0.0, 1.0) * 0.06)
+                        * (0.98 + RANDOM.nextDouble() * 0.06);
+                finalSec *= softSqueeze;
+            }
+        }
+
+        finalSec = clamp(finalSec, floor * 0.5, cap * 1.3);
         long rawDelayMs = Math.round(finalSec * 1000.0) + physicalJitter();
+
+        // Mate Panic khi đối thủ đe dọa chiếu hết (Chuẩn 100% Extension dòng 16425-16436)
+        boolean isThreatenedMate = (hasMate && mateIn < 0) || evalScore <= -30.0f;
+        if (isThreatenedMate) {
+            lastScenarioLabel = "⚠️ Đỡ chiếu hết tức thì (Mate panic)";
+            long matePanic = 180 + Math.round(RANDOM.nextDouble() * 320); // 180ms - 500ms
+            rawDelayMs = Math.min(rawDelayMs, matePanic);
+        }
 
         // Giới hạn nước đầu tiên
         if (pos.moveNum <= 1) {
@@ -869,7 +913,7 @@ public class SmartDelayManager {
             rawDelayMs = Math.min(rawDelayMs, firstMoveCap);
         }
 
-        long minBuffer = isBullet ? 160 : isBlitz ? 260 : 380;
+        long minBuffer = isThreatenedMate ? 25 : (isBullet ? 160 : isBlitz ? 260 : 380);
         long netDelay = Math.max(minBuffer, rawDelayMs - engineThinkMs);
 
         // Cap delay to ensure we NEVER sleep past the 6.5s panic threshold

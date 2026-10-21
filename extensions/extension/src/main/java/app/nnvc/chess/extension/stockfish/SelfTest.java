@@ -2428,6 +2428,20 @@ public class SelfTest {
         } catch (Throwable ignored) {}
         check("WebViewClient defines onRenderProcessGone returning boolean", hasWasmMethod);
 
+        // Test 44: Smart Delay Parity - Clock Ratio & Mate Panic Thresholds
+        long panicDelay = SmartDelayManager.calculateSmartDelay(startPosFen, "e2e4", -35.0f, 0, null, true, true, -1);
+        check("Mate panic caps delay under 550ms", panicDelay <= 550 && panicDelay >= 25);
+
+        boolean has11ParamAutoMove = false;
+        try {
+            java.lang.reflect.Method mAuto = AutoMoveManager.class.getMethod("executeAutoMove",
+                    android.content.Context.class, android.view.View.class, String.class, boolean.class,
+                    String.class, float.class, long.class, boolean.class, android.app.Activity.class,
+                    boolean.class, int.class);
+            has11ParamAutoMove = (mAuto != null);
+        } catch (Throwable ignored) {}
+        check("AutoMoveManager provides 11-param executeAutoMove for mate panic synchronization", has11ParamAutoMove);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
