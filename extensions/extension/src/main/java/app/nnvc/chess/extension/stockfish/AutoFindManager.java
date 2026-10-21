@@ -58,6 +58,7 @@ public class AutoFindManager {
 
     private static volatile State currentState = State.IDLE;
     private static volatile int remainingSeconds = COUNTDOWN_DURATION_SEC;
+    private static volatile long seekStartTimeMs = 0L;
     private static Handler mainHandler = null;
     private static Runnable countdownRunnable = null;
     private static WeakReference<Activity> activeActivityRef = new WeakReference<>(null);
@@ -84,6 +85,10 @@ public class AutoFindManager {
 
     public static boolean isSeeking() {
         return currentState == State.SEEKING;
+    }
+
+    public static long getSeekStartTimeMs() {
+        return seekStartTimeMs;
     }
 
     public static boolean isCountingDown() {
@@ -269,6 +274,12 @@ public class AutoFindManager {
     }
 
     public static void cancelCountdown(Activity triggeringActivity, String reason) {
+        if (currentState == State.SEEKING && "Activity paused".equals(reason)) {
+            // Game activity paused to show the seek/match screen (WaitGameActivity).
+            // Keep seeking state and watchdog intact!
+            return;
+        }
+
         Activity activeAct = activeActivityRef.get();
         if (triggeringActivity != null && activeAct != null && triggeringActivity != activeAct) {
             // A different activity (e.g. WaitGameActivity, Dialog, Ad) paused/destroyed.
@@ -303,6 +314,10 @@ public class AutoFindManager {
     public static void onSeekingInterrupted(final Activity activity) {
         if (activity == null || userExplicitlyCancelled) return;
         NnvcLogger.i(TAG, "⚡ [AUTO RE-QUEUE] Match search cancelled/interrupted. Re-initiating countdown on board...");
+        if (seekingWatchdogRunnable != null) {
+            getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+            seekingWatchdogRunnable = null;
+        }
         currentState = State.IDLE;
         resetHandledGameEndData();
         onGameOver(activity);
@@ -339,6 +354,7 @@ public class AutoFindManager {
 
     private static void triggerAutoFind(final Activity activity) {
         currentState = State.SEEKING;
+        seekStartTimeMs = android.os.SystemClock.uptimeMillis();
         seekRetryCount = 0;
         vibrate(activity, 25);
 

@@ -2465,6 +2465,41 @@ public class SelfTest {
         } catch (Throwable ignored) {}
         check("AutoFindManager defines activity-scoped cancelCountdown", hasOverloadedCancel);
 
+        boolean hasSeekStartTimeGetter = false;
+        try {
+            java.lang.reflect.Method mTime = AutoFindManager.class.getMethod("getSeekStartTimeMs");
+            hasSeekStartTimeGetter = (mTime != null && mTime.getReturnType() == long.class);
+        } catch (Throwable ignored) {}
+        check("AutoFindManager defines getSeekStartTimeMs for cancellation recovery timing", hasSeekStartTimeGetter);
+
+        // Verify seeking state pause immunity
+        boolean pauseImmune = false;
+        try {
+            java.lang.reflect.Field stateField = AutoFindManager.class.getDeclaredField("currentState");
+            stateField.setAccessible(true);
+            Object[] enumConstants = stateField.getType().getEnumConstants();
+            Object seekingEnum = null;
+            for (Object ec : enumConstants) {
+                if ("SEEKING".equals(ec.toString())) {
+                    seekingEnum = ec;
+                    break;
+                }
+            }
+            if (seekingEnum != null) {
+                stateField.set(null, seekingEnum);
+                AutoFindManager.cancelCountdown(null, "Activity paused");
+                pauseImmune = (stateField.get(null) == seekingEnum);
+                // reset to IDLE
+                for (Object ec : enumConstants) {
+                    if ("IDLE".equals(ec.toString())) {
+                        stateField.set(null, ec);
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        check("AutoFindManager preserves SEEKING state upon Activity paused event", pauseImmune);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

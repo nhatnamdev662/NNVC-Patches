@@ -1186,8 +1186,10 @@ public class StockfishExtension {
                     return;
                 }
                 if (resumedActivity.get() == activity) resumedActivity = new WeakReference<>(null);
-                AutoFindManager.cancelCountdown(activity, "Activity paused");
-                stopGameOverWatchdog();
+                if (!AutoFindManager.isSeeking()) {
+                    AutoFindManager.cancelCountdown(activity, "Activity paused");
+                    stopGameOverWatchdog();
+                }
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
                 isMove0AnalysisCompleted = false;
@@ -1406,9 +1408,11 @@ public class StockfishExtension {
 
     public static boolean checkAndHandleGameOver(Activity activity) {
         if (activity == null) return false;
-        if (isGameOver(activity)) {
-            if (AutoFindManager.isSeeking()) {
-                Log.i(TAG, "[AUTO FIND] Seeking cancelled or returned to board without new game. Re-scheduling Auto Find...");
+
+        if (AutoFindManager.isSeeking() && !isSeekOrSecondaryActivity(activity) && !isReviewOrAnalysisActivity(activity)) {
+            long elapsed = android.os.SystemClock.uptimeMillis() - AutoFindManager.getSeekStartTimeMs();
+            if (elapsed >= 800L) {
+                Log.i(TAG, "[AUTO FIND] Seeking cancelled or returned to board after " + elapsed + "ms. Re-scheduling Auto Find...");
                 lastGameOverHandled = true;
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
@@ -1418,7 +1422,25 @@ public class StockfishExtension {
                 StockfishBridge.stopSearch();
                 AutoFindManager.onSeekingInterrupted(activity);
                 return true;
+            } else {
+                long remaining = 800L - elapsed + 50L;
+                final WeakReference<Activity> actRef = new WeakReference<>(activity);
+                android.os.Handler wh = getWatchdogHandler();
+                if (wh != null) {
+                    wh.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            Activity act = actRef.get();
+                            if (act != null && !act.isFinishing()) {
+                                checkAndHandleGameOver(act);
+                            }
+                        }
+                    }, remaining);
+                }
             }
+        }
+
+        if (isGameOver(activity)) {
             if (!lastGameOverHandled || !AutoFindManager.isCurrentGameHandled(activity)) {
                 lastGameOverHandled = true;
                 lastLoadedMove0Fen = null;
