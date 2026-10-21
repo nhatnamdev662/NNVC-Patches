@@ -333,9 +333,18 @@ public class SmartDelayManager {
 
     private static volatile long sLastWhiteMillis = -1;
     private static volatile long sLastBlackMillis = -1;
+    private static volatile long sInitialWhiteMillis = -1;
+    private static volatile long sInitialBlackMillis = -1;
     private static volatile String sLastRunningColor = null;
+    private static volatile boolean hasNotifiedThisGame = false;
 
     public static void onClockUpdatedNative(long whiteMillis, long blackMillis, Object runningColor) {
+        if (sInitialWhiteMillis < 0 && whiteMillis > 0) {
+            sInitialWhiteMillis = whiteMillis;
+        }
+        if (sInitialBlackMillis < 0 && blackMillis > 0) {
+            sInitialBlackMillis = blackMillis;
+        }
         sLastWhiteMillis = whiteMillis;
         sLastBlackMillis = blackMillis;
         sLastRunningColor = runningColor != null ? runningColor.toString() : null;
@@ -344,7 +353,11 @@ public class SmartDelayManager {
     public static void resetClockNative() {
         sLastWhiteMillis = -1;
         sLastBlackMillis = -1;
+        sInitialWhiteMillis = -1;
+        sInitialBlackMillis = -1;
         sLastRunningColor = null;
+        hasNotifiedThisGame = false;
+        activeTcSignature = null;
     }
 
     public static LiveClockInfo detectLiveClocks(Activity activity, boolean userWhite) {
@@ -354,6 +367,10 @@ public class SmartDelayManager {
         if (sLastWhiteMillis >= 0 && sLastBlackMillis >= 0) {
             info.mySec = (userWhite ? sLastWhiteMillis : sLastBlackMillis) / 1000.0;
             info.oppSec = (userWhite ? sLastBlackMillis : sLastWhiteMillis) / 1000.0;
+            long initMillis = userWhite ? sInitialWhiteMillis : sInitialBlackMillis;
+            if (initMillis > 0) {
+                info.initBaseSec = (int) Math.round(initMillis / 1000.0);
+            }
             info.source = "native_clock";
             info.isAutoDetected = true;
             return info;
@@ -600,7 +617,7 @@ public class SmartDelayManager {
 
     // ── 8. Đồng Bộ Hóa & Hiển Thị Popup Time Control (Parity Dòng 8671-8700 & 16606) ─
     public static void checkAndNotifyTimeControl(final Activity activity, boolean userWhite) {
-        if (activity == null) return;
+        if (activity == null || hasNotifiedThisGame) return;
 
         LiveClockInfo clockInfo = detectLiveClocks(activity, userWhite);
         if (!clockInfo.isAutoDetected && clockInfo.initBaseSec <= 0) return;
@@ -611,13 +628,16 @@ public class SmartDelayManager {
         int bestIdx = matchPresetIndex(baseSec, incSec, clockInfo.incrementSec < 0);
         TCPreset preset = TC_PRESETS[bestIdx];
 
-        String sig = bestIdx + "|" + baseSec + "|" + incSec;
-        if (sig.equals(activeTcSignature)) {
+        // Khóa signature theo nhãn preset chuẩn để không bị dao động theo từng giây đếm ngược
+        String sig = bestIdx + "|" + preset.label;
+        if (sig.equals(activeTcSignature) || hasNotifiedThisGame) {
+            hasNotifiedThisGame = true;
             return; // Đã nhận diện và thông báo cho ván đấu hiện tại
         }
 
         activeTcIndex = bestIdx;
         activeTcSignature = sig;
+        hasNotifiedThisGame = true;
         currentPersona = null; // Khởi tạo persona mới phù hợp với TC này
 
         NnvcLogger.i(TAG, "⏳ [TIME CONTROL RECOGNIZED] " + preset.label + " (Base=" + baseSec + "s, Inc=" + incSec + "s, Nguồn=" + clockInfo.source + ")");

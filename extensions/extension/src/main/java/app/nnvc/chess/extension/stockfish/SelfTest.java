@@ -2203,8 +2203,8 @@ public class SelfTest {
         MockCBViewModel directVm = new MockCBViewModel();
         Object mockMove = new Object();
         Object mockVerification = new Object();
-        directVm.p(mockMove, mockVerification, false);
-        check("Direct CBViewModel.p executes with animate=false (0ms parity)", directVm.pCalled && !directVm.lastAnimate && directVm.lastMove == mockMove);
+        directVm.p(mockMove, mockVerification, true);
+        check("Direct CBViewModel.p executes with commit/history=true (bot & listener parity)", directVm.pCalled && directVm.lastAnimate && directVm.lastMove == mockMove);
 
         // Test Promotion identification & under-promotions
         check("isPromotion returns true for e7e8q", AutoMoveManager.isPromotion("e7e8q"));
@@ -2336,6 +2336,26 @@ public class SelfTest {
         java.lang.reflect.InvocationTargetException ite = new java.lang.reflect.InvocationTargetException(new IllegalArgumentException("Illegal castling move"));
         Throwable unwrapped = ite.getCause() != null ? ite.getCause() : ite;
         check("InvocationTargetException correctly unwrapped to real cause", unwrapped instanceof IllegalArgumentException && "Illegal castling move".equals(unwrapped.getMessage()));
+
+        // Test 41: Smart Delay Time Control Stability & Notification Anti-Spam Latch
+        SmartDelayManager.resetClockNative();
+        SmartDelayManager.onClockUpdatedNative(60000L, 60000L, "WHITE");
+        SmartDelayManager.LiveClockInfo initialClocks = SmartDelayManager.detectLiveClocks(null, true);
+        check("SmartDelayManager captures initial base time 60s from first tick", initialClocks.initBaseSec == 60);
+
+        // Simulate ticking countdown across turns (58s, 56s, 54s)
+        SmartDelayManager.onClockUpdatedNative(58000L, 59000L, "BLACK");
+        SmartDelayManager.LiveClockInfo tick1 = SmartDelayManager.detectLiveClocks(null, true);
+        check("SmartDelayManager preserves initial base time 60s despite ticking mySec 58s", tick1.initBaseSec == 60 && tick1.mySec == 58.0);
+
+        SmartDelayManager.onClockUpdatedNative(54000L, 57000L, "WHITE");
+        SmartDelayManager.LiveClockInfo tick2 = SmartDelayManager.detectLiveClocks(null, true);
+        check("SmartDelayManager preserves initial base time 60s at 54s", tick2.initBaseSec == 60 && tick2.mySec == 54.0);
+
+        SmartDelayManager.resetClockNative();
+        SmartDelayManager.LiveClockInfo resetClocks = SmartDelayManager.detectLiveClocks(null, true);
+        check("resetClockNative resets clocks and base time", resetClocks.initBaseSec == -1 && resetClocks.mySec == -1.0);
+
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

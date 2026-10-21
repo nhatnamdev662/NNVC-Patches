@@ -40,7 +40,7 @@ public class AutoMoveManager {
     private static volatile List<?> cachedSquaresList = null;
 
     /** Minimum cooldown between moves (ms) */
-    private static final long COOLDOWN_MS = 500;
+    private static final long COOLDOWN_MS = 35;
 
     /**
      * Cancels any pending scheduled auto-move immediately.
@@ -1027,19 +1027,8 @@ public class AutoMoveManager {
             }
 
             pMethod.setAccessible(true);
-            pMethod.invoke(cbVm, moveObj, moveVerification, false);
+            pMethod.invoke(cbVm, moveObj, moveVerification, true);
             NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Executed 0ms move directly via CBViewModel.p: " + fromSq + toSq + (isPromo ? promoPiece : ""));
-
-            // Phát âm thanh nước đi của quân cờ chính hãng Chess.com 0ms đồng bộ
-            try {
-                Context ctx = StockfishExtension.getContext();
-                if (ctx != null) {
-                    SoundManager.getInstance(ctx).playMoveSound(isCapture, isCastle, isPromo);
-                }
-            } catch (Throwable st) {
-                NnvcLogger.w(TAG, "Failed to play move sound: " + st.getMessage());
-            }
-
             return true;
         } catch (Throwable t) {
             Throwable cause = t.getCause() != null ? t.getCause() : t;
@@ -1106,11 +1095,12 @@ public class AutoMoveManager {
             }
 
             ClassLoader cl = boardView.getContext().getClassLoader();
-            clearBoardSelection(boardView, flipped);
 
             // 2. Direct Model Hook (0ms execution, 100% Desktop Extension Parity)
             boolean directSuccess = executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, promoChar, currentFen);
             if (directSuccess) {
+                isExecutingMove = false;
+                pendingMoveRunnable = null;
                 if (isPromo && promoChar == 'q') {
                     applyPromotionQueen(boardView);
                 }
@@ -1193,8 +1183,19 @@ public class AutoMoveManager {
         }
 
         long now = nowMs();
-        if (now - lastMoveTimestamp < COOLDOWN_MS) {
-            NnvcLogger.d(TAG, "Auto Move skipped: inside cooldown window (" + (now - lastMoveTimestamp) + "ms < " + COOLDOWN_MS + "ms).");
+        long elapsed = now - lastMoveTimestamp;
+        if (elapsed < COOLDOWN_MS) {
+            final long waitTime = COOLDOWN_MS - elapsed;
+            NnvcLogger.d(TAG, "Auto Move throttled by cooldown window (" + elapsed + "ms < " + COOLDOWN_MS + "ms). Scheduling in " + waitTime + "ms.");
+            final Runnable throttledTask = new Runnable() {
+                @Override
+                public void run() {
+                    executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity);
+                }
+            };
+            pendingMoveRunnable = throttledTask;
+            pendingMoveFen = currentFen;
+            postDelayedToMain(throttledTask, waitTime);
             return;
         }
 
@@ -1274,7 +1275,7 @@ public class AutoMoveManager {
                     pendingMoveRunnable = null;
                 }
             }
-        }, 350);
+        }, 200);
     }
 
     public static boolean isExecuting() {

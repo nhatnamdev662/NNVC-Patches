@@ -543,6 +543,7 @@ public class StockfishExtension {
             lastGameOverHandled = false;
             AutoFindManager.resetHandledGameEndData();
             AutoFindManager.onNewGameStarted();
+            SmartDelayManager.resetClockNative();
             if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) &&
                     ((currentJob != null && !currentJob.isDone()) || OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
                 Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already in progress or completed, skipping duplicate reset.");
