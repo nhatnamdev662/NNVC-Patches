@@ -1301,6 +1301,20 @@ public class SelfTest {
         List<BoardUtil.ThreatInfo> emptyThreats = BoardUtil.computeBoardThreats(null, true, null, "enemy");
         check("computeBoardThreats safely handles null FEN without crashing", emptyThreats != null && emptyThreats.isEmpty());
 
+        // 29d. False-Positive Filtering: Defended Pawn vs Pawn tension is NOT flagged as a danger threat
+        String pawnTensionFen = "rnbqkbnr/ppp1pppp/8/3p4/4P3/3P4/PPP2PPP/RNBQKBNR w KQkq - 0 2";
+        List<BoardUtil.ThreatInfo> pawnThreats = BoardUtil.computeBoardThreats(pawnTensionFen, userIsWhite, "d7d5", "enemy", 1);
+        boolean hasSpuriousPawnThreat = false;
+        for (BoardUtil.ThreatInfo t : pawnThreats) {
+            if ("d5".equals(t.from) && "e4".equals(t.to)) hasSpuriousPawnThreat = true;
+        }
+        check("Defended pawn-on-pawn tension is correctly filtered out (no false positive threat)", !hasSpuriousPawnThreat);
+
+        // 29e. Depth 2 Threat Detection (Mate-in-1 threat & Fork threat)
+        String mateThreatFen = "r1b1k2r/pppp1ppp/8/8/8/5q2/PPP2PPP/RNB1KB1R w KQkq - 0 1";
+        List<BoardUtil.ThreatInfo> depth2Threats = BoardUtil.computeBoardThreats(mateThreatFen, userIsWhite, null, "enemy", 2);
+        check("Depth 2 threat search identifies dangerous threats", depth2Threats != null && !depth2Threats.isEmpty());
+
         // =========================================================================
         // Test 30: Authentic NNVC Desktop Extension Threat Arrow SVG Geometry & Clearance
         // =========================================================================

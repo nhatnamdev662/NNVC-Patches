@@ -541,9 +541,22 @@ public final class BoardUtil {
 
         if ("player".equalsIgnoreCase(mode)) {
             scanSideThreats(b, uColor, oppColor, "attack", threats);
+            if (threatDepth >= 2) {
+                scanDepth2Threats(b, uColor, oppColor, "attack", threats);
+            }
+        } else if ("both".equalsIgnoreCase(mode)) {
+            scanSideThreats(b, oppColor, uColor, "danger", threats);
+            scanSideThreats(b, uColor, oppColor, "attack", threats);
+            if (threatDepth >= 2) {
+                scanDepth2Threats(b, oppColor, uColor, "danger", threats);
+                scanDepth2Threats(b, uColor, oppColor, "attack", threats);
+            }
         } else {
             // Mặc định & Chế độ đối thủ: Chỉ cảnh báo mối đe dọa từ quân cờ đối thủ (danger, màu đỏ neon)
             scanSideThreats(b, oppColor, uColor, "danger", threats);
+            if (threatDepth >= 2) {
+                scanDepth2Threats(b, oppColor, uColor, "danger", threats);
+            }
         }
 
         // Sắp xếp ưu tiên đồng bộ 100% với NNVC Desktop Extension
@@ -691,13 +704,234 @@ public final class BoardUtil {
         boolean isHanging = !isTargetDefended;
         boolean isCheck = isKingInCheck(cloned, targetColor);
 
-        // Điều kiện đe dọa chuẩn:
-        // isCheck || targetVal >= attackerVal || isHanging
-        if (isCheck || targetVal >= attackerVal || isHanging) {
+        // Lọc bỏ báo động giả (False Positives):
+        // 1. Tốt ăn tốt có bảo vệ: không phải mối đe dọa thực tế mà chỉ là giằng cờ thông thường
+        boolean isPawnEqualDefendedTrade = (attackerVal == 1 && targetVal == 1 && !isHanging && !isCheck);
+        // 2. Quân nhẹ (Mã/Tượng) ăn quân nhẹ có bảo vệ
+        boolean isMinorEqualDefendedTrade = (attackerVal == 3 && targetVal == 3 && !isHanging && !isCheck);
+
+        if (isPawnEqualDefendedTrade || isMinorEqualDefendedTrade) {
+            return;
+        }
+
+        // Điều kiện đe dọa chuẩn Chess.com & Extension:
+        // isCheck || targetVal > attackerVal || isHanging || (targetVal == attackerVal && targetVal >= 5)
+        if (isCheck || targetVal > attackerVal || isHanging || (targetVal == attackerVal && targetVal >= 5)) {
             outThreats.add(new ThreatInfo(fromStr, toStr, type, 1,
                     Character.toLowerCase(attacker), Character.toLowerCase(target),
                     isHanging, isCheck, false, targetVal - attackerVal, activeColor));
         }
+    }
+
+    private static void scanDepth2Threats(char[] b, boolean activeColor, boolean targetColor, String type, List<ThreatInfo> outThreats) {
+        int[] targets = new int[64];
+        for (int sq = 0; sq < 64; sq++) {
+            char p = b[sq];
+            if (p == '.' || Character.isUpperCase(p) != activeColor) continue;
+            int r = sq / 8, f = sq % 8;
+            char lp = Character.toLowerCase(p);
+            String fromStr = squareName(sq);
+
+            int targetCount = collectQuietMoves(b, sq, lp, r, f, activeColor, targets);
+            for (int i = 0; i < targetCount; i++) {
+                int toSq = targets[i];
+                char[] b1 = b.clone();
+                b1[toSq] = b1[sq];
+                b1[sq] = '.';
+                if (isKingInCheck(b1, activeColor)) continue;
+
+                // 1. Checkmate Threat (nước tiếp theo đối thủ không thể cản chiếu hết)
+                if (hasCheckmateThreat(b1, activeColor, targetColor)) {
+                    outThreats.add(new ThreatInfo(fromStr, squareName(toSq), type, 2,
+                            lp, 'k', false, true, true, 999, activeColor));
+                    continue;
+                }
+
+                // 2. Fork Threat (từ toSq chĩa đôi ít nhất 2 quân có giá trị >= 3 của targetColor)
+                int attackedHighVal = 0;
+                for (int tsq = 0; tsq < 64; tsq++) {
+                    char tp = b1[tsq];
+                    if (tp == '.' || Character.isUpperCase(tp) != targetColor) continue;
+                    int tVal = pieceValue(tp);
+                    if (tVal >= 3 && isSquareAttackedBySquare(b1, toSq, tsq, lp, activeColor)) {
+                        boolean defended = isSquareAttacked(b1, tsq, targetColor);
+                        if (!defended || tVal > pieceValue(p)) {
+                            attackedHighVal++;
+                        }
+                    }
+                }
+                if (attackedHighVal >= 2) {
+                    outThreats.add(new ThreatInfo(fromStr, squareName(toSq), type, 2,
+                            lp, 'q', true, false, false, 5, activeColor));
+                }
+            }
+        }
+    }
+
+    private static int collectQuietMoves(char[] b, int sq, char lp, int r, int f, boolean white, int[] outTargets) {
+        int count = 0;
+        if (lp == 'p') {
+            int dir = white ? -1 : 1;
+            int startRow = white ? 6 : 1;
+            int nr = r + dir;
+            if (nr >= 0 && nr < 8 && b[nr * 8 + f] == '.') {
+                outTargets[count++] = nr * 8 + f;
+                int nnr = r + 2 * dir;
+                if (r == startRow && b[nnr * 8 + f] == '.') {
+                    outTargets[count++] = nnr * 8 + f;
+                }
+            }
+        } else if (lp == 'n') {
+            int[] knightOffsets = {-17, -15, -10, -6, 6, 10, 15, 17};
+            for (int off : knightOffsets) {
+                int nsq = sq + off;
+                if (nsq >= 0 && nsq < 64) {
+                    int nr = nsq / 8, nf = nsq % 8;
+                    if (Math.abs(nr - r) <= 2 && Math.abs(nf - f) <= 2 && b[nsq] == '.') {
+                        outTargets[count++] = nsq;
+                    }
+                }
+            }
+        } else if (lp == 'b' || lp == 'q') {
+            int[][] diagDirs = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+            for (int[] dir : diagDirs) {
+                for (int step = 1; step < 8; step++) {
+                    int nr = r + dir[0] * step, nf = f + dir[1] * step;
+                    if (nr < 0 || nr >= 8 || nf < 0 || nf >= 8) break;
+                    int nsq = nr * 8 + nf;
+                    if (b[nsq] == '.') {
+                        outTargets[count++] = nsq;
+                    } else break;
+                }
+            }
+        }
+        if (lp == 'r' || lp == 'q') {
+            int[][] straightDirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+            for (int[] dir : straightDirs) {
+                for (int step = 1; step < 8; step++) {
+                    int nr = r + dir[0] * step, nf = f + dir[1] * step;
+                    if (nr < 0 || nr >= 8 || nf < 0 || nf >= 8) break;
+                    int nsq = nr * 8 + nf;
+                    if (b[nsq] == '.') {
+                        outTargets[count++] = nsq;
+                    } else break;
+                }
+            }
+        } else if (lp == 'k') {
+            for (int dr = -1; dr <= 1; dr++) {
+                for (int df = -1; df <= 1; df++) {
+                    if (dr == 0 && df == 0) continue;
+                    int nr = r + dr, nf = f + df;
+                    if (nr >= 0 && nr < 8 && nf >= 0 && nf < 8 && b[nr * 8 + nf] == '.') {
+                        outTargets[count++] = nr * 8 + nf;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    private static boolean isSquareAttackedBySquare(char[] b, int fromSq, int toSq, char lp, boolean white) {
+        int r1 = fromSq / 8, f1 = fromSq % 8;
+        int r2 = toSq / 8, f2 = toSq % 8;
+        if (lp == 'n') {
+            return (Math.abs(r1 - r2) == 1 && Math.abs(f1 - f2) == 2) ||
+                   (Math.abs(r1 - r2) == 2 && Math.abs(f1 - f2) == 1);
+        }
+        if (lp == 'p') {
+            int dir = white ? -1 : 1;
+            return (r1 + dir == r2) && (Math.abs(f1 - f2) == 1);
+        }
+        if (lp == 'b' || lp == 'q') {
+            if (Math.abs(r1 - r2) == Math.abs(f1 - f2)) {
+                int dr = r2 > r1 ? 1 : -1;
+                int df = f2 > f1 ? 1 : -1;
+                int steps = Math.abs(r1 - r2);
+                boolean blocked = false;
+                for (int s = 1; s < steps; s++) {
+                    if (b[(r1 + dr * s) * 8 + (f1 + df * s)] != '.') {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (!blocked) return true;
+            }
+        }
+        if (lp == 'r' || lp == 'q') {
+            if (r1 == r2 || f1 == f2) {
+                int dr = r1 == r2 ? 0 : (r2 > r1 ? 1 : -1);
+                int df = f1 == f2 ? 0 : (f2 > f1 ? 1 : -1);
+                int steps = Math.max(Math.abs(r1 - r2), Math.abs(f1 - f2));
+                boolean blocked = false;
+                for (int s = 1; s < steps; s++) {
+                    if (b[(r1 + dr * s) * 8 + (f1 + df * s)] != '.') {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (!blocked) return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasCheckmateThreat(char[] b, boolean activeColor, boolean targetColor) {
+        int[] targets = new int[64];
+        for (int sq = 0; sq < 64; sq++) {
+            char p = b[sq];
+            if (p == '.' || Character.isUpperCase(p) != activeColor) continue;
+            int r = sq / 8, f = sq % 8;
+            char lp = Character.toLowerCase(p);
+
+            int count = 0;
+            if (lp == 'p') {
+                int dir = activeColor ? -1 : 1;
+                int nr = r + dir;
+                if (nr >= 0 && nr < 8 && b[nr * 8 + f] == '.') targets[count++] = nr * 8 + f;
+                for (int df = -1; df <= 1; df += 2) {
+                    int nf = f + df;
+                    if (nr >= 0 && nr < 8 && nf >= 0 && nf < 8 && b[nr * 8 + nf] != '.' && Character.isUpperCase(b[nr * 8 + nf]) == targetColor) {
+                        targets[count++] = nr * 8 + nf;
+                    }
+                }
+            } else if (lp == 'q' || lp == 'r' || lp == 'b') {
+                int[][] dirs = (lp == 'q') ? new int[][]{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}, {-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+                        : (lp == 'b') ? new int[][]{{-1, -1}, {-1, 1}, {1, -1}, {1, 1}}
+                        : new int[][]{{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+                for (int[] dir : dirs) {
+                    for (int s = 1; s < 8; s++) {
+                        int nr = r + dir[0] * s, nf = f + dir[1] * s;
+                        if (nr < 0 || nr >= 8 || nf < 0 || nf >= 8) break;
+                        int nsq = nr * 8 + nf;
+                        if (b[nsq] == '.') targets[count++] = nsq;
+                        else {
+                            if (Character.isUpperCase(b[nsq]) == targetColor) targets[count++] = nsq;
+                            break;
+                        }
+                    }
+                }
+            } else if (lp == 'n') {
+                int[] knightOffsets = {-17, -15, -10, -6, 6, 10, 15, 17};
+                for (int off : knightOffsets) {
+                    int nsq = sq + off;
+                    if (nsq >= 0 && nsq < 64 && Math.abs(nsq / 8 - r) <= 2 && Math.abs(nsq % 8 - f) <= 2) {
+                        if (b[nsq] == '.' || Character.isUpperCase(b[nsq]) == targetColor) targets[count++] = nsq;
+                    }
+                }
+            }
+
+            for (int i = 0; i < count; i++) {
+                int toSq = targets[i];
+                char[] b2 = b.clone();
+                b2[toSq] = b2[sq];
+                b2[sq] = '.';
+                if (isKingInCheck(b2, activeColor)) continue;
+                if (isKingInCheck(b2, targetColor) && countLegalMoves(b2, targetColor, 1) == 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
 

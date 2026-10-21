@@ -817,17 +817,23 @@ public class StockfishExtension {
             // MŨI TÊN ĐE DỌA (THREAT ARROWS) - Màu Đỏ Neon chuẩn Extension (chỉ hiện đối thủ):
             boolean userIsWhiteSide = (userWhite != null) ? userWhite.booleanValue() : isWhiteTurn;
             String lastMove = MoveClassifier.getLastDeduceUciMove();
+            int threatDepth = StockfishSettings.getThreatDepth(context);
+            String threatMode = StockfishSettings.getThreatMode(context);
+            if (threatMode == null) threatMode = "enemy";
+
             if (fen.equals(lastThreatCacheFen) && userIsWhiteSide == lastThreatCacheWhite &&
                     (lastMove == null ? lastThreatCacheMove == null : lastMove.equals(lastThreatCacheMove))) {
                 threatListToInject = lastThreatCacheResult;
             } else {
-                List<BoardUtil.ThreatInfo> rawThreats = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, "enemy");
+                List<BoardUtil.ThreatInfo> rawThreats = BoardUtil.computeBoardThreats(fen, userIsWhiteSide, lastMove, threatMode, threatDepth);
                 if (rawThreats != null && !rawThreats.isEmpty()) {
                     threatListToInject = new ArrayList<>();
+                    int maxThreats = 2; // Chuẩn Chess.com Mobile: Giới hạn tối đa 2 đòn hiểm nhất tránh làm rối bàn cờ
                     for (BoardUtil.ThreatInfo ti : rawThreats) {
-                        if ("danger".equalsIgnoreCase(ti.type)) {
-                            threatListToInject.add(ti);
-                        }
+                        if ("enemy".equalsIgnoreCase(threatMode) && !"danger".equalsIgnoreCase(ti.type)) continue;
+                        if ("player".equalsIgnoreCase(threatMode) && !"attack".equalsIgnoreCase(ti.type)) continue;
+                        threatListToInject.add(ti);
+                        if (threatListToInject.size() >= maxThreats) break;
                     }
                 }
                 lastThreatCacheFen = fen;

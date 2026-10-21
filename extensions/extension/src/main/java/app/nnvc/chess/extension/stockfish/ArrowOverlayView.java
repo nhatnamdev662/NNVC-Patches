@@ -377,6 +377,26 @@ public class ArrowOverlayView extends View {
             float[] perpOffsets = cachedPerpOffsets;
             float[] targetOffsets = cachedTargetOffsets;
 
+            // Pass 0: Highlight ô cờ bị đe dọa (Threat Square Warning Aura)
+            // QUY TẮC BẢO TOÀN SPRITE: TÂM Ô CỜ HOÀN TOÀN TRONG SUỐT (ZERO FILL)!
+            // Tuyệt đối không vẽ lớp nền đặc lên tâm ô cờ để bảo toàn 100% sprite quân cờ bên dưới.
+            for (int i = 0; i < n; i++) {
+                ArrowData arrow = arrows.get(i);
+                if (arrow.isThreat) {
+                    boolean alreadyDrawn = false;
+                    for (int prev = 0; prev < i; prev++) {
+                        if (arrows.get(prev).isThreat && arrow.to.equals(arrows.get(prev).to)) {
+                            alreadyDrawn = true;
+                            break;
+                        }
+                    }
+                    if (!alreadyDrawn) {
+                        boolean isDanger = (arrow.threatType == null) || "danger".equalsIgnoreCase(arrow.threatType);
+                        drawThreatSquareHighlight(canvas, sqSize, arrow.to, isDanger);
+                    }
+                }
+            }
+
             // Pass 1: Mũi tên Đe Dọa (Threat Arrows - Chuẩn 100% SVG Cyber Line Desktop Extension)
             for (int i = 0; i < n; i++) {
                 ArrowData arrow = arrows.get(i);
@@ -634,6 +654,69 @@ public class ArrowOverlayView extends View {
             edgePaint.setPathEffect(null);
             canvas.drawPath(reusableThreatHeadPath, edgePaint);
         }
+    }
+
+    /**
+     * Highlight ô cờ bị đe dọa (Threat Square Warning Aura).
+     * BẢO TOÀN SPRITE QUÂN CỜ: Tâm ô cờ hoàn toàn trong suốt 100% (Zero Fill),
+     * không vẽ đè bất kỳ lớp phủ màu nào lên quân cờ để sprite quân cờ giữ trọn nét sắc sảo.
+     * Chỉ vẽ quầng sáng ngoài (Ambient Danger Halo) + khung viền tiêu điểm (Focus Frame) + 4 vạch góc cảnh báo (Hazard Corners).
+     */
+    private void drawThreatSquareHighlight(Canvas canvas, float sqSize, String sq, boolean isDanger) {
+        if (sq == null || sq.length() < 2) return;
+        int file = sq.charAt(0) - 'a';
+        int rank = sq.charAt(1) - '1';
+        if (file < 0 || file > 7 || rank < 0 || rank > 7) return;
+
+        int col = flipped ? (7 - file) : file;
+        int row = flipped ? rank : (7 - rank);
+
+        float left = col * sqSize;
+        float top = row * sqSize;
+        float right = left + sqSize;
+        float bottom = top + sqSize;
+
+        float cornerRadius = sqSize * 0.08f;
+        int color = isDanger ? 0xFFEF4444 : 0xFFF59E0B;
+
+        // 1. Quầng sáng cảnh báo nguy hiểm ôm sát mép ô (Danger Outer Halo)
+        float glowWidth = Math.max(3.8f, sqSize * 0.065f);
+        float glowInset = glowWidth / 2f + 1f;
+        squareGlowRectF.set(left + glowInset, top + glowInset, right - glowInset, bottom - glowInset);
+
+        squareGlowPaint.setColor(color);
+        squareGlowPaint.setStrokeWidth(glowWidth);
+        squareGlowPaint.setAlpha(125);
+        canvas.drawRoundRect(squareGlowRectF, cornerRadius, cornerRadius, squareGlowPaint);
+
+        // 2. Khung viền sắc nét cảnh báo bên trong (Inner Danger Focus Frame)
+        float strokeWidth = Math.max(2.0f, sqSize * 0.030f);
+        float strokeInset = strokeWidth / 2f + 1f;
+        squareRectF.set(left + strokeInset, top + strokeInset, right - strokeInset, bottom - strokeInset);
+
+        squareBorderPaint.setColor(color);
+        squareBorderPaint.setStrokeWidth(strokeWidth);
+        squareBorderPaint.setAlpha(235);
+        canvas.drawRoundRect(squareRectF, cornerRadius, cornerRadius, squareBorderPaint);
+
+        // 3. Vạch góc cảnh báo nguy hiểm (Tactical Hazard Corner Accents)
+        float cornerLen = sqSize * 0.15f;
+        squareBorderPaint.setStrokeWidth(Math.max(2.2f, sqSize * 0.036f));
+        squareBorderPaint.setColor(0xFFFFFFFF);
+        squareBorderPaint.setAlpha(220);
+
+        // Top-left
+        canvas.drawLine(left + strokeInset, top + strokeInset, left + strokeInset + cornerLen, top + strokeInset, squareBorderPaint);
+        canvas.drawLine(left + strokeInset, top + strokeInset, left + strokeInset, top + strokeInset + cornerLen, squareBorderPaint);
+        // Top-right
+        canvas.drawLine(right - strokeInset, top + strokeInset, right - strokeInset - cornerLen, top + strokeInset, squareBorderPaint);
+        canvas.drawLine(right - strokeInset, top + strokeInset, right - strokeInset, top + strokeInset + cornerLen, squareBorderPaint);
+        // Bottom-left
+        canvas.drawLine(left + strokeInset, bottom - strokeInset, left + strokeInset + cornerLen, bottom - strokeInset, squareBorderPaint);
+        canvas.drawLine(left + strokeInset, bottom - strokeInset, left + strokeInset, bottom - strokeInset - cornerLen, squareBorderPaint);
+        // Bottom-right
+        canvas.drawLine(right - strokeInset, bottom - strokeInset, right - strokeInset - cornerLen, bottom - strokeInset, squareBorderPaint);
+        canvas.drawLine(right - strokeInset, bottom - strokeInset, right - strokeInset, bottom - strokeInset - cornerLen, squareBorderPaint);
     }
 
     private void drawSingleArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset) {
