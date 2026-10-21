@@ -1128,6 +1128,7 @@ public class StockfishExtension {
 
             @Override
             public void onActivityResumed(Activity activity) {
+                resetUserWhiteCache();
                 resumedActivity = new WeakReference<>(activity);
                 silenceIllegalMoveSound();
                 unlockScreenshots(activity);
@@ -1968,7 +1969,27 @@ public class StockfishExtension {
                 }
             }
 
-            // Priority C: Try Activity fields: chessBoardView (c0), game (T)
+            // Priority B2: Resolve CBViewModel from any activity via AutoMoveManager (Lessons, Puzzles, Daily, Bots)
+            try {
+                Object cbVm = AutoMoveManager.resolveCBViewModelFromActivity(activity);
+                if (cbVm != null) {
+                    Object pos = extractPositionFromViewModel(cbVm);
+                    if (pos != null) return pos;
+                }
+            } catch (Throwable ignored) {}
+
+            // Priority C1: Try finding boardView in Window DecorView (handles Compose or dynamically added views)
+            try {
+                if (activity.getWindow() != null && activity.getWindow().getDecorView() != null) {
+                    View bv = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
+                    if (bv != null) {
+                        Object pos = extractPositionFromBoardView(bv);
+                        if (pos != null) return pos;
+                    }
+                }
+            } catch (Throwable ignored) {}
+
+            // Priority C2: Try Activity fields: chessBoardView (c0), game (T)
             for (Field f : activity.getClass().getDeclaredFields()) {
                 String fn = f.getName();
                 if (fn.equals("chessBoardView") || fn.equals("c0")) {

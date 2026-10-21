@@ -464,15 +464,28 @@ public class AutoMoveManager {
             return obj;
         }
 
-        // 1. Check no-arg methods returning CBViewModel (e.g. T6(), c8())
+        // 1. Check no-arg methods returning CBViewModel (e.g. T6(), c8()) or intermediate ViewModels
         try {
             for (Method m : obj.getClass().getMethods()) {
-                if (m.getParameterCount() == 0 && m.getReturnType().getName().contains("CBViewModel")) {
-                    try {
-                        m.setAccessible(true);
-                        Object res = m.invoke(obj);
-                        if (res != null) return res;
-                    } catch (Throwable ignored) {}
+                if (m.getParameterCount() == 0 && m.getReturnType() != void.class) {
+                    String retName = m.getReturnType().getName();
+                    String mName = m.getName();
+                    if (retName.contains("CBViewModel")) {
+                        try {
+                            m.setAccessible(true);
+                            Object res = m.invoke(obj);
+                            if (res != null) return res;
+                        } catch (Throwable ignored) {}
+                    } else if (depth < 2 && (mName.toLowerCase(java.util.Locale.US).contains("viewmodel") || retName.contains("ViewModel"))) {
+                        try {
+                            m.setAccessible(true);
+                            Object res = m.invoke(obj);
+                            if (res != null && res != obj) {
+                                Object extracted = extractCBViewModelFromObject(res, depth + 1);
+                                if (extracted != null) return extracted;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
                 }
             }
         } catch (Throwable ignored) {}

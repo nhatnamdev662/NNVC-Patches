@@ -2639,6 +2639,29 @@ public class SelfTest {
             check("executeDirectV2Move reflection check: " + t.getMessage(), false);
         }
 
+        // 47h. resetUserWhiteCache & Cache Lifecycle Safety
+        StockfishExtension.resetUserWhiteCache();
+        check("resetUserWhiteCache clears cache", StockfishExtension.getCachedUserIsWhite() == null);
+
+        // 47i. Universal Activity CBViewModel Resolution via AutoMoveManager
+        class MockActivityWithPuzzleVm {
+            public MockRatedPuzzlesViewModel getViewModel() { return new MockRatedPuzzlesViewModel(); }
+        }
+        Object resolvedActVm = AutoMoveManager.extractCBViewModelFromObject(new MockActivityWithPuzzleVm());
+        check("extractCBViewModelFromObject extracts CBViewModel from mock Activity hierarchy", resolvedActVm instanceof MockCBViewModelReal);
+
+        // 47j. extractPositionFromViewModel with position-providing mock CBViewModel
+        class MockPosition {
+            public String fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+            public String getFen() { return fen; }
+        }
+        class MockCBViewModelWithPos {
+            private final MockPosition pos = new MockPosition();
+            public MockPosition getPosition() { return pos; }
+        }
+        Object extractedVmPos = StockfishExtension.extractPositionFromViewModel(new MockCBViewModelWithPos());
+        check("extractPositionFromViewModel extracts position from getPosition()", extractedVmPos != null);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
