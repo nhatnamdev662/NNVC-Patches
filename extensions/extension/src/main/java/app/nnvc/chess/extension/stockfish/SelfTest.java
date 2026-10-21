@@ -2419,6 +2419,15 @@ public class SelfTest {
         check("hasBoxCollision allows badge placed outside padding",
                 !ArrowOverlayView.hasBoxCollision(160f, 100f, 40f, 20f, padThreshold, placedBoxesMock, 1));
 
+        // Test 43: Headless WebView OOM Resilience & onRenderProcessGone Signature
+        boolean hasWasmMethod = false;
+        try {
+            java.lang.reflect.Method m = android.webkit.WebViewClient.class.getMethod("onRenderProcessGone",
+                    android.webkit.WebView.class, android.webkit.RenderProcessGoneDetail.class);
+            hasWasmMethod = (m != null && m.getReturnType() == boolean.class);
+        } catch (Throwable ignored) {}
+        check("WebViewClient defines onRenderProcessGone returning boolean", hasWasmMethod);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

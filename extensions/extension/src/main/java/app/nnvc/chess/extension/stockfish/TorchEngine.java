@@ -10,6 +10,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
@@ -355,6 +356,26 @@ public class TorchEngine {
                         }
                     }
                     return super.shouldInterceptRequest(view, request);
+                }
+
+                @Override
+                public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                    boolean didCrash = detail != null && detail.didCrash();
+                    log("[TORCH RECOVER] WebView render process gone (crashed=" + didCrash + "). Recovering...");
+                    try {
+                        if (view != null) {
+                            view.destroy();
+                        }
+                    } catch (Throwable ignored) {}
+                    webView = null;
+                    isReady = false;
+                    mainHandler.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            initWebView();
+                        }
+                    }, 500);
+                    return true;
                 }
             });
 

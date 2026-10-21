@@ -7,6 +7,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.ServiceWorkerClient;
 import android.webkit.ServiceWorkerController;
 import android.webkit.WebResourceRequest;
@@ -635,6 +636,28 @@ public class WasmEngineManager {
                     WebResourceResponse resp = handleIntercept(request.getUrl().toString());
                     if (resp != null) return resp;
                     return super.shouldInterceptRequest(view, request);
+                }
+
+                @Override
+                public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                    boolean didCrash = detail != null && detail.didCrash();
+                    NnvcLogger.w(TAG, "Engine WebView render process gone (crashed=" + didCrash + "). Recovering...");
+                    try {
+                        if (view != null) {
+                            view.destroy();
+                        }
+                    } catch (Throwable ignored) {}
+                    webView = null;
+                    isReady = false;
+                    isPlayReady = false;
+                    isClassifyReady = false;
+                    mainHandler.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            initWebView();
+                        }
+                    }, 500);
+                    return true;
                 }
             });
 
