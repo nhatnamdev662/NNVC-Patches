@@ -581,12 +581,27 @@ public class StockfishExtension {
             resetUserWhiteCache();
             MoveClassifier.clearHistory();
             OverlayManager.resetEvalBar();
+            SmartDelayManager.resetGameSession();
         } else {
             isMove0AnalysisScheduled = false;
             lastLoadedMove0Fen = null;
             isMove0AnalysisCompleted = false;
         }
         MoveClassifier.updateHistory(fen, positionObject);
+        if (!isStartPos) {
+            List<String> histMoves = MoveClassifier.getCurrentPositionMoves();
+            if (histMoves != null && !histMoves.isEmpty()) {
+                String lastM = histMoves.get(histMoves.size() - 1);
+                Boolean uWhite = isUserWhite(stateImplObject);
+                boolean userWhite = uWhite != null ? uWhite.booleanValue() : true;
+                boolean userTurnNow = isWhiteTurnFromFen(fen) == userWhite;
+                if (userTurnNow) {
+                    SmartDelayManager.recordOpponentMove(lastM, fen, curAct, userWhite);
+                } else {
+                    SmartDelayManager.recordMyMove(lastM, fen, curAct, userWhite);
+                }
+            }
+        }
         if (activity != null && stateImplObject != null) {
             EloScanner.scanAndApply(activity, stateImplObject);
         }

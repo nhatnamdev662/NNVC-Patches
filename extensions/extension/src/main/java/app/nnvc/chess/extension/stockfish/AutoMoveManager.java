@@ -1164,6 +1164,7 @@ public class AutoMoveManager {
                     applyPromotionQueen(boardView);
                 }
                 NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Nước đi đã được đẩy trực tiếp vào CBViewModel (0ms): " + uciMove);
+                SmartDelayManager.recordMyMove(uciMove, currentFen, activity, userWhite);
                 schedulePostMoveValidation(boardView, currentFen, uciMove);
                 return;
             }

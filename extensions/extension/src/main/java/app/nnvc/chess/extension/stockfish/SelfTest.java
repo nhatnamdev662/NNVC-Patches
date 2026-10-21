@@ -2500,6 +2500,46 @@ public class SelfTest {
         } catch (Throwable ignored) {}
         check("AutoFindManager preserves SEEKING state upon Activity paused event", pauseImmune);
 
+        // Test 46: 100% Desktop Extension Auto Smart Delay Parity
+        // 1. Legal moves generation
+        char[] startBoard = BoardUtil.parseBoard(startPosFen);
+        java.util.List<BoardUtil.LegalMove> startLegal = BoardUtil.generateLegalMoves(startBoard, true);
+        check("BoardUtil generates 20 legal moves for start position", startLegal != null && startLegal.size() == 20);
+
+        // 2. Position analysis parity
+        SmartDelayManager.PositionFeatures richPos = SmartDelayManager.analyzePosition(startPosFen, startLegal, "e2e4");
+        check("analyzePosition recognizes opening book phase", "opening".equals(richPos.phase) && "book".equals(richPos.subphase) && richPos.numLegal == 20);
+
+        // 3. Human Budget calculation
+        SmartDelayManager.TCPreset bulletPreset = SmartDelayManager.TC_PRESETS[0];
+        double bulletBudget = SmartDelayManager.computeHumanBudget(bulletPreset, richPos, 50.0, 50.0, 0, true, false, false);
+        check("computeHumanBudget within preset bounds", bulletBudget >= bulletPreset.lo && bulletBudget <= bulletPreset.hi);
+
+        // 4. Delay Features extraction
+        SmartDelayManager.DelayFeatures features = SmartDelayManager.computeDelayFeatures(richPos, bulletPreset, 50.0, 50.0, 8.5, 1, 0, 0.0, true, false, false);
+        check("computeDelayFeatures computes obvious & easy/hard", features.obvious > 0 && (features.easy == features.obvious - features.tricky));
+
+        // 5. Psychological State Machine
+        SmartDelayManager.HumanStateCfg panicState = SmartDelayManager.chooseHumanState(features, 3.0, 8.5, true, false, false);
+        check("chooseHumanState evaluates panic state in low time", "panic".equals(SmartDelayManager.sState._humanStateReason) && (("panic".equals(panicState.name) && panicState.scale == 0.26) || ("flow".equals(panicState.name) && panicState.scale == 0.64)));
+
+        // 6. Session Drift & Opponent Reaction
+        SmartDelayManager.SessionDrift drift = SmartDelayManager.computeSessionDrift(richPos, 50.0, 8.5, true, false, false);
+        check("computeSessionDrift within [0.88, 1.16]", drift.mult >= 0.88 && drift.mult <= 1.16);
+
+        // 7. Only Move Scenario 1 Finalizer
+        java.util.List<BoardUtil.LegalMove> onlyLegal = new java.util.ArrayList<>();
+        onlyLegal.add(new BoardUtil.LegalMove("e1", "e2", '.', false));
+        double onlyMoveDelay = SmartDelayManager.finalizeHumanDelay(1.0, 1.0, richPos, bulletPreset, 50.0, 50.0, 8.5, true, false, false, 0, onlyLegal, 0.0, "e1e2", "balanced");
+        check("finalizeHumanDelay Scenario 1 only move <= 0.35s", onlyMoveDelay <= 0.35 && onlyMoveDelay >= 0.14);
+
+        // 8. Opponent & My Move tracking
+        SmartDelayManager.resetGameSession();
+        SmartDelayManager.recordOpponentMove("e7e5", startPosFen, null, false);
+        check("recordOpponentMove captures lastOppMoveUci", "e7e5".equals(SmartDelayManager.sState.lastOppMoveUci) && "e7".equals(SmartDelayManager.sState.lastOppFrom) && "e5".equals(SmartDelayManager.sState.lastOppTo));
+        SmartDelayManager.recordMyMove("g1f3", startPosFen, null, true);
+        check("recordMyMove advances moveNum and history", SmartDelayManager.sState.moveNum == 1 && !SmartDelayManager.sState.posHistory.isEmpty());
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
