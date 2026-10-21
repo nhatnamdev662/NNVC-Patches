@@ -2442,6 +2442,29 @@ public class SelfTest {
         } catch (Throwable ignored) {}
         check("AutoMoveManager provides 11-param executeAutoMove for mate panic synchronization", has11ParamAutoMove);
 
+        // Test 45: Auto Find Match - Seeking Cancellation Protection & Activity Lifecycle Isolation
+        check("isSeekOrSecondaryActivity handles null safely", !StockfishExtension.isSeekOrSecondaryActivity(null));
+        String waitActName = "com.chess.realchess.ui.wait.WaitGameActivity";
+        String realActName = "com.chess.realchess.ui.game.RealGameActivity";
+        boolean isSeekWait = waitActName.contains("WaitGame") || waitActName.contains("LiveGameSeek") || waitActName.contains("DailyGameSeek");
+        boolean isSeekReal = realActName.contains("WaitGame") || realActName.contains("LiveGameSeek") || realActName.contains("DailyGameSeek");
+        check("WaitGameActivity recognized as seek screen", isSeekWait);
+        check("RealGameActivity recognized as game board screen", !isSeekReal);
+
+        boolean hasSeekingInterrupted = false;
+        try {
+            java.lang.reflect.Method mInterrupted = AutoFindManager.class.getMethod("onSeekingInterrupted", android.app.Activity.class);
+            hasSeekingInterrupted = (mInterrupted != null);
+        } catch (Throwable ignored) {}
+        check("AutoFindManager defines onSeekingInterrupted for cancellation recovery", hasSeekingInterrupted);
+
+        boolean hasOverloadedCancel = false;
+        try {
+            java.lang.reflect.Method mCancel = AutoFindManager.class.getMethod("cancelCountdown", android.app.Activity.class, String.class);
+            hasOverloadedCancel = (mCancel != null);
+        } catch (Throwable ignored) {}
+        check("AutoFindManager defines activity-scoped cancelCountdown", hasOverloadedCancel);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

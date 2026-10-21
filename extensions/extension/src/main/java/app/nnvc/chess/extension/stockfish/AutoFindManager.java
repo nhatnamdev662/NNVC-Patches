@@ -265,6 +265,17 @@ public class AutoFindManager {
      * Cancels the active countdown.
      */
     public static void cancelCountdown(String reason) {
+        cancelCountdown(null, reason);
+    }
+
+    public static void cancelCountdown(Activity triggeringActivity, String reason) {
+        Activity activeAct = activeActivityRef.get();
+        if (triggeringActivity != null && activeAct != null && triggeringActivity != activeAct) {
+            // A different activity (e.g. WaitGameActivity, Dialog, Ad) paused/destroyed.
+            // Do NOT cancel active countdown on the game activity!
+            return;
+        }
+
         if (countdownRunnable != null) {
             getMainHandler().removeCallbacks(countdownRunnable);
             countdownRunnable = null;
@@ -274,7 +285,7 @@ public class AutoFindManager {
             seekingWatchdogRunnable = null;
         }
 
-        Activity activity = activeActivityRef.get();
+        Activity activity = activeAct != null ? activeAct : triggeringActivity;
         if (activity != null) {
             getMainHandler().post(() -> removeCountdownBanner(activity));
         }
@@ -282,10 +293,19 @@ public class AutoFindManager {
         if (currentState == State.COUNTDOWN) {
             NnvcLogger.i(TAG, "Cancelled Auto Find countdown (" + reason + ")");
         }
-        if ("Activity paused".equals(reason)) {
-            resetHandledGameEndData();
-        }
         currentState = State.IDLE;
+    }
+
+    /**
+     * Called when matchmaking is cancelled or returns to the game board without starting a new match.
+     * Re-initiates the countdown sequence so the user can automatically find another match.
+     */
+    public static void onSeekingInterrupted(final Activity activity) {
+        if (activity == null || userExplicitlyCancelled) return;
+        NnvcLogger.i(TAG, "⚡ [AUTO RE-QUEUE] Match search cancelled/interrupted. Re-initiating countdown on board...");
+        currentState = State.IDLE;
+        resetHandledGameEndData();
+        onGameOver(activity);
     }
 
     private static void startCountdownTimer(final Activity activity) {
@@ -339,6 +359,7 @@ public class AutoFindManager {
             getMainHandler().removeCallbacks(seekingWatchdogRunnable);
         }
 
+        // Seeking watchdog for extreme timeout (45s) in case matchmaking hangs completely
         seekingWatchdogRunnable = new Runnable() {
             @Override
             public void run() {
@@ -350,11 +371,11 @@ public class AutoFindManager {
                     return;
                 }
 
-                // If match is still over without starting a new game (cancelled by Chess.com or user or dropped)
+                // If match is still over without starting a new game after 45s
                 if (isViewModelGameOver(activity)) {
                     if (seekRetryCount < MAX_SEEK_RETRIES) {
                         seekRetryCount++;
-                        NnvcLogger.i(TAG, "⚡ [AUTO RE-QUEUE] Seeking dropped or cancelled without new game. Re-queuing match (attempt " + seekRetryCount + "/" + MAX_SEEK_RETRIES + ")...");
+                        NnvcLogger.i(TAG, "⚡ [AUTO RE-QUEUE] Seeking timeout without new game. Re-queuing match (attempt " + seekRetryCount + "/" + MAX_SEEK_RETRIES + ")...");
                         resetHandledGameEndData();
                         currentState = State.IDLE;
                         onGameOver(activity);
@@ -368,7 +389,7 @@ public class AutoFindManager {
             }
         };
 
-        getMainHandler().postDelayed(seekingWatchdogRunnable, 2500L);
+        getMainHandler().postDelayed(seekingWatchdogRunnable, 45000L);
     }
 
     public static boolean triggerNewGameNative() {
@@ -389,8 +410,8 @@ public class AutoFindManager {
     private static boolean executeTrigger(final Activity activity) {
         if (activity == null) return false;
 
-        // Tầng 0: Bytecode Hook RealGameViewModel.triggerNewGameNative() (0ms, Zero-Fallback)
-        boolean triggered = triggerNewGameNative();
+        // Tầng 0: Full Native Lifecycle via Activity Controller (includes gameOverV6Listener.e(), UI Compose cleanup x6() & Ka())
+        boolean triggered = triggerViaViewModel(activity);
 
         // Tầng 1: Direct Cached Native ViewModel
         if (!triggered && lastNativeViewModelRef != null) {
@@ -403,9 +424,9 @@ public class AutoFindManager {
             }
         }
 
-        // Tầng 2: Native ViewModel Controller (includes UI Compose cleanup & modal dismiss)
+        // Tầng 2: Direct Bytecode Hook RealGameViewModel.triggerNewGameNative()
         if (!triggered) {
-            triggered = triggerViaViewModel(activity);
+            triggered = triggerNewGameNative();
         }
 
         if (triggered) {
@@ -414,13 +435,13 @@ public class AutoFindManager {
             NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller on first attempt. Scheduling retry in 400ms...");
             getMainHandler().postDelayed(() -> {
                 if (currentState == State.SEEKING && !userExplicitlyCancelled) {
-                    boolean retry = triggerNewGameNative();
+                    boolean retry = triggerViaViewModel(activity);
                     if (!retry && lastNativeViewModelRef != null) {
                         Object vm = lastNativeViewModelRef.get();
                         if (vm != null) retry = triggerViaViewModelInstance(vm);
                     }
                     if (!retry) {
-                        retry = triggerViaViewModel(activity);
+                        retry = triggerNewGameNative();
                     }
                     if (retry) {
                         NnvcLogger.i(TAG, "Auto Find match triggered on retry!");

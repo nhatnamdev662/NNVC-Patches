@@ -165,6 +165,17 @@ public class StockfishExtension {
                 || name.contains("ProfileActivity");
     }
 
+    public static boolean isSeekOrSecondaryActivity(Activity activity) {
+        if (activity == null) return false;
+        String name = activity.getClass().getName();
+        return name.contains("WaitGame")
+                || name.contains("LiveGameSeek")
+                || name.contains("DailyGameSeek")
+                || name.contains("Dialog")
+                || name.contains("Profile")
+                || name.contains("Setting");
+    }
+
     public static Activity getCurrentActivity() {
         Activity tracked = resumedActivity.get();
         if (tracked != null && !tracked.isFinishing()) return tracked;
@@ -1171,8 +1182,11 @@ public class StockfishExtension {
 
             @Override
             public void onActivityPaused(Activity activity) {
+                if (activity != null && isSeekOrSecondaryActivity(activity)) {
+                    return;
+                }
                 if (resumedActivity.get() == activity) resumedActivity = new WeakReference<>(null);
-                AutoFindManager.cancelCountdown("Activity paused");
+                AutoFindManager.cancelCountdown(activity, "Activity paused");
                 stopGameOverWatchdog();
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
@@ -1189,7 +1203,10 @@ public class StockfishExtension {
 
             @Override
             public void onActivityDestroyed(Activity activity) {
-                AutoFindManager.cancelCountdown("Activity destroyed");
+                if (activity != null && isSeekOrSecondaryActivity(activity)) {
+                    return;
+                }
+                AutoFindManager.cancelCountdown(activity, "Activity destroyed");
                 stopGameOverWatchdog();
                 lastLoadedMove0Fen = null;
                 isMove0AnalysisScheduled = false;
@@ -1390,6 +1407,18 @@ public class StockfishExtension {
     public static boolean checkAndHandleGameOver(Activity activity) {
         if (activity == null) return false;
         if (isGameOver(activity)) {
+            if (AutoFindManager.isSeeking()) {
+                Log.i(TAG, "[AUTO FIND] Seeking cancelled or returned to board without new game. Re-scheduling Auto Find...");
+                lastGameOverHandled = true;
+                lastLoadedMove0Fen = null;
+                isMove0AnalysisScheduled = false;
+                isMove0AnalysisCompleted = false;
+                OverlayManager.hideArrowOverlay(true);
+                ArrowInjector.clearEngineArrows(getStateImpl());
+                StockfishBridge.stopSearch();
+                AutoFindManager.onSeekingInterrupted(activity);
+                return true;
+            }
             if (!lastGameOverHandled || !AutoFindManager.isCurrentGameHandled(activity)) {
                 lastGameOverHandled = true;
                 lastLoadedMove0Fen = null;
