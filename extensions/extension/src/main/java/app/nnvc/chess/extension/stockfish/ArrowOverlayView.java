@@ -149,6 +149,7 @@ public class ArrowOverlayView extends View {
 
     private float[] cachedPerpOffsets = new float[0];
     private float[] cachedTargetOffsets = new float[0];
+    private float[] cachedStartOffsets = new float[0];
     private float lastSqSizeForOffsets = -1f;
     private int lastArrowsHash = 0;
 
@@ -370,12 +371,14 @@ public class ArrowOverlayView extends View {
             if (cachedPerpOffsets.length != n || lastSqSizeForOffsets != sqSize || lastArrowsHash != currentHash) {
                 cachedPerpOffsets = new float[n];
                 cachedTargetOffsets = new float[n];
-                computeExtensionOffsets(sqSize, cachedPerpOffsets, cachedTargetOffsets);
+                cachedStartOffsets = new float[n];
+                computeExtensionOffsets(this.arrows, this.flipped, sqSize, cachedPerpOffsets, cachedTargetOffsets, cachedStartOffsets);
                 lastSqSizeForOffsets = sqSize;
                 lastArrowsHash = currentHash;
             }
             float[] perpOffsets = cachedPerpOffsets;
             float[] targetOffsets = cachedTargetOffsets;
+            float[] startOffsets = cachedStartOffsets;
 
             // Pass 0: Highlight ô cờ bị đe dọa (Threat Square Warning Aura)
             // QUY TẮC BẢO TOÀN SPRITE: TÂM Ô CỜ HOÀN TOÀN TRONG SUỐT (ZERO FILL)!
@@ -401,7 +404,7 @@ public class ArrowOverlayView extends View {
             for (int i = 0; i < n; i++) {
                 ArrowData arrow = arrows.get(i);
                 if (arrow.isThreat) {
-                    drawThreatArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i]);
+                    drawThreatArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i], startOffsets[i]);
                 }
             }
 
@@ -409,7 +412,7 @@ public class ArrowOverlayView extends View {
             for (int i = 0; i < n; i++) {
                 ArrowData arrow = arrows.get(i);
                 if (arrow.isPremove) {
-                    drawSingleArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i]);
+                    drawSingleArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i], startOffsets[i]);
                 }
             }
 
@@ -419,7 +422,7 @@ public class ArrowOverlayView extends View {
                 for (int i = 0; i < n; i++) {
                     ArrowData arrow = arrows.get(i);
                     if (!arrow.isThreat && !arrow.isPremove && arrow.tier == tier) {
-                        drawSingleArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i]);
+                        drawSingleArrow(canvas, arrow, sqSize, perpOffsets[i], targetOffsets[i], startOffsets[i]);
                     }
                 }
             }
@@ -430,26 +433,40 @@ public class ArrowOverlayView extends View {
     }
 
     /**
-     * Authentic Port of NNVC Desktop Extension Multi-Lane Separation & Conflict Avoidance.
-     * Computes symmetrical perpOffset and stepped targetOffset so concurrent arrows sharing
-     * the same path, opposite directions, collinear rays, or same destination NEVER overlap or touch.
+     * Authentic Port of NNVC Desktop Extension Multi-Lane Separation & 100% Conflict Avoidance.
+     * Computes symmetrical perpOffset, stepped targetOffset, and staggered startOffset so concurrent arrows:
+     * - Sharing the same path, opposite directions, or collinear rays (lineMap)
+     * - Targeting the same destination (targetMap)
+     * - Originating from the same square (fromMap - Nan quạt xuất phát)
+     * - Crossing / intersecting each other (segmentsIntersect yielding)
+     * NEVER overlap, clash tails, or obscure one another.
      */
-    private void computeExtensionOffsets(float sqSize, float[] perpOffsets, float[] targetOffsets) {
-        int n = arrows.size();
+    void computeExtensionOffsets(float sqSize, float[] perpOffsets, float[] targetOffsets, float[] startOffsets) {
+        computeExtensionOffsets(this.arrows, this.flipped, sqSize, perpOffsets, targetOffsets, startOffsets);
+    }
+
+    static void computeExtensionOffsets(List<ArrowData> arrows, boolean flipped, float sqSize,
+                                        float[] perpOffsets, float[] targetOffsets, float[] startOffsets) {
+        int n = arrows != null ? arrows.size() : 0;
         if (n == 0) return;
 
         Map<String, List<Integer>> lineMap = new HashMap<>();
         Map<String, List<Integer>> targetMap = new HashMap<>();
+        Map<String, List<Integer>> fromMap = new HashMap<>();
 
         for (int i = 0; i < n; i++) {
             ArrowData a = arrows.get(i);
             String f = a.from, t = a.to;
+            if (f == null || t == null) continue;
             String pairKey = f.compareTo(t) < 0 ? (f + "-" + t) : (t + "-" + f);
             if (!lineMap.containsKey(pairKey)) lineMap.put(pairKey, new ArrayList<Integer>());
             lineMap.get(pairKey).add(i);
 
             if (!targetMap.containsKey(t)) targetMap.put(t, new ArrayList<Integer>());
             targetMap.get(t).add(i);
+
+            if (!fromMap.containsKey(f)) fromMap.put(f, new ArrayList<Integer>());
+            fromMap.get(f).add(i);
         }
 
         // 1. Tách làn theo cặp ô đối đầu hoặc cùng hướng (Line Separation)
@@ -493,6 +510,148 @@ public class ArrowOverlayView extends View {
                 }
             }
         }
+
+        // 3. Tách đuôi hình nan quạt khi xuất phát cùng ô cờ (Same Origin Fan-Out Clearance)
+        for (Map.Entry<String, List<Integer>> entry : fromMap.entrySet()) {
+            List<Integer> group = entry.getValue();
+            if (group.size() <= 1) continue;
+
+            // Sắp xếp in-place: Tier 1 đứng trước, kế đến Tier 2, Tier 3, Threats
+            for (int a = 1; a < group.size(); a++) {
+                int keyIdx = group.get(a);
+                ArrowData keyArrow = arrows.get(keyIdx);
+                int keyPrio = keyArrow.isThreat ? 10 : (keyArrow.isPremove ? 9 : keyArrow.tier);
+                int b = a - 1;
+                while (b >= 0) {
+                    int compIdx = group.get(b);
+                    ArrowData compArrow = arrows.get(compIdx);
+                    int compPrio = compArrow.isThreat ? 10 : (compArrow.isPremove ? 9 : compArrow.tier);
+                    if (compPrio > keyPrio) {
+                        group.set(b + 1, compIdx);
+                        b--;
+                    } else {
+                        break;
+                    }
+                }
+                group.set(b + 1, keyIdx);
+            }
+
+            int primaryIdx = group.get(0);
+            ArrowData primaryArrow = arrows.get(primaryIdx);
+            float pFromX = getSqCenterX(primaryArrow.from, flipped, sqSize);
+            float pFromY = getSqCenterY(primaryArrow.from, flipped, sqSize);
+            float pToX   = getSqCenterX(primaryArrow.to, flipped, sqSize);
+            float pToY   = getSqCenterY(primaryArrow.to, flipped, sqSize);
+
+            for (int k = 1; k < group.size(); k++) {
+                int secIdx = group.get(k);
+                ArrowData secArrow = arrows.get(secIdx);
+
+                // Lùi điểm xuất phát ra xa tâm ô cờ để không đè lên đuôi của mũi tên trước
+                startOffsets[secIdx] += k * (sqSize * 0.12f);
+
+                float sToX = getSqCenterX(secArrow.to, flipped, sqSize);
+                float sToY = getSqCenterY(secArrow.to, flipped, sqSize);
+                float u0x = pToX - pFromX, u0y = pToY - pFromY;
+                float u1x = sToX - pFromX, u1y = sToY - pFromY;
+                float cross = u0x * u1y - u0y * u1x;
+
+                // Tách theo nan quạt góc (V-shape fan-out)
+                if (Math.abs(cross) > 1e-3f) {
+                    float fanDir = cross > 0 ? 1.0f : -1.0f;
+                    perpOffsets[secIdx] += fanDir * (sqSize * 0.08f);
+                } else {
+                    // Cùng hướng dọc/ngang (collinear)
+                    perpOffsets[secIdx] += (k % 2 == 1 ? 1.0f : -1.0f) * (sqSize * 0.07f);
+                }
+            }
+        }
+
+        // 4. Nhường đường khi các mũi tên cắt ngang nhau (Crossing Arrows Yielding)
+        for (int i = 0; i < n; i++) {
+            ArrowData ai = arrows.get(i);
+            float a1x = getSqCenterX(ai.from, flipped, sqSize);
+            float a1y = getSqCenterY(ai.from, flipped, sqSize);
+            float a2x = getSqCenterX(ai.to, flipped, sqSize);
+            float a2y = getSqCenterY(ai.to, flipped, sqSize);
+
+            for (int j = i + 1; j < n; j++) {
+                ArrowData aj = arrows.get(j);
+                if (ai.from.equals(aj.from) || ai.to.equals(aj.to) ||
+                    ai.from.equals(aj.to) || ai.to.equals(aj.from)) {
+                    continue; // Đã được xử lý ở lineMap, targetMap, fromMap
+                }
+
+                float b1x = getSqCenterX(aj.from, flipped, sqSize);
+                float b1y = getSqCenterY(aj.from, flipped, sqSize);
+                float b2x = getSqCenterX(aj.to, flipped, sqSize);
+                float b2y = getSqCenterY(aj.to, flipped, sqSize);
+
+                if (segmentsIntersect(a1x, a1y, a2x, a2y, b1x, b1y, b2x, b2y)) {
+                    int prioI = ai.isThreat ? 10 : (ai.isPremove ? 9 : ai.tier);
+                    int prioJ = aj.isThreat ? 10 : (aj.isPremove ? 9 : aj.tier);
+
+                    int lowerIdx = (prioI > prioJ) ? i : j;
+                    int higherIdx = (prioI > prioJ) ? j : i;
+                    ArrowData higher = arrows.get(higherIdx);
+
+                    // Mũi tên bậc thấp hơn lùi lại một khoảng targetOffset và dạt sang một bên
+                    targetOffsets[lowerIdx] += sqSize * 0.16f;
+
+                    float hFx = getSqCenterX(higher.from, flipped, sqSize);
+                    float hFy = getSqCenterY(higher.from, flipped, sqSize);
+                    float hTx = getSqCenterX(higher.to, flipped, sqSize);
+                    float hTy = getSqCenterY(higher.to, flipped, sqSize);
+
+                    ArrowData lower = arrows.get(lowerIdx);
+                    float lTx = getSqCenterX(lower.to, flipped, sqSize);
+                    float lTy = getSqCenterY(lower.to, flipped, sqSize);
+
+                    float crossHL = (hTx - hFx) * (lTy - hFy) - (hTy - hFy) * (lTx - hFx);
+                    float pushDir = crossHL >= 0 ? 1.0f : -1.0f;
+                    perpOffsets[lowerIdx] += pushDir * (sqSize * 0.07f);
+                }
+            }
+        }
+    }
+
+    static float getSqCenterX(String sq, boolean flipped, float sqSize) {
+        if (sq == null || sq.length() < 2) return 0f;
+        int file = sq.charAt(0) - 'a';
+        int col = flipped ? (7 - file) : file;
+        return col * sqSize + sqSize / 2.0f;
+    }
+
+    static float getSqCenterY(String sq, boolean flipped, float sqSize) {
+        if (sq == null || sq.length() < 2) return 0f;
+        int rank = sq.charAt(1) - '1';
+        int row = flipped ? rank : (7 - rank);
+        return row * sqSize + sqSize / 2.0f;
+    }
+
+    static boolean segmentsIntersect(float a1x, float a1y, float a2x, float a2y,
+                                     float b1x, float b1y, float b2x, float b2y) {
+        float d1 = ccw(b1x, b1y, b2x, b2y, a1x, a1y);
+        float d2 = ccw(b1x, b1y, b2x, b2y, a2x, a2y);
+        float d3 = ccw(a1x, a1y, a2x, a2y, b1x, b1y);
+        float d4 = ccw(a1x, a1y, a2x, a2y, b2x, b2y);
+
+        return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+               ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+    }
+
+    static float ccw(float p1x, float p1y, float p2x, float p2y, float p3x, float p3y) {
+        return (p2x - p1x) * (p3y - p1y) - (p2y - p1y) * (p3x - p1x);
+    }
+
+    static float distToSegment(float px, float py, float x1, float y1, float x2, float y2) {
+        float dx = x2 - x1, dy = y2 - y1;
+        float l2 = dx * dx + dy * dy;
+        if (l2 < 1e-4f) return (float) Math.hypot(px - x1, py - y1);
+        float t = Math.max(0.0f, Math.min(1.0f, ((px - x1) * dx + (py - y1) * dy) / l2));
+        float projX = x1 + t * dx;
+        float projY = y1 + t * dy;
+        return (float) Math.hypot(px - projX, py - projY);
     }
 
     /**
@@ -504,7 +663,7 @@ public class ArrowOverlayView extends View {
      * - Clear Piece Visibility: startOffset = 0.22 * sqSize, endOffset = 0.18 * sqSize
      * - L-Shape Knight elbow with round caps
      */
-    private void drawThreatArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset) {
+    private void drawThreatArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset, float customStartOffset) {
         float[] fromCenter = getSquareCenter(arrow.from, flipped, sqSize);
         float[] toCenter   = getSquareCenter(arrow.to,   flipped, sqSize);
         if (fromCenter == null || toCenter == null) return;
@@ -522,7 +681,7 @@ public class ArrowOverlayView extends View {
         float headLen = sqSize * 0.22f;
         float headWidth = sqSize * 0.17f;
         float lineWidth = sqSize * 0.052f;
-        float startOffset = sqSize * 0.22f;
+        float startOffset = sqSize * 0.22f + customStartOffset;
         float endOffset = sqSize * 0.18f + targetOffset;
 
         boolean isDanger = (arrow.threatType == null) || "danger".equalsIgnoreCase(arrow.threatType);
@@ -719,7 +878,7 @@ public class ArrowOverlayView extends View {
         canvas.drawLine(right - strokeInset, bottom - strokeInset, right - strokeInset, bottom - strokeInset - cornerLen, squareBorderPaint);
     }
 
-    private void drawSingleArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset) {
+    private void drawSingleArrow(Canvas canvas, ArrowData arrow, float sqSize, float perpOffset, float targetOffset, float customStartOffset) {
         float[] fromCenter = getSquareCenter(arrow.from, flipped, sqSize);
         float[] toCenter   = getSquareCenter(arrow.to,   flipped, sqSize);
         if (fromCenter == null || toCenter == null) return;
@@ -739,7 +898,7 @@ public class ArrowOverlayView extends View {
 
         float dx = x2 - x1, dy = y2 - y1;
         float len = (float) Math.hypot(dx, dy);
-        float startOffset = Math.min(len * 0.25f, sqSize * 0.16f);
+        float startOffset = Math.min(len * 0.40f, sqSize * 0.16f + customStartOffset);
         float edgeStroke = Math.max(1.5f, sqSize * 0.032f);
 
         Path arrowPath;
@@ -1029,7 +1188,7 @@ public class ArrowOverlayView extends View {
      * - Clamped inside target square / board bounds.
      * - Extension style: shade(rgb, 0.58) background, tint(rgb, 0.54) border, JetBrains Mono font.
      */
-    private boolean hasBoxCollision(float bx, float by, float bw, float bh, float pad) {
+    static boolean hasBoxCollision(float bx, float by, float bw, float bh, float pad, float[][] placedBoxes, int placedBoxCount) {
         for (int i = 0; i < placedBoxCount; i++) {
             float px = placedBoxes[i][0];
             float py = placedBoxes[i][1];
@@ -1037,6 +1196,52 @@ public class ArrowOverlayView extends View {
             float ph = placedBoxes[i][3];
             if (!(bx + bw + pad < px || px + pw + pad < bx || by + bh + pad < py || py + ph + pad < by)) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasBoxCollision(float bx, float by, float bw, float bh, float pad) {
+        return hasBoxCollision(bx, by, bw, bh, pad, this.placedBoxes, this.placedBoxCount);
+    }
+
+    private boolean isBoxNearArrowShaft(float bx, float by, float bw, float bh, int currentArrowIdx, float sqSize) {
+        float cx = bx + bw / 2.0f;
+        float cy = by + bh / 2.0f;
+        float boxRadius = (float) Math.hypot(bw / 2.0f, bh / 2.0f);
+        float clearance = boxRadius + sqSize * 0.045f;
+
+        for (int i = 0; i < arrows.size(); i++) {
+            ArrowData a = arrows.get(i);
+            if (a.from == null || a.to == null) continue;
+            float x1 = getSqCenterX(a.from, flipped, sqSize);
+            float y1 = getSqCenterY(a.from, flipped, sqSize);
+            float x2 = getSqCenterX(a.to,   flipped, sqSize);
+            float y2 = getSqCenterY(a.to,   flipped, sqSize);
+
+            if (i == currentArrowIdx) {
+                float dx = x2 - x1, dy = y2 - y1;
+                float dist = (float) Math.hypot(dx, dy);
+                if (dist > 1e-3f) {
+                    float headLen = sqSize * 0.24f;
+                    float shaftEndX = x2 - (dx / dist) * headLen;
+                    float shaftEndY = y2 - (dy / dist) * headLen;
+                    if (distToSegment(cx, cy, x1, y1, shaftEndX, shaftEndY) < clearance) {
+                        return true;
+                    }
+                }
+            } else {
+                int fileDelta = Math.abs(a.to.charAt(0) - a.from.charAt(0));
+                int rankDelta = Math.abs(a.to.charAt(1) - a.from.charAt(1));
+                boolean isKnight = (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1);
+                if (isKnight) {
+                    float elbowX = (fileDelta == 2 && rankDelta == 1) ? x2 : x1;
+                    float elbowY = (fileDelta == 2 && rankDelta == 1) ? y1 : y2;
+                    if (distToSegment(cx, cy, x1, y1, elbowX, elbowY) < clearance) return true;
+                    if (distToSegment(cx, cy, elbowX, elbowY, x2, y2) < clearance) return true;
+                } else {
+                    if (distToSegment(cx, cy, x1, y1, x2, y2) < clearance) return true;
+                }
             }
         }
         return false;
@@ -1192,19 +1397,30 @@ public class ArrowOverlayView extends View {
                 }
             }
 
+            float boxPad = Math.max(12f, sqSize * 0.14f);
             float labelX = -1f, labelY = -1f;
-            float candX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[prefIdx][0]));
-            float candY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[prefIdx][1]));
 
-            if (!hasBoxCollision(candX, candY, pillW, pillH, 3f)) {
-                labelX = candX;
-                labelY = candY;
-            } else {
-                for (int k = 0; k < candCount; k++) {
-                    if (k == prefIdx) continue;
-                    candX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[k][0]));
-                    candY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[k][1]));
-                    if (!hasBoxCollision(candX, candY, pillW, pillH, 3f)) {
+            // 1. Ưu tiên tuyệt đối: Không chạm huy hiệu khác VÀ Không bị thân mũi tên cắt ngang
+            for (int orderIdx = 0; orderIdx < candCount; orderIdx++) {
+                int k = (orderIdx == 0) ? prefIdx : ((orderIdx <= prefIdx) ? (orderIdx - 1) : orderIdx);
+                float candX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[k][0]));
+                float candY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[k][1]));
+
+                if (!hasBoxCollision(candX, candY, pillW, pillH, boxPad) && !isBoxNearArrowShaft(candX, candY, pillW, pillH, i, sqSize)) {
+                    labelX = candX;
+                    labelY = candY;
+                    break;
+                }
+            }
+
+            // 2. Dự phòng khi bàn cờ dày đặc: Tìm vị trí không chạm huy hiệu khác
+            if (labelX < 0f) {
+                for (int orderIdx = 0; orderIdx < candCount; orderIdx++) {
+                    int k = (orderIdx == 0) ? prefIdx : ((orderIdx <= prefIdx) ? (orderIdx - 1) : orderIdx);
+                    float candX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[k][0]));
+                    float candY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[k][1]));
+
+                    if (!hasBoxCollision(candX, candY, pillW, pillH, boxPad)) {
                         labelX = candX;
                         labelY = candY;
                         break;
@@ -1212,6 +1428,22 @@ public class ArrowOverlayView extends View {
                 }
             }
 
+            // 3. Dự phòng đệm tối thiểu nếu không gian siêu hẹp
+            if (labelX < 0f) {
+                float minPad = Math.max(4f, sqSize * 0.05f);
+                for (int k = 0; k < candCount; k++) {
+                    float candX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[k][0]));
+                    float candY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[k][1]));
+
+                    if (!hasBoxCollision(candX, candY, pillW, pillH, minPad)) {
+                        labelX = candX;
+                        labelY = candY;
+                        break;
+                    }
+                }
+            }
+
+            // 4. Mặc định
             if (labelX < 0f) {
                 labelX = Math.max(minSafeX, Math.min(bWidth - pillW - 2f, candidateCoords[prefIdx][0]));
                 labelY = Math.max(2f, Math.min(bHeight - pillH - 2f, candidateCoords[prefIdx][1]));

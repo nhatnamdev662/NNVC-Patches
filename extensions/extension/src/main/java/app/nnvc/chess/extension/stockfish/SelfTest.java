@@ -2371,6 +2371,54 @@ public class SelfTest {
         check("resetClockNative resets clocks and base time", resetClocks.initBaseSec == -1 && resetClocks.mySec == -1.0);
 
 
+        // Test 42: 100% Collision-Free Arrow Avoidance & Origin Fan-Out Math
+        float testSq = 100.0f;
+        java.util.List<ArrowOverlayView.ArrowData> fanOutList = new java.util.ArrayList<>();
+        fanOutList.add(new ArrowOverlayView.ArrowData("g4g5", 1, false)); // Tier 1 Best Move
+        fanOutList.add(new ArrowOverlayView.ArrowData("g4f5", 2, false)); // Tier 2 Diverging Move
+        float[] perpOffsets = new float[2];
+        float[] targetOffsets = new float[2];
+        float[] startOffsets = new float[2];
+
+        ArrowOverlayView.computeExtensionOffsets(fanOutList, false, testSq, perpOffsets, targetOffsets, startOffsets);
+        check("Tier 1 retains startOffset = 0 at origin", startOffsets[0] == 0f);
+        check("Tier 2 diverging arrow steps startOffset outward", startOffsets[1] >= testSq * 0.12f);
+        check("Tier 2 diverging arrow applies lateral fan-out shift", Math.abs(perpOffsets[1]) >= testSq * 0.07f);
+
+        // Crossing arrows test
+        java.util.List<ArrowOverlayView.ArrowData> crossingList = new java.util.ArrayList<>();
+        crossingList.add(new ArrowOverlayView.ArrowData("e2e6", 1, false)); // Vertical
+        crossingList.add(new ArrowOverlayView.ArrowData("d4f4", 2, false)); // Horizontal crossing
+        float[] crossPerp = new float[2];
+        float[] crossTarget = new float[2];
+        float[] crossStart = new float[2];
+
+        check("segmentsIntersect detects vertical and horizontal crossing lines",
+                ArrowOverlayView.segmentsIntersect(
+                        ArrowOverlayView.getSqCenterX("e2", false, testSq), ArrowOverlayView.getSqCenterY("e2", false, testSq),
+                        ArrowOverlayView.getSqCenterX("e6", false, testSq), ArrowOverlayView.getSqCenterY("e6", false, testSq),
+                        ArrowOverlayView.getSqCenterX("d4", false, testSq), ArrowOverlayView.getSqCenterY("d4", false, testSq),
+                        ArrowOverlayView.getSqCenterX("f4", false, testSq), ArrowOverlayView.getSqCenterY("f4", false, testSq)
+                ));
+
+        ArrowOverlayView.computeExtensionOffsets(crossingList, false, testSq, crossPerp, crossTarget, crossStart);
+        check("Higher priority Tier 1 does not yield targetOffset", crossTarget[0] == 0f);
+        check("Lower priority Tier 2 yields targetOffset clearance", crossTarget[1] >= testSq * 0.15f);
+
+        // Point to segment distance test
+        float d1 = ArrowOverlayView.distToSegment(50f, 50f, 0f, 50f, 100f, 50f);
+        check("distToSegment point on segment returns 0", Math.abs(d1) < 1e-4f);
+        float d2 = ArrowOverlayView.distToSegment(50f, 80f, 0f, 50f, 100f, 50f);
+        check("distToSegment perpendicular distance returns 30", Math.abs(d2 - 30f) < 1e-4f);
+
+        // Badge collision padding test
+        float[][] placedBoxesMock = new float[][]{{100f, 100f, 40f, 20f}};
+        float padThreshold = testSq * 0.14f; // 14px
+        check("hasBoxCollision detects adjacent badge within 14px padding",
+                ArrowOverlayView.hasBoxCollision(145f, 100f, 40f, 20f, padThreshold, placedBoxesMock, 1));
+        check("hasBoxCollision allows badge placed outside padding",
+                !ArrowOverlayView.hasBoxCollision(160f, 100f, 40f, 20f, padThreshold, placedBoxesMock, 1));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
