@@ -25,48 +25,8 @@ public class GestureInterceptor {
 
     public static boolean isComposeActivity(Object activity) {
         if (activity == null) return false;
-        String name = activity.getClass().getName();
         String simpleName = activity.getClass().getSimpleName();
-        if (simpleName.contains("Lesson")
-                || simpleName.contains("Puzzle")
-                || simpleName.contains("Daily")
-                || simpleName.contains("Train")
-                || simpleName.contains("Compose")
-                || simpleName.contains("Review")
-                || simpleName.contains("Practice")
-                || simpleName.contains("Solo")
-                || name.contains(".lessons.")
-                || name.contains(".puzzles.")
-                || name.contains(".daily.")) {
-            return true;
-        }
-        if (activity instanceof Activity) {
-            try {
-                Activity act = (Activity) activity;
-                if (act.getWindow() != null && act.getWindow().getDecorView() != null) {
-                    return containsComposeView(act.getWindow().getDecorView());
-                }
-            } catch (Throwable ignored) {}
-        }
-        return false;
-    }
-
-    private static boolean containsComposeView(View view) {
-        if (view == null) return false;
-        String name = view.getClass().getName();
-        if (name.contains("ComposeView") || name.contains("AndroidComposeView")) {
-            return true;
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup vg = (ViewGroup) view;
-            int count = vg.getChildCount();
-            for (int i = 0; i < count; i++) {
-                if (containsComposeView(vg.getChildAt(i))) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return simpleName.equals("LessonChallengesActivity") || simpleName.contains("LessonChallenges");
     }
 
     public static void ensureGestureInterceptorRegistered() {

@@ -1567,7 +1567,9 @@ public class StockfishExtension {
     }
 
     public static boolean isGameOver(Activity activity) {
-        if (activity == null) return false;
+        if (activity == null || !activity.getClass().getName().contains("RealGameActivity")) {
+            return false;
+        }
         try {
             // Guard: If current board is at startpos, only treat as ongoing if no GameEndData exists (allows aborted games to trigger Game Over)
             if (currentBoardFen != null && currentBoardFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")) {

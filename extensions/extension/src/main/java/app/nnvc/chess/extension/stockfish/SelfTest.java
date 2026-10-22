@@ -2552,9 +2552,9 @@ public class SelfTest {
 
         check("isComposeActivity returns false for null", !GestureInterceptor.isComposeActivity((Object) null));
         check("isComposeActivity detects LessonChallengesActivity", GestureInterceptor.isComposeActivity(new DummyLessonChallengesActivity()));
-        check("isComposeActivity detects RatedPuzzlesGameActivity", GestureInterceptor.isComposeActivity(new DummyRatedPuzzlesGameActivity()));
-        check("isComposeActivity detects DailyGameActivity", GestureInterceptor.isComposeActivity(new DummyDailyGameActivity()));
-        check("isComposeActivity detects PuzzleRushActivity", GestureInterceptor.isComposeActivity(new DummyPuzzleRushActivity()));
+        check("isComposeActivity returns false for RatedPuzzlesGameActivity (allows menu)", !GestureInterceptor.isComposeActivity(new DummyRatedPuzzlesGameActivity()));
+        check("isComposeActivity returns false for DailyGameActivity (allows menu)", !GestureInterceptor.isComposeActivity(new DummyDailyGameActivity()));
+        check("isComposeActivity returns false for PuzzleRushActivity (allows menu)", !GestureInterceptor.isComposeActivity(new DummyPuzzleRushActivity()));
         check("isComposeActivity returns false for RealGameActivity", !GestureInterceptor.isComposeActivity(new DummyRealGameActivity()));
 
         // 47b. OverlayManager.isBoardFlipped V2 board support (method a())
