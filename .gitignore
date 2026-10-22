@@ -164,3 +164,6 @@ rule.md
 SESSION_NOTES.md
 mpp_archive/
 build_2_0_*.py
+
+archive/
+!build_clean_v1.py

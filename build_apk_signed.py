@@ -73,35 +73,22 @@ def get_merged_classes12_dex(morphe_14_path, ext_mpe_path):
 
 def inject_patched_dex_if_needed(apk_path):
     import zipfile
-    patched_dex8_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes8.dex")
-    if not os.path.exists(patched_dex8_path):
-        patched_dex8_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "patched_classes8.dex")
-
-    patched_dex_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes9.dex")
-    if not os.path.exists(patched_dex_path):
-        patched_dex_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "patched_classes9.dex")
-
+    patched_dex5_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes5.dex")
+    patched_dex8_clean_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes8_clean.dex")
     ext_mpe_path = os.path.join(SCRIPT_DIR, "extensions", "extension.mpe")
-    if not os.path.exists(ext_mpe_path):
-        ext_mpe_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "extensions", "extension.mpe")
-
-    morphe_14_path = os.path.join(SCRIPT_DIR, "patches", "morphe_14.dex")
-    if not os.path.exists(morphe_14_path):
-        morphe_14_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "morphe_14.dex")
 
     updates = {}
-    if os.path.exists(patched_dex8_path):
-        with open(patched_dex8_path, "rb") as pf:
+    if os.path.exists(patched_dex5_path):
+        with open(patched_dex5_path, "rb") as pf:
+            updates["classes5.dex"] = pf.read()
+
+    if os.path.exists(patched_dex8_clean_path):
+        with open(patched_dex8_clean_path, "rb") as pf:
             updates["classes8.dex"] = pf.read()
 
-    if os.path.exists(patched_dex_path):
-        with open(patched_dex_path, "rb") as pf:
-            updates["classes9.dex"] = pf.read()
-
-    if os.path.exists(morphe_14_path) and os.path.exists(ext_mpe_path):
-        merged_dex12 = get_merged_classes12_dex(morphe_14_path, ext_mpe_path)
-        if merged_dex12:
-            updates["classes12.dex"] = merged_dex12
+    if os.path.exists(ext_mpe_path):
+        with open(ext_mpe_path, "rb") as pf:
+            updates["classes12.dex"] = pf.read()
 
     need_update = {}
     with zipfile.ZipFile(apk_path, "r") as z:
