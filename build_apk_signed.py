@@ -65,9 +65,6 @@ def inject_patched_dex_if_needed(apk_path):
     if os.path.exists(patched_dex_path):
         with open(patched_dex_path, "rb") as pf:
             updates["classes9.dex"] = pf.read()
-    if os.path.exists(ext_mpe_path):
-        with open(ext_mpe_path, "rb") as ef:
-            updates["classes12.dex"] = ef.read()
 
     need_update = {}
     with zipfile.ZipFile(apk_path, "r") as z:
@@ -80,7 +77,7 @@ def inject_patched_dex_if_needed(apk_path):
                 need_update[dex_name] = dex_bytes
 
     if not need_update:
-        print("[OK] All DEX files (classes9.dex, classes12.dex) are already up to date.")
+        print("[OK] All DEX files (classes9.dex) are already up to date.")
         return
 
     for dex_name in need_update:
