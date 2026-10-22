@@ -126,7 +126,8 @@ public class OverlayManager {
         try {
             View arrowView = getOrFindTaggedView(decorView, "nnvc_arrow_overlay", cachedArrowOverlayRef);
             if (arrowView != null) {
-                arrowView.setElevation(2f);
+                arrowView.setElevation(25f);
+                arrowView.bringToFront();
             }
             View evalBar = getOrFindTaggedView(decorView, "stockfish_eval_bar", cachedEvalBarRef);
             if (evalBar != null) {
@@ -317,6 +318,8 @@ public class OverlayManager {
 
                     boolean flipped = isBoardFlipped(boardView, stateImpl);
                     arrowView.update(boardX, boardY, boardW, boardH, list, flipped);
+                    arrowView.setElevation(25f);
+                    arrowView.bringToFront();
                     arrowView.setVisibility(View.VISIBLE);
                     ensureZOrder(decorView);
                     StockfishExtension.setMove0AnalysisCompleted(true);

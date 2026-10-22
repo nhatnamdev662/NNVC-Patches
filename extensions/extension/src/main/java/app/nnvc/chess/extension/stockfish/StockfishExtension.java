@@ -150,6 +150,17 @@ public class StockfishExtension {
     /** Resumed activity, tracked by the lifecycle callbacks (cheap, no hidden-API reflection). */
     private static volatile WeakReference<Activity> resumedActivity = new WeakReference<>(null);
 
+    public static boolean isPuzzleOrLessonActivity(Activity activity) {
+        if (activity == null) return false;
+        String name = activity.getClass().getName();
+        if (isReviewOrAnalysisActivity(activity)) return false;
+        return name.contains("Puzzle")
+                || name.contains("Lesson")
+                || name.contains("Practice")
+                || name.contains("Solo")
+                || name.contains("Drill");
+    }
+
     public static boolean isReviewOrAnalysisActivity(Activity activity) {
         if (activity == null) return false;
         String name = activity.getClass().getName();
@@ -827,13 +838,14 @@ public class StockfishExtension {
         }
         boolean disableOverlays = isLive && !isReviewMode;
 
+        boolean isPuzzleOrLesson = isPuzzleOrLessonActivity(activity);
         boolean isWhiteTurn = isWhiteTurnFromFen(fen);
         Boolean userWhite = isUserWhite(getStateImpl());
-        boolean isMyTurn = (userWhite == null) || (isWhiteTurn == userWhite.booleanValue());
+        boolean isMyTurn = isPuzzleOrLesson || (userWhite == null) || (isWhiteTurn == userWhite.booleanValue());
 
         boolean isStartPos = fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
         boolean showArrows = !disableOverlays && StockfishSettings.isArrowsVisible(context);
-        if (showArrows && StockfishSettings.isMySideOnly(context) && !isMyTurn) {
+        if (!isPuzzleOrLesson && showArrows && StockfishSettings.isMySideOnly(context) && !isMyTurn) {
             showArrows = false;
         }
 
