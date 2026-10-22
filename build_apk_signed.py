@@ -51,6 +51,26 @@ def find_tool(name, default_path):
                     return cand_exe
     return None
 
+def get_merged_classes12_dex(morphe_14_path, ext_mpe_path):
+    import tempfile
+    d8_cmd = find_tool("d8", r"C:\Android\build-tools\android-37.0\d8.bat")
+    android_jar = r"C:\Users\MAY1\AppData\Local\Android\Sdk\platforms\android-35\android.jar"
+    if not d8_cmd or not os.path.exists(d8_cmd) or not os.path.exists(morphe_14_path) or not os.path.exists(ext_mpe_path):
+        return None
+    with tempfile.TemporaryDirectory() as td:
+        ext_dex = os.path.join(td, "extension.dex")
+        shutil.copy2(ext_mpe_path, ext_dex)
+        out_dir = os.path.join(td, "out")
+        os.makedirs(out_dir, exist_ok=True)
+        cmd = [d8_cmd, "--lib", android_jar, "--output", out_dir, morphe_14_path, ext_dex]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode == 0:
+            merged_file = os.path.join(out_dir, "classes.dex")
+            if os.path.exists(merged_file):
+                with open(merged_file, "rb") as f:
+                    return f.read()
+    return None
+
 def inject_patched_dex_if_needed(apk_path):
     import zipfile
     patched_dex_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes9.dex")
@@ -61,10 +81,19 @@ def inject_patched_dex_if_needed(apk_path):
     if not os.path.exists(ext_mpe_path):
         ext_mpe_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "extensions", "extension.mpe")
 
+    morphe_14_path = os.path.join(SCRIPT_DIR, "patches", "morphe_14.dex")
+    if not os.path.exists(morphe_14_path):
+        morphe_14_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "morphe_14.dex")
+
     updates = {}
     if os.path.exists(patched_dex_path):
         with open(patched_dex_path, "rb") as pf:
             updates["classes9.dex"] = pf.read()
+
+    if os.path.exists(morphe_14_path) and os.path.exists(ext_mpe_path):
+        merged_dex12 = get_merged_classes12_dex(morphe_14_path, ext_mpe_path)
+        if merged_dex12:
+            updates["classes12.dex"] = merged_dex12
 
     need_update = {}
     with zipfile.ZipFile(apk_path, "r") as z:
@@ -77,7 +106,7 @@ def inject_patched_dex_if_needed(apk_path):
                 need_update[dex_name] = dex_bytes
 
     if not need_update:
-        print("[OK] All DEX files (classes9.dex) are already up to date.")
+        print("[OK] All DEX files (classes9.dex, classes12.dex) are already up to date.")
         return
 
     for dex_name in need_update:

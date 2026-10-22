@@ -2557,6 +2557,21 @@ public class SelfTest {
         check("isComposeActivity returns false for PuzzleRushActivity (allows menu)", !GestureInterceptor.isComposeActivity(new DummyPuzzleRushActivity()));
         check("isComposeActivity returns false for RealGameActivity", !GestureInterceptor.isComposeActivity(new DummyRealGameActivity()));
 
+        // 47a2. StockfishExtension.isPuzzleOrLessonActivity detection
+        class DummyPracticeActivity {}
+        class DummySoloActivity {}
+        class DummyDrillsActivity {}
+        class DummyReviewPuzzleActivity {}
+
+        check("isPuzzleOrLessonActivity returns false for null", !StockfishExtension.isPuzzleOrLessonActivity((Object) null));
+        check("isPuzzleOrLessonActivity detects RatedPuzzlesGameActivity", StockfishExtension.isPuzzleOrLessonActivity(new DummyRatedPuzzlesGameActivity()));
+        check("isPuzzleOrLessonActivity detects LessonChallengesActivity", StockfishExtension.isPuzzleOrLessonActivity(new DummyLessonChallengesActivity()));
+        check("isPuzzleOrLessonActivity detects PracticeActivity", StockfishExtension.isPuzzleOrLessonActivity(new DummyPracticeActivity()));
+        check("isPuzzleOrLessonActivity detects SoloActivity", StockfishExtension.isPuzzleOrLessonActivity(new DummySoloActivity()));
+        check("isPuzzleOrLessonActivity detects DrillsActivity", StockfishExtension.isPuzzleOrLessonActivity(new DummyDrillsActivity()));
+        check("isPuzzleOrLessonActivity returns false for RealGameActivity", !StockfishExtension.isPuzzleOrLessonActivity(new DummyRealGameActivity()));
+        check("isPuzzleOrLessonActivity returns false for ReviewPuzzleActivity", !StockfishExtension.isPuzzleOrLessonActivity(new DummyReviewPuzzleActivity()));
+
         // 47b. OverlayManager.isBoardFlipped V2 board support (method a())
         class MockV2BoardFlipped {
             public boolean a() { return true; }

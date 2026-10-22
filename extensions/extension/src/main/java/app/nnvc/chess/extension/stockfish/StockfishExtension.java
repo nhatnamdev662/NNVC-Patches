@@ -151,6 +151,10 @@ public class StockfishExtension {
     private static volatile WeakReference<Activity> resumedActivity = new WeakReference<>(null);
 
     public static boolean isPuzzleOrLessonActivity(Activity activity) {
+        return isPuzzleOrLessonActivity((Object) activity);
+    }
+
+    public static boolean isPuzzleOrLessonActivity(Object activity) {
         if (activity == null) return false;
         String name = activity.getClass().getName();
         if (isReviewOrAnalysisActivity(activity)) return false;
@@ -162,6 +166,10 @@ public class StockfishExtension {
     }
 
     public static boolean isReviewOrAnalysisActivity(Activity activity) {
+        return isReviewOrAnalysisActivity((Object) activity);
+    }
+
+    public static boolean isReviewOrAnalysisActivity(Object activity) {
         if (activity == null) return false;
         String name = activity.getClass().getName();
         return name.contains("GameReview")
