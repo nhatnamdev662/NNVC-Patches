@@ -73,6 +73,10 @@ def get_merged_classes12_dex(morphe_14_path, ext_mpe_path):
 
 def inject_patched_dex_if_needed(apk_path):
     import zipfile
+    patched_dex8_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes8.dex")
+    if not os.path.exists(patched_dex8_path):
+        patched_dex8_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "patched_classes8.dex")
+
     patched_dex_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes9.dex")
     if not os.path.exists(patched_dex_path):
         patched_dex_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "patched_classes9.dex")
@@ -86,6 +90,10 @@ def inject_patched_dex_if_needed(apk_path):
         morphe_14_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "morphe_14.dex")
 
     updates = {}
+    if os.path.exists(patched_dex8_path):
+        with open(patched_dex8_path, "rb") as pf:
+            updates["classes8.dex"] = pf.read()
+
     if os.path.exists(patched_dex_path):
         with open(patched_dex_path, "rb") as pf:
             updates["classes9.dex"] = pf.read()
@@ -106,7 +114,7 @@ def inject_patched_dex_if_needed(apk_path):
                 need_update[dex_name] = dex_bytes
 
     if not need_update:
-        print("[OK] All DEX files (classes9.dex, classes12.dex) are already up to date.")
+        print("[OK] All DEX files (classes8.dex, classes9.dex, classes12.dex) are already up to date.")
         return
 
     for dex_name in need_update:
