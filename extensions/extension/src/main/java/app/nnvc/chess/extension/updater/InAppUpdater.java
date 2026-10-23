@@ -407,15 +407,7 @@ public final class InAppUpdater {
             return;
         }
 
-        // No update needed. Check if there's an announcement.
-        if (config.hasAnnouncement && !config.announcementId.isEmpty()) {
-            String dismissedId = StockfishSettings.getDismissedAnnouncementId(activity);
-            if (!config.announcementId.equals(dismissedId)) {
-                showAnnouncementDialog(activity, config);
-                return;
-            }
-        }
-
+        // Announcement popup disabled to ensure a clean startup without modal popups
         if (isManual) {
             Toast.makeText(activity, "Bạn đang dùng phiên bản mới nhất (v" + BuildConfig.VERSION_NAME + ")", Toast.LENGTH_SHORT).show();
         }

@@ -368,15 +368,10 @@ public class StockfishProcess {
             }
 
             if (line.startsWith("bestmove")) {
-                // If bestmove arrives before any info line and reachedDepth == 0, it is a ghost bestmove from a previous search -> ignore it!
-                if (reachedDepth == 0 && firstMoves[0] == null) {
-                    NnvcLogger.w(TAG, "Ignoring stale ghost bestmove before search began: " + line);
-                    continue;
-                }
                 String[] parts = line.split("\\s+");
                 if (parts.length > 1 && !"(none)".equals(parts[1])) bestmove = parts[1];
                 if (parts.length > 3 && "ponder".equals(parts[2])) ponder = parts[3];
-                if (bestmove == null && reachedDepth > 0) terminal = true;
+                if (bestmove == null) terminal = true;
                 NnvcLogger.d(TAG, "BestMove: " + bestmove + ", eval=" + scores[0] + ", depth=" + reachedDepth);
                 break;
             }

@@ -2637,6 +2637,14 @@ public class SelfTest {
         } catch (Throwable ignored) {}
         check("Direct field V resolves UserSide BLACK", Boolean.FALSE.equals(resolvedFieldV));
 
+        // Test 48: Move 0 Instant Book Move & Clean App Startup (No Announcement Popups)
+        StockfishProcess.AnalysisResult bookMoveResult = new StockfishProcess.AnalysisResult(
+                java.util.Collections.singletonList("e2e4"), 0.0f, false, 0, 0, 0, 0, "e7e5",
+                new java.util.ArrayList<>(), new float[]{0.0f}, new float[]{0.0f}, new boolean[]{false}, new int[]{0}, 0, false);
+        check("Move 0 instant book move at depth 0 produces valid result",
+                bookMoveResult.isValid() && !bookMoveResult.moves.isEmpty() && "e2e4".equals(bookMoveResult.moves.get(0)));
+        check("Move 0 bestmove has valid move count for arrow display", bookMoveResult.moves.size() == 1);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
