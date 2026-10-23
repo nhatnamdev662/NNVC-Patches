@@ -1154,6 +1154,13 @@ public class StockfishExtension {
                 silenceIllegalMoveSound();
                 unlockScreenshots(activity);
 
+                if (activity != null && isSeekOrSecondaryActivity(activity)) {
+                    String name = activity.getClass().getName();
+                    if (name.contains("LiveGameSeek") || name.contains("WaitGame")) {
+                        AutoFindManager.onSeekActivityCreated(activity);
+                    }
+                }
+
                 // Auto-check remote in-app updates & live announcements with throttling
                 try {
                     InAppUpdater.checkOnAppResume(activity);
@@ -1243,6 +1250,10 @@ public class StockfishExtension {
             @Override
             public void onActivityDestroyed(Activity activity) {
                 if (activity != null && isSeekOrSecondaryActivity(activity)) {
+                    String name = activity.getClass().getName();
+                    if (name.contains("LiveGameSeek") || name.contains("WaitGame")) {
+                        AutoFindManager.onSeekActivityDestroyed(activity);
+                    }
                     return;
                 }
                 AutoFindManager.cancelCountdown(activity, "Activity destroyed");

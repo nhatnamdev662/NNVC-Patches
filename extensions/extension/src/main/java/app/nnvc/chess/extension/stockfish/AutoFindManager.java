@@ -71,6 +71,8 @@ public class AutoFindManager {
     private static volatile int seekRetryCount = 0;
     private static final int MAX_SEEK_RETRIES = 5;
     private static Runnable seekingWatchdogRunnable = null;
+    private static volatile WeakReference<Activity> activeSeekActivityRef = new WeakReference<>(null);
+    public static final long SEEKING_TIMEOUT_MS = 20000L; // 20s matchmaking timeout ceiling
 
     private static volatile int consecutiveMatchesCount = 0;
     public static final int RECREATE_AFTER_MATCHES = 10;
@@ -410,12 +412,84 @@ public class AutoFindManager {
         getMainHandler().post(() -> executeTrigger(activity));
     }
 
+    public static void onSeekActivityCreated(Activity activity) {
+        if (activity == null) return;
+        activeSeekActivityRef = new WeakReference<>(activity);
+        NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen created: " + activity.getClass().getSimpleName());
+    }
+
+    public static void onSeekActivityDestroyed(Activity activity) {
+        if (activity == null) return;
+        if (activeSeekActivityRef != null && activeSeekActivityRef.get() == activity) {
+            activeSeekActivityRef = new WeakReference<>(null);
+        }
+        NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen destroyed: " + activity.getClass().getSimpleName());
+    }
+
+    public static void onNativeChallengeCancelled() {
+        NnvcLogger.w(TAG, "⚡ [NATIVE HOOK] Server cancelled challenge / seek. Re-queuing matchmaking immediately (0ms)...");
+        if (currentState != State.SEEKING && currentState != State.COUNTDOWN) {
+            return;
+        }
+        getMainHandler().post(() -> {
+            dismissActiveSeekActivity();
+            Activity act = activeActivityRef != null ? activeActivityRef.get() : null;
+            if (act == null) act = StockfishExtension.getCurrentActivity();
+            if (act != null && !act.isFinishing()) {
+                onSeekingInterrupted(act);
+            }
+        });
+    }
+
+    public static void onNativeSeekError(int errorCode) {
+        NnvcLogger.w(TAG, "⚡ [NATIVE HOOK] Server seek error (code=" + errorCode + "). Re-queuing matchmaking immediately (0ms)...");
+        if (currentState != State.SEEKING && currentState != State.COUNTDOWN) {
+            return;
+        }
+        getMainHandler().post(() -> {
+            dismissActiveSeekActivity();
+            Activity act = activeActivityRef != null ? activeActivityRef.get() : null;
+            if (act == null) act = StockfishExtension.getCurrentActivity();
+            if (act != null && !act.isFinishing()) {
+                onSeekingInterrupted(act);
+            }
+        });
+    }
+
+    public static void dismissActiveSeekActivity() {
+        try {
+            Class<?> seekClz = Class.forName("com.chess.realchess.ui.wait.LiveGameSeekV6Activity");
+            Method m = seekClz.getMethod("dismissSeekNative");
+            Object res = m.invoke(null);
+            if (res instanceof Boolean && (Boolean) res) {
+                NnvcLogger.i(TAG, "⚡ [SEEK DISMISS] LiveGameSeekV6Activity dismissed via dismissSeekNative()!");
+                return;
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            Activity seekAct = activeSeekActivityRef != null ? activeSeekActivityRef.get() : null;
+            if (seekAct != null && !seekAct.isFinishing()) {
+                NnvcLogger.i(TAG, "⚡ [SEEK DISMISS] Dismissing tracked seek activity: " + seekAct.getClass().getSimpleName());
+                seekAct.runOnUiThread(() -> {
+                    try {
+                        seekAct.finish();
+                    } catch (Throwable t) {
+                        NnvcLogger.e(TAG, "Failed to finish seek activity: " + t.getMessage());
+                    }
+                });
+            }
+        } catch (Throwable t) {
+            NnvcLogger.e(TAG, "Error in dismissActiveSeekActivity: " + t.getMessage());
+        }
+    }
+
     private static void scheduleSeekingWatchdog(final Activity activity) {
         if (seekingWatchdogRunnable != null) {
             getMainHandler().removeCallbacks(seekingWatchdogRunnable);
         }
 
-        // Seeking watchdog for extreme timeout (45s) in case matchmaking hangs completely
+        // Seeking watchdog (20s) in case matchmaking hangs or server drops challenge
         seekingWatchdogRunnable = new Runnable() {
             @Override
             public void run() {
@@ -423,29 +497,28 @@ public class AutoFindManager {
                     return;
                 }
                 if (activity == null || activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
+                    dismissActiveSeekActivity();
                     currentState = State.IDLE;
                     return;
                 }
 
-                // If match is still over without starting a new game after 45s
-                if (isViewModelGameOver(activity)) {
-                    if (seekRetryCount < MAX_SEEK_RETRIES) {
-                        seekRetryCount++;
-                        NnvcLogger.i(TAG, "⚡ [AUTO RE-QUEUE] Seeking timeout without new game. Re-queuing match (attempt " + seekRetryCount + "/" + MAX_SEEK_RETRIES + ")...");
-                        resetHandledGameEndData();
-                        currentState = State.IDLE;
-                        onGameOver(activity);
-                    } else {
-                        NnvcLogger.i(TAG, "Max seeking retries reached (" + MAX_SEEK_RETRIES + "). Resetting to IDLE.");
-                        currentState = State.IDLE;
-                    }
+                // If seeking timed out without starting a new game (20s)
+                if (seekRetryCount < MAX_SEEK_RETRIES) {
+                    seekRetryCount++;
+                    NnvcLogger.w(TAG, "⚡ [AUTO RE-QUEUE] Seeking timeout (20s) without new game. Re-queuing match (attempt " + seekRetryCount + "/" + MAX_SEEK_RETRIES + ")...");
+                    dismissActiveSeekActivity();
+                    resetHandledGameEndData();
+                    currentState = State.IDLE;
+                    onGameOver(activity);
                 } else {
-                    currentState = State.PLAYING;
+                    NnvcLogger.i(TAG, "Max seeking retries reached (" + MAX_SEEK_RETRIES + "). Resetting to IDLE.");
+                    dismissActiveSeekActivity();
+                    currentState = State.IDLE;
                 }
             }
         };
 
-        getMainHandler().postDelayed(seekingWatchdogRunnable, 45000L);
+        getMainHandler().postDelayed(seekingWatchdogRunnable, SEEKING_TIMEOUT_MS);
     }
 
     public static boolean triggerNewGameNative() {

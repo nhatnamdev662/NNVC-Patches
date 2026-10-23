@@ -1984,6 +1984,15 @@ public class SelfTest {
         check("I18n cd_cancel exists", I18n.get(null, "cd_cancel").length() > 0);
         check("I18n cd_now exists", I18n.get(null, "cd_now").length() > 0);
 
+        // 40j. Native Seek Watchdog & Server Cancellation Hooks (Zero-Fallback)
+        check("AutoFindManager SEEKING_TIMEOUT_MS is 20000ms", AutoFindManager.SEEKING_TIMEOUT_MS == 20000L);
+        AutoFindManager.onSeekActivityCreated(null);
+        AutoFindManager.onSeekActivityDestroyed(null);
+        AutoFindManager.dismissActiveSeekActivity();
+        AutoFindManager.onNativeChallengeCancelled();
+        AutoFindManager.onNativeSeekError(503);
+        check("AutoFindManager native seek hooks executed safely", true);
+
         // 40j. Direct Model Hook Auto Move (0ms Desktop Extension Parity), UserSide Resolution & Move 0 Arrow Retention
         // 1. UserSide & User Color Detection
         StockfishExtension.resetUserWhiteCache();
