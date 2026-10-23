@@ -250,7 +250,7 @@ public class I18n {
             case "show_accuracy_elo":
                 return isVi ? "Độ Chính Xác & Elo Trực Tiếp" : "Live Accuracy & Estimated Elo";
             case "show_accuracy_elo_hint":
-                return isVi ? "Hiển thị tiện ích thống kê độ chính xác (%) và ước tính Elo theo thời gian thực." : "Display real-time move accuracy percentage and estimated performance rating.";
+                return isVi ? "Hiển thị tiện ích độ chính xác (%) và ước tính Elo (Chụm 2 ngón tay trên HUD để phóng to / thu nhỏ)." : "Display real-time move accuracy and estimated Elo (Pinch with 2 fingers on HUD to resize).";
             case "white":
                 return isVi ? "Trắng" : "White";
             case "black":

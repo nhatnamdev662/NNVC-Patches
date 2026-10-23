@@ -426,6 +426,11 @@ public class StockfishSettings {
     private static final String KEY_ACCURACY_WIDGET_X = "accuracy_widget_x";
     private static final String KEY_ACCURACY_WIDGET_Y = "accuracy_widget_y";
     private static final String KEY_ACCURACY_WIDGET_COLLAPSED = "accuracy_widget_collapsed";
+    private static final String KEY_ACCURACY_WIDGET_SCALE = "accuracy_widget_scale";
+
+    public static final float MIN_ACCURACY_WIDGET_SCALE = 0.50f;
+    public static final float MAX_ACCURACY_WIDGET_SCALE = 1.60f;
+    public static final float DEFAULT_ACCURACY_WIDGET_SCALE = 1.0f;
 
     public static boolean isAccuracyEloEnabled(Context context) {
         return getPrefs(context).getBoolean(KEY_SHOW_ACCURACY_ELO, true);
@@ -456,6 +461,15 @@ public class StockfishSettings {
 
     public static void setAccuracyWidgetCollapsed(Context context, boolean collapsed) {
         getPrefs(context).edit().putBoolean(KEY_ACCURACY_WIDGET_COLLAPSED, collapsed).apply();
+    }
+
+    public static float getAccuracyWidgetScale(Context context) {
+        return getPrefs(context).getFloat(KEY_ACCURACY_WIDGET_SCALE, DEFAULT_ACCURACY_WIDGET_SCALE);
+    }
+
+    public static void setAccuracyWidgetScale(Context context, float scale) {
+        float clamped = Math.max(MIN_ACCURACY_WIDGET_SCALE, Math.min(MAX_ACCURACY_WIDGET_SCALE, scale));
+        getPrefs(context).edit().putFloat(KEY_ACCURACY_WIDGET_SCALE, clamped).apply();
     }
 
     /** Restores every engine setting to its default (the tour flag is kept). */

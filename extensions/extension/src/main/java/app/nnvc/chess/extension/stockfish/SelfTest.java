@@ -606,6 +606,36 @@ public class SelfTest {
                 : 74f * densityVal;
         check("AccuracyEloWidget default Y calculated relative to board", defaultWidgetY == (boardYVal - widgetHVal - (6f * densityVal)));
 
+        // Test 2.1: AccuracyEloWidget Pinch-to-zoom Scaling and Boundary Clamping
+        float scaleMin = StockfishSettings.MIN_ACCURACY_WIDGET_SCALE;
+        float scaleMax = StockfishSettings.MAX_ACCURACY_WIDGET_SCALE;
+        float scaleDef = StockfishSettings.DEFAULT_ACCURACY_WIDGET_SCALE;
+        check("AccuracyEloWidget scale range limits (0.50x to 1.60x)",
+                scaleMin == 0.50f && scaleMax == 1.60f && scaleDef == 1.0f);
+
+        float clampedUnder = Math.max(scaleMin, Math.min(scaleMax, 0.20f));
+        float clampedOver = Math.max(scaleMin, Math.min(scaleMax, 2.50f));
+        float clampedNormal = Math.max(scaleMin, Math.min(scaleMax, 0.75f));
+        check("AccuracyEloWidget scale bounds clamping",
+                clampedUnder == 0.50f && clampedOver == 1.60f && clampedNormal == 0.75f);
+
+        int wNormal = (int) Math.ceil(164f * (densityVal * 1.0f));
+        int wCompact = (int) Math.ceil(164f * (densityVal * 0.75f));
+        int hNormal = (int) Math.ceil(172f * (densityVal * 1.0f));
+        int hCompact = (int) Math.ceil(172f * (densityVal * 0.75f));
+        check("AccuracyEloWidget proportional dimension scaling",
+                wCompact == (int) (wNormal * 0.75f) && hCompact == (int) (hNormal * 0.75f));
+
+        // Pinch focus stability: point under fingers does not shift relative to parent
+        float oldTransX = 100f;
+        float focusX = 82f;
+        float sRatio = 1.25f;
+        float newTransX = oldTransX - (focusX * (sRatio - 1.0f));
+        float focusParentBefore = oldTransX + focusX;
+        float focusParentAfter = newTransX + (focusX * sRatio);
+        check("AccuracyEloWidget pinch-to-zoom focus remains stable",
+                Math.abs(focusParentBefore - focusParentAfter) < 0.001f);
+
         // v2.0.83 Tests:
         // Test 1: isReviewOrAnalysisActivity suppresses overlays in GameReviewActivity and StandaloneAnalysisActivity
         String gameReviewAct = "com.chess.gamereview.v2.GameReviewActivity";

@@ -15,6 +15,7 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
@@ -62,6 +63,12 @@ public class AccuracyEloWidgetView extends View {
     private boolean isCollapsed = false;
     private boolean isPositioned = false;
 
+    // Phóng to / Thu nhỏ (Pinch-to-zoom)
+    private float widgetScale = 1.0f;
+    private final ScaleGestureDetector scaleGestureDetector;
+    private boolean isScaling = false;
+    private boolean hadMultiTouch = false;
+
     // Kéo thả (Touch & Drag)
     private final int touchSlop;
     private float downRawX = 0f;
@@ -74,7 +81,7 @@ public class AccuracyEloWidgetView extends View {
         @Override
         public void onLayoutChange(View v, int left, int top, int right, int bottom,
                                    int oldLeft, int oldTop, int oldRight, int oldBottom) {
-            if ((right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) && !isDragging) {
+            if ((right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) && !isDragging && !isScaling) {
                 clampAndSetPosition(getTranslationX(), getTranslationY());
             }
         }
@@ -84,6 +91,49 @@ public class AccuracyEloWidgetView extends View {
         super(context);
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         isCollapsed = StockfishSettings.isAccuracyWidgetCollapsed(context);
+
+        widgetScale = StockfishSettings.getAccuracyWidgetScale(context);
+        if (widgetScale < StockfishSettings.MIN_ACCURACY_WIDGET_SCALE || widgetScale > StockfishSettings.MAX_ACCURACY_WIDGET_SCALE) {
+            widgetScale = StockfishSettings.DEFAULT_ACCURACY_WIDGET_SCALE;
+        }
+
+        scaleGestureDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            @Override
+            public boolean onScaleBegin(ScaleGestureDetector detector) {
+                isScaling = true;
+                isDragging = false;
+                hadMultiTouch = true;
+                animate().cancel();
+                return true;
+            }
+
+            @Override
+            public boolean onScale(ScaleGestureDetector detector) {
+                float factor = detector.getScaleFactor();
+                float newScale = widgetScale * factor;
+                newScale = Math.max(StockfishSettings.MIN_ACCURACY_WIDGET_SCALE,
+                        Math.min(StockfishSettings.MAX_ACCURACY_WIDGET_SCALE, newScale));
+                if (Math.abs(newScale - widgetScale) > 0.005f) {
+                    float scaleRatio = newScale / widgetScale;
+                    widgetScale = newScale;
+                    // Giữ ổn định tâm chụm ngón tay theo vị trí tương đối
+                    float focusX = detector.getFocusX();
+                    float focusY = detector.getFocusY();
+                    float newX = getTranslationX() - (focusX * (scaleRatio - 1.0f));
+                    float newY = getTranslationY() - (focusY * (scaleRatio - 1.0f));
+                    updateDimensionsWithPosition(newX, newY);
+                }
+                return true;
+            }
+
+            @Override
+            public void onScaleEnd(ScaleGestureDetector detector) {
+                isScaling = false;
+                StockfishSettings.setAccuracyWidgetScale(getContext(), widgetScale);
+                StockfishSettings.setAccuracyWidgetPosition(getContext(), getTranslationX(), getTranslationY());
+                clampAndSetPosition(getTranslationX(), getTranslationY());
+            }
+        });
 
         bgPaint.setStyle(Paint.Style.FILL);
         strokePaint.setStyle(Paint.Style.STROKE);
@@ -116,7 +166,21 @@ public class AccuracyEloWidgetView extends View {
     }
 
     public boolean isDragging() {
-        return isDragging;
+        return isDragging || isScaling;
+    }
+
+    public float getWidgetScale() {
+        return widgetScale;
+    }
+
+    public void setWidgetScale(float scale) {
+        float clamped = Math.max(StockfishSettings.MIN_ACCURACY_WIDGET_SCALE,
+                Math.min(StockfishSettings.MAX_ACCURACY_WIDGET_SCALE, scale));
+        if (Math.abs(this.widgetScale - clamped) > 0.005f) {
+            this.widgetScale = clamped;
+            StockfishSettings.setAccuracyWidgetScale(getContext(), clamped);
+            updateDimensions();
+        }
     }
 
     public boolean isPositioned() {
@@ -145,17 +209,17 @@ public class AccuracyEloWidgetView extends View {
     }
 
     public int calculateDesiredWidth() {
-        float density = getResources().getDisplayMetrics().density;
+        float density = getResources().getDisplayMetrics().density * widgetScale;
         return (int) Math.ceil(164f * density);
     }
 
     public int calculateExpandedHeight() {
-        float density = getResources().getDisplayMetrics().density;
+        float density = getResources().getDisplayMetrics().density * widgetScale;
         return (int) Math.ceil(172f * density);
     }
 
     public int calculateCollapsedHeight() {
-        float density = getResources().getDisplayMetrics().density;
+        float density = getResources().getDisplayMetrics().density * widgetScale;
         return (int) Math.ceil(32f * density);
     }
 
@@ -212,6 +276,10 @@ public class AccuracyEloWidgetView extends View {
     }
 
     public void updateDimensions() {
+        updateDimensionsWithPosition(getTranslationX(), getTranslationY());
+    }
+
+    public void updateDimensionsWithPosition(float x, float y) {
         int w = calculateDesiredWidth();
         int h = isCollapsed ? calculateCollapsedHeight() : calculateExpandedHeight();
         ViewGroup.LayoutParams lp = getLayoutParams();
@@ -220,7 +288,7 @@ public class AccuracyEloWidgetView extends View {
             lp.height = h;
             setLayoutParams(lp);
         }
-        clampAndSetPosition(getTranslationX(), getTranslationY());
+        clampAndSetPosition(x, y);
         requestLayout();
         invalidate();
     }
@@ -228,6 +296,22 @@ public class AccuracyEloWidgetView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
+
+        if (event.getPointerCount() > 1) {
+            hadMultiTouch = true;
+        }
+
+        if (scaleGestureDetector != null) {
+            scaleGestureDetector.onTouchEvent(event);
+            if (scaleGestureDetector.isInProgress()) {
+                if (isDragging) {
+                    isDragging = false;
+                    animate().scaleX(1.0f).scaleY(1.0f).alpha(1.0f).setDuration(50).start();
+                }
+                return true;
+            }
+        }
+
         switch (action) {
             case MotionEvent.ACTION_DOWN:
                 animate().cancel();
@@ -236,12 +320,24 @@ public class AccuracyEloWidgetView extends View {
                 startTransX = getTranslationX();
                 startTransY = getTranslationY();
                 isDragging = false;
+                hadMultiTouch = false;
                 if (getParent() != null) {
                     getParent().requestDisallowInterceptTouchEvent(true);
                 }
                 return true;
 
+            case MotionEvent.ACTION_POINTER_DOWN:
+                hadMultiTouch = true;
+                if (isDragging) {
+                    isDragging = false;
+                    animate().scaleX(1.0f).scaleY(1.0f).alpha(1.0f).setDuration(50).start();
+                }
+                return true;
+
             case MotionEvent.ACTION_MOVE:
+                if (isScaling || hadMultiTouch) {
+                    return true;
+                }
                 float dx = event.getRawX() - downRawX;
                 float dy = event.getRawY() - downRawY;
                 if (!isDragging && Math.hypot(dx, dy) > touchSlop) {
@@ -261,14 +357,16 @@ public class AccuracyEloWidgetView extends View {
                     isDragging = false;
                     animate().scaleX(1.0f).scaleY(1.0f).alpha(1.0f).setDuration(100).start();
                     StockfishSettings.setAccuracyWidgetPosition(getContext(), getTranslationX(), getTranslationY());
-                } else if (action == MotionEvent.ACTION_UP) {
+                } else if (action == MotionEvent.ACTION_UP && !hadMultiTouch && !isScaling) {
                     float touchY = event.getY();
-                    float density = getResources().getDisplayMetrics().density;
+                    float density = getResources().getDisplayMetrics().density * widgetScale;
                     // Chạm vào thanh header hoặc khi đang thu gọn -> chuyển đổi thu gọn / mở rộng
                     if (isCollapsed || touchY <= 32f * density) {
                         toggleCollapsed();
                     }
                 }
+                isScaling = false;
+                hadMultiTouch = false;
                 return true;
         }
         return super.onTouchEvent(event);
@@ -283,7 +381,7 @@ public class AccuracyEloWidgetView extends View {
         if (w <= 0 || h <= 0) return;
 
         Context ctx = getContext();
-        float density = getResources().getDisplayMetrics().density;
+        float density = getResources().getDisplayMetrics().density * widgetScale;
         float radius = 15f * density;
 
         // 1. Nền tổng thể Cyber Glass
