@@ -209,6 +209,8 @@ public class I18n {
                 return isVi ? "Dải màu quang phổ (Kéo để chỉnh)" : "Color Spectrum (Drag to tune)";
             case "color_swatches_title":
                 return isVi ? "Bảng màu tuyển chọn (48 màu)" : "Curated Swatches (48 Colors)";
+            case "quick_colors":
+                return isVi ? "Màu phổ biến" : "Popular Colors";
             case "btn_reset_default":
                 return isVi ? "Mặc định" : "Default";
             case "btn_done":
