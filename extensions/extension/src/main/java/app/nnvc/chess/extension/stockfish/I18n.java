@@ -185,6 +185,34 @@ public class I18n {
                 return isVi ? "Nước 5" : "Move 5";
             case "choose_color":
                 return isVi ? "Chọn màu" : "Pick Color";
+            case "arrow_theme_title":
+                return isVi ? "Chủ đề màu mũi tên" : "Arrow Color Themes";
+            case "arrow_theme_hint":
+                return isVi ? "Chạm để áp dụng ngay bảng màu thiết kế sẵn cho cả 5 mũi tên." : "Tap to apply a pre-designed color theme to all 5 candidate arrows.";
+            case "theme_cyber":
+                return isVi ? "🌟 Cyber Neon" : "🌟 Cyber Neon";
+            case "theme_classic":
+                return isVi ? "♟️ Cổ điển" : "♟️ Classic";
+            case "theme_synthwave":
+                return isVi ? "🌌 Synthwave" : "🌌 Synthwave";
+            case "theme_fire":
+                return isVi ? "🔥 Rực lửa" : "🔥 Fire Magma";
+            case "theme_ice":
+                return isVi ? "❄️ Băng giá" : "❄️ Ice Frost";
+            case "theme_emerald":
+                return isVi ? "🌿 Lục bảo" : "🌿 Emerald";
+            case "toast_theme_applied":
+                return isVi ? "🎨 Đã đổi chủ đề màu mũi tên!" : "🎨 Arrow color theme applied!";
+            case "color_preview":
+                return isVi ? "Xem trước trên bàn cờ" : "Live Board Preview";
+            case "color_hue":
+                return isVi ? "Dải màu quang phổ (Kéo để chỉnh)" : "Color Spectrum (Drag to tune)";
+            case "color_swatches_title":
+                return isVi ? "Bảng màu tuyển chọn (48 màu)" : "Curated Swatches (48 Colors)";
+            case "btn_reset_default":
+                return isVi ? "Mặc định" : "Default";
+            case "btn_done":
+                return isVi ? "Xong" : "Done";
             case "engine_choice":
                 return isVi ? "Chọn Engine" : "Engine";
             case "engine_choice_hint":

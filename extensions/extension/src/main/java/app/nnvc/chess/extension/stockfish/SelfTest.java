@@ -2547,6 +2547,17 @@ public class SelfTest {
         StockfishExtension.resetEmptyBoardRecovery();
         check("StockfishExtension resetEmptyBoardRecovery runs safely", true);
 
+        // 10. Arrow Color Palette & Theme Presets
+        check("StockfishSettings THEME_PRESET_KEYS has 6 themes", StockfishSettings.THEME_PRESET_KEYS.length == 6);
+        check("StockfishSettings THEME_PRESET_COLORS has 6 themes", StockfishSettings.THEME_PRESET_COLORS.length == 6);
+        boolean all5 = true;
+        for (int[] colors : StockfishSettings.THEME_PRESET_COLORS) {
+            if (colors.length != 5) all5 = false;
+        }
+        check("Each preset has exactly 5 tier colors", all5);
+        check("DEFAULT_TIER_COLORS has 5 tier colors", StockfishSettings.DEFAULT_TIER_COLORS.length == 5);
+        check("I18n translations for arrow themes exist", I18n.get(null, "arrow_theme_title") != null && I18n.get(null, "theme_cyber") != null);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

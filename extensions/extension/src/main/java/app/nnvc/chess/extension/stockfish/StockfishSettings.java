@@ -265,6 +265,33 @@ public class StockfishSettings {
         getPrefs(context).edit().putInt(KEY_ARROW_COLOR_PREFIX + t, color).apply();
     }
 
+    public static final String[] THEME_PRESET_KEYS = {
+        "theme_cyber", "theme_classic", "theme_synthwave", "theme_fire", "theme_ice", "theme_emerald"
+    };
+
+    public static final int[][] THEME_PRESET_COLORS = {
+        // 1. Cyber Neon (Gold, Sky Blue, Cool Silver, Lavender, Mint Emerald)
+        { 0xFFF0B84B, 0xFF58B8FF, 0xFFD9DDE6, 0xFFC084FC, 0xFF34D399 },
+        // 2. Chess.com Classic (Emerald Green, Royal Blue, Amber Orange, Gold Yellow, Coral Red)
+        { 0xFF769656, 0xFF4A90E2, 0xFFE67E22, 0xFFF1C40F, 0xFFE74C3C },
+        // 3. Synthwave Cyberpunk (Neon Fuchsia, Electric Cyan, Neon Violet, Sunset Orange, Pure White)
+        { 0xFFFF1493, 0xFF00E5FF, 0xFF9933FF, 0xFFFF7043, 0xFFFFFFFF },
+        // 4. Fire & Magma (Crimson Flame, Tangerine, Bright Gold, Amber Glow, Ash Gray)
+        { 0xFFFF1744, 0xFFFF6D00, 0xFFFFD600, 0xFFFFAB00, 0xFFB0BEC5 },
+        // 5. Ice & Frost (Glacier Cyan, Deep Azure, Aqua Breeze, Ice Blue, Snow White)
+        { 0xFF00E5FF, 0xFF2979FF, 0xFF84FFFF, 0xFF00B0FF, 0xFFFFFFFF },
+        // 6. Emerald Forest (Deep Jade, Vivid Mint, Electric Lime, Forest Green, Golden Ochre)
+        { 0xFF00C853, 0xFF00E676, 0xFF76FF03, 0xFF1DE9B6, 0xFFFFD700 }
+    };
+
+    public static void applyArrowThemePreset(Context context, int presetIndex) {
+        if (context == null || presetIndex < 0 || presetIndex >= THEME_PRESET_COLORS.length) return;
+        int[] colors = THEME_PRESET_COLORS[presetIndex];
+        for (int i = 0; i < 5; i++) {
+            setArrowTierColor(context, i + 1, colors[i]);
+        }
+    }
+
     private static final String KEY_SHOW_EVAL_BAR = "show_eval_bar";
 
     public static boolean isEvalBarEnabled(Context context) {

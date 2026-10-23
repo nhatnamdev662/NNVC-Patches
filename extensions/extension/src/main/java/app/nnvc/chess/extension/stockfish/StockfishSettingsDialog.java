@@ -4,7 +4,10 @@ import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.res.ColorStateList;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -1597,13 +1600,117 @@ public class StockfishSettingsDialog {
     }
 
     private static void addArrowPaletteSection(LinearLayout layout, float density, Activity activity) {
-        // Title Row
+        // ── 1. THEME PRESETS ──
+        TextView themeTitleTv = new TextView(activity);
+        themeTitleTv.setText(I18n.get(activity, "arrow_theme_title"));
+        themeTitleTv.setTextColor(COLOR_TEXT_PRIMARY);
+        themeTitleTv.setTextSize(13.5f);
+        themeTitleTv.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        themeTitleTv.setPadding((int) (4 * density), (int) (2 * density), (int) (4 * density), (int) (2 * density));
+        layout.addView(themeTitleTv);
+
+        TextView themeHintTv = new TextView(activity);
+        themeHintTv.setText(I18n.get(activity, "arrow_theme_hint"));
+        themeHintTv.setTextColor(COLOR_TEXT_MUTED);
+        themeHintTv.setTextSize(10.5f);
+        themeHintTv.setPadding((int) (4 * density), 0, (int) (4 * density), (int) (8 * density));
+        layout.addView(themeHintTv);
+
+        // Horizontal Scrollable Presets
+        HorizontalScrollView hsv = new HorizontalScrollView(activity);
+        hsv.setHorizontalScrollBarEnabled(false);
+        LinearLayout presetsLayout = new LinearLayout(activity);
+        presetsLayout.setOrientation(LinearLayout.HORIZONTAL);
+        presetsLayout.setPadding((int) (2 * density), (int) (2 * density), (int) (2 * density), (int) (8 * density));
+
+        final View[] colorBoxes = new View[5];
+        final GradientDrawable[] boxBgs = new GradientDrawable[5];
+        final TextView[] hexLabels = new TextView[5];
+
+        for (int p = 0; p < StockfishSettings.THEME_PRESET_KEYS.length; p++) {
+            final int presetIdx = p;
+            final int[] presetColors = StockfishSettings.THEME_PRESET_COLORS[presetIdx];
+
+            LinearLayout pill = new LinearLayout(activity);
+            pill.setOrientation(LinearLayout.VERTICAL);
+            pill.setGravity(Gravity.CENTER);
+            pill.setPadding((int) (12 * density), (int) (8 * density), (int) (12 * density), (int) (8 * density));
+
+            GradientDrawable pillBg = new GradientDrawable();
+            pillBg.setColor(0x331C2438);
+            pillBg.setCornerRadius(12 * density);
+            pillBg.setStroke((int) (1.2f * density), 0x330A84FF);
+            pill.setBackground(pillBg);
+
+            LinearLayout.LayoutParams pillLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            pillLp.setMargins(0, 0, (int) (8 * density), 0);
+            pill.setLayoutParams(pillLp);
+
+            TextView pName = new TextView(activity);
+            pName.setText(I18n.get(activity, StockfishSettings.THEME_PRESET_KEYS[presetIdx]));
+            pName.setTextColor(COLOR_TEXT_PRIMARY);
+            pName.setTextSize(11.5f);
+            pName.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+            pName.setGravity(Gravity.CENTER);
+            pill.addView(pName);
+
+            // Row of 5 mini color dots
+            LinearLayout dotsRow = new LinearLayout(activity);
+            dotsRow.setOrientation(LinearLayout.HORIZONTAL);
+            dotsRow.setGravity(Gravity.CENTER);
+            dotsRow.setPadding(0, (int) (6 * density), 0, 0);
+
+            for (int c : presetColors) {
+                View dot = new View(activity);
+                int dotSize = (int) (10 * density);
+                LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dotSize, dotSize);
+                dotLp.setMargins((int) (2 * density), 0, (int) (2 * density), 0);
+                dot.setLayoutParams(dotLp);
+
+                GradientDrawable dotBg = new GradientDrawable();
+                dotBg.setColor(c);
+                dotBg.setCornerRadius(999 * density);
+                dotBg.setStroke((int) (0.8f * density), 0x55FFFFFF);
+                dot.setBackground(dotBg);
+                dotsRow.addView(dot);
+            }
+            pill.addView(dotsRow);
+
+            pill.setOnClickListener(v -> {
+                HapticHelper.pop(activity, v);
+                StockfishSettings.applyArrowThemePreset(activity, presetIdx);
+                for (int t = 1; t <= 5; t++) {
+                    int c = StockfishSettings.getArrowTierColor(activity, t);
+                    if (boxBgs[t - 1] != null) boxBgs[t - 1].setColor(c);
+                    if (colorBoxes[t - 1] != null) colorBoxes[t - 1].invalidate();
+                    if (hexLabels[t - 1] != null) hexLabels[t - 1].setText(String.format("#%06X", (0xFFFFFF & c)));
+                }
+                StockfishExtension.resetArrowSignature();
+                OverlayManager.invalidateArrowOverlay();
+                StockfishExtension.invalidateAllBoards();
+                StockfishExtension.triggerPlayAnalysisOnly();
+                try {
+                    Toast.makeText(activity, I18n.get(activity, "toast_theme_applied"), Toast.LENGTH_SHORT).show();
+                } catch (Throwable ignored) {}
+            });
+
+            presetsLayout.addView(pill);
+        }
+        hsv.addView(presetsLayout);
+        layout.addView(hsv);
+
+        addCardSeparator(layout, density);
+
+        // ── 2. INDIVIDUAL TIERS ──
         TextView titleTv = new TextView(activity);
         titleTv.setText(I18n.get(activity, "arrow_palette_title"));
         titleTv.setTextColor(COLOR_TEXT_PRIMARY);
         titleTv.setTextSize(13.5f);
         titleTv.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        titleTv.setPadding((int) (4 * density), (int) (2 * density), (int) (4 * density), (int) (2 * density));
+        titleTv.setPadding((int) (4 * density), (int) (6 * density), (int) (4 * density), (int) (2 * density));
         layout.addView(titleTv);
 
         TextView hintTv = new TextView(activity);
@@ -1613,7 +1720,6 @@ public class StockfishSettingsDialog {
         hintTv.setPadding((int) (4 * density), 0, (int) (4 * density), (int) (8 * density));
         layout.addView(hintTv);
 
-        // 5 Tiers Color Rows
         for (int t = 1; t <= 5; t++) {
             final int tier = t;
             final int currentColor = StockfishSettings.getArrowTierColor(activity, tier);
@@ -1632,6 +1738,21 @@ public class StockfishSettingsDialog {
             tierLabel.setLayoutParams(lpText);
             row.addView(tierLabel);
 
+            // Hex Code Label
+            final TextView hexTv = new TextView(activity);
+            hexTv.setText(String.format("#%06X", (0xFFFFFF & currentColor)));
+            hexTv.setTextColor(COLOR_TEXT_MUTED);
+            hexTv.setTextSize(10.5f);
+            hexTv.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
+            LinearLayout.LayoutParams hexLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            hexLp.setMargins(0, 0, (int) (10 * density), 0);
+            hexTv.setLayoutParams(hexLp);
+            row.addView(hexTv);
+            hexLabels[t - 1] = hexTv;
+
             // Cyber Color Swatch Box
             final View colorBox = new View(activity);
             int boxSize = (int) (28 * density);
@@ -1645,10 +1766,13 @@ public class StockfishSettingsDialog {
             colorBox.setBackground(boxBg);
             row.addView(colorBox);
 
+            colorBoxes[t - 1] = colorBox;
+            boxBgs[t - 1] = boxBg;
+
             row.setClickable(true);
             row.setOnClickListener(v -> {
                 HapticHelper.pop(activity, v);
-                showColorPickerDialog(activity, tier, colorBox, boxBg, density);
+                showColorPickerDialog(activity, tier, colorBox, boxBg, hexTv, density);
             });
 
             layout.addView(row);
@@ -1658,68 +1782,272 @@ public class StockfishSettingsDialog {
         }
     }
 
-    private static void showColorPickerDialog(Activity activity, int tier, View colorBox, GradientDrawable boxBg, float density) {
+    private static void showColorPickerDialog(final Activity activity, final int tier, final View colorBox, final GradientDrawable boxBg, final TextView hexLabel, final float density) {
         final Dialog pickerDialog = new Dialog(activity);
         pickerDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
 
+        final int initialColor = StockfishSettings.getArrowTierColor(activity, tier);
+        final int[] curSelectedColor = new int[]{ initialColor };
+
         final GradientDrawable bg = new GradientDrawable();
         bg.setColor(COLOR_BG_PANEL);
-        bg.setCornerRadius(18 * density);
-        bg.setStroke((int) (1.2f * density), COLOR_ACCENT_BLUE);
-        pickerDialog.getWindow().setBackgroundDrawable(bg);
+        bg.setCornerRadius(20 * density);
+        bg.setStroke((int) (1.5f * density), COLOR_ACCENT_BLUE);
+        if (pickerDialog.getWindow() != null) {
+            pickerDialog.getWindow().setBackgroundDrawable(bg);
+        }
+
+        ScrollView scroll = new ScrollView(activity);
+        scroll.setVerticalScrollBarEnabled(false);
 
         LinearLayout root = new LinearLayout(activity);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding((int) (18 * density), (int) (16 * density), (int) (18 * density), (int) (16 * density));
+        root.setPadding((int) (16 * density), (int) (14 * density), (int) (16 * density), (int) (14 * density));
+        scroll.addView(root);
+
+        // Header Row: Title + Close Button
+        LinearLayout headerRow = new LinearLayout(activity);
+        headerRow.setOrientation(LinearLayout.HORIZONTAL);
+        headerRow.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = new TextView(activity);
-        title.setText(I18n.get(activity, "choose_color") + " - " + I18n.get(activity, "tier_" + tier));
+        title.setText(I18n.get(activity, "choose_color") + " • " + I18n.get(activity, "tier_" + tier));
         title.setTextColor(COLOR_TEXT_PRIMARY);
-        title.setTextSize(14.5f);
+        title.setTextSize(14f);
         title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        title.setGravity(Gravity.CENTER);
-        root.addView(title);
+        LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+        title.setLayoutParams(tLp);
+        headerRow.addView(title);
 
-        addDialogSpacer(root, 14, density);
+        TextView closeBtn = new TextView(activity);
+        closeBtn.setText("✕");
+        closeBtn.setTextColor(COLOR_TEXT_MUTED);
+        closeBtn.setTextSize(14f);
+        closeBtn.setGravity(Gravity.CENTER);
+        int pad = (int) (6 * density);
+        closeBtn.setPadding(pad, pad, pad, pad);
+        closeBtn.setOnClickListener(v -> pickerDialog.dismiss());
+        headerRow.addView(closeBtn);
 
-        // Predefined Cyber Palette Swatches
-        final int[][] presetColors = {
-                {0xFFF0B84B, 0xFFFFB300, 0xFFFF7043, 0xFFFF5252}, // Warm: Gold, Amber, Orange, Coral
-                {0xFF58B8FF, 0xFF00E5FF, 0xFF2979FF, 0xFF00B0FF}, // Cyber Blue & Cyan
-                {0xFF34D399, 0xFF00E676, 0xFF76FF03, 0xFF1DE9B6}, // Neon Green & Mint
-                {0xFFC084FC, 0xFFE040FB, 0xFFFF4081, 0xFFD500F9}, // Cyber Purple & Magenta
-                {0xFFD9DDE6, 0xFFB0BEC5, 0xFFECEFF1, 0xFFFFFFFF}  // Silver & Platinum White
+        root.addView(headerRow);
+        addDialogSpacer(root, 10, density);
+
+        // Live Arrow Preview Card
+        final LinearLayout previewCard = new LinearLayout(activity);
+        previewCard.setOrientation(LinearLayout.HORIZONTAL);
+        previewCard.setGravity(Gravity.CENTER_VERTICAL);
+        previewCard.setPadding((int) (14 * density), (int) (10 * density), (int) (14 * density), (int) (10 * density));
+
+        GradientDrawable previewCardBg = new GradientDrawable();
+        previewCardBg.setColor(0xCC111724);
+        previewCardBg.setCornerRadius(14 * density);
+        previewCardBg.setStroke((int) (1.2f * density), 0x440A84FF);
+        previewCard.setBackground(previewCardBg);
+
+        // Custom View that renders the realistic arrow
+        final Paint arrowShaftPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        final Paint arrowHeadPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        final Paint arrowGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        final Path arrowHeadPath = new Path();
+
+        final View arrowPreviewView = new View(activity) {
+            @Override
+            protected void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+                int w = getWidth();
+                int h = getHeight();
+                if (w <= 0 || h <= 0) return;
+
+                int color = curSelectedColor[0];
+                int glowColor = (color & 0x00FFFFFF) | 0x44000000;
+
+                // Shaft
+                float startX = 14 * density;
+                float startY = h / 2.0f;
+                float endX = w - (24 * density);
+                float endY = startY;
+
+                // Glow
+                arrowGlowPaint.setColor(glowColor);
+                arrowGlowPaint.setStyle(Paint.Style.STROKE);
+                arrowGlowPaint.setStrokeWidth(12 * density);
+                arrowGlowPaint.setStrokeCap(Paint.Cap.ROUND);
+                canvas.drawLine(startX, startY, endX, endY, arrowGlowPaint);
+
+                // Solid Shaft
+                arrowShaftPaint.setColor(color);
+                arrowShaftPaint.setStyle(Paint.Style.STROKE);
+                arrowShaftPaint.setStrokeWidth(6.5f * density);
+                arrowShaftPaint.setStrokeCap(Paint.Cap.ROUND);
+                canvas.drawLine(startX, startY, endX, endY, arrowShaftPaint);
+
+                // Triangular Arrow Head
+                arrowHeadPath.reset();
+                float tipX = w - (10 * density);
+                float tipY = startY;
+                float headBaseX = endX - (2 * density);
+                float headHalfH = 8.5f * density;
+
+                arrowHeadPath.moveTo(tipX, tipY);
+                arrowHeadPath.lineTo(headBaseX, startY - headHalfH);
+                arrowHeadPath.lineTo(headBaseX + (2 * density), startY);
+                arrowHeadPath.lineTo(headBaseX, startY + headHalfH);
+                arrowHeadPath.close();
+
+                arrowHeadPaint.setColor(color);
+                arrowHeadPaint.setStyle(Paint.Style.FILL);
+                canvas.drawPath(arrowHeadPath, arrowHeadPaint);
+            }
         };
+        LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams((int) (100 * density), (int) (38 * density));
+        arrowPreviewView.setLayoutParams(arrowLp);
+        previewCard.addView(arrowPreviewView);
 
-        for (int[] rowColors : presetColors) {
-            LinearLayout row = new LinearLayout(activity);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER);
-            row.setPadding(0, (int) (4 * density), 0, (int) (4 * density));
+        // Info Column inside Preview Card
+        LinearLayout previewInfoCol = new LinearLayout(activity);
+        previewInfoCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams infoColLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+        infoColLp.leftMargin = (int) (12 * density);
+        previewInfoCol.setLayoutParams(infoColLp);
 
-            for (final int c : rowColors) {
-                View swatch = new View(activity);
-                int size = (int) (36 * density);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-                lp.setMargins((int) (5 * density), 0, (int) (5 * density), 0);
-                swatch.setLayoutParams(lp);
+        TextView previewLabel = new TextView(activity);
+        previewLabel.setText(I18n.get(activity, "color_preview"));
+        previewLabel.setTextColor(COLOR_TEXT_SECONDARY);
+        previewLabel.setTextSize(10.5f);
+        previewInfoCol.addView(previewLabel);
 
-                GradientDrawable sBg = new GradientDrawable();
-                sBg.setColor(c);
-                sBg.setCornerRadius(999 * density);
-                sBg.setStroke((int) (1.2f * density), 0x55FFFFFF);
-                swatch.setBackground(sBg);
+        final TextView previewHexTv = new TextView(activity);
+        previewHexTv.setText(String.format("#%06X", (0xFFFFFF & initialColor)));
+        previewHexTv.setTextColor(COLOR_TEXT_PRIMARY);
+        previewHexTv.setTextSize(13f);
+        previewHexTv.setTypeface(Typeface.create("monospace", Typeface.BOLD));
+        previewInfoCol.addView(previewHexTv);
 
-                swatch.setOnClickListener(v -> {
-                    HapticHelper.pop(activity, v);
-                    StockfishSettings.setArrowTierColor(activity, tier, c);
-                    boxBg.setColor(c);
+        previewCard.addView(previewInfoCol);
+        root.addView(previewCard);
+
+        addDialogSpacer(root, 12, density);
+
+        // ── 3. SPECTRUM HUE SLIDER ──
+        TextView hueTitle = new TextView(activity);
+        hueTitle.setText(I18n.get(activity, "color_hue"));
+        hueTitle.setTextColor(COLOR_TEXT_MUTED);
+        hueTitle.setTextSize(10.5f);
+        hueTitle.setPadding((int) (4 * density), 0, (int) (4 * density), (int) (4 * density));
+        root.addView(hueTitle);
+
+        final SeekBar hueSlider = new SeekBar(activity);
+        hueSlider.setMax(360);
+
+        // Rainbow Spectrum Drawable
+        GradientDrawable hueGradient = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{
+                        0xFFFF0000, 0xFFFFFF00, 0xFF00FF00,
+                        0xFF00FFFF, 0xFF0000FF, 0xFFFF00FF, 0xFFFF0000
+                }
+        );
+        hueGradient.setCornerRadius(8 * density);
+        hueGradient.setStroke((int) (1 * density), 0x33FFFFFF);
+        hueSlider.setProgressDrawable(hueGradient);
+
+        // Compute initial hue from current color
+        float[] initialHsv = new float[3];
+        Color.colorToHSV(initialColor, initialHsv);
+        hueSlider.setProgress((int) initialHsv[0]);
+
+        hueSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    float[] hsv = new float[]{ progress, 0.88f, 0.98f };
+                    int color = Color.HSVToColor(hsv);
+                    curSelectedColor[0] = color;
+                    previewHexTv.setText(String.format("#%06X", (0xFFFFFF & color)));
+                    arrowPreviewView.invalidate();
+
+                    // Apply in real-time
+                    StockfishSettings.setArrowTierColor(activity, tier, color);
+                    boxBg.setColor(color);
                     colorBox.invalidate();
+                    if (hexLabel != null) hexLabel.setText(String.format("#%06X", (0xFFFFFF & color)));
                     StockfishExtension.resetArrowSignature();
                     OverlayManager.invalidateArrowOverlay();
                     StockfishExtension.invalidateAllBoards();
                     StockfishExtension.triggerPlayAnalysisOnly();
-                    pickerDialog.dismiss();
+                }
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                HapticHelper.pop(activity, seekBar);
+            }
+        });
+        root.addView(hueSlider);
+
+        addDialogSpacer(root, 12, density);
+
+        // ── 4. CURATED COLOR SWATCHES (48 COLORS IN 6 ROWS) ──
+        TextView swatchesTitle = new TextView(activity);
+        swatchesTitle.setText(I18n.get(activity, "color_swatches_title"));
+        swatchesTitle.setTextColor(COLOR_TEXT_MUTED);
+        swatchesTitle.setTextSize(10.5f);
+        swatchesTitle.setPadding((int) (4 * density), 0, (int) (4 * density), (int) (6 * density));
+        root.addView(swatchesTitle);
+
+        final int[][] palette48 = {
+                // Row 1: Warm Gold, Canary, Sunburst & Amber
+                {0xFFFFF59D, 0xFFFFF176, 0xFFFFEE58, 0xFFFFEB3B, 0xFFFDD835, 0xFFFBC02D, 0xFFF0B84B, 0xFFFFB300},
+                // Row 2: Flame Orange, Tangerine, Coral & Persimmon
+                {0xFFFFE082, 0xFFFFD54F, 0xFFFFCA28, 0xFFFFC107, 0xFFFFA000, 0xFFFF8F00, 0xFFFF6D00, 0xFFFF5722},
+                // Row 3: Neon Green, Vivid Lime, Mint & Emerald
+                {0xFFB9F6CA, 0xFF69F0AE, 0xFF00E676, 0xFF34D399, 0xFF00C853, 0xFF1DE9B6, 0xFF00BFA5, 0xFF76FF03},
+                // Row 4: Glacier Cyan, Aqua, Sky & Royal Electric Blue
+                {0xFF84FFFF, 0xFF18FFFF, 0xFF00E5FF, 0xFF00B0FF, 0xFF40C4FF, 0xFF58B8FF, 0xFF2979FF, 0xFF3D5AFE},
+                // Row 5: Cyber Orchid, Neon Purple, Fuchsia & Hot Pink
+                {0xFFEA80FC, 0xFFE040FB, 0xFFD500F9, 0xFFAA00FF, 0xFFC084FC, 0xFFFF4081, 0xFFFF1744, 0xFFF50057},
+                // Row 6: Platinum White, Silver, Cool Gray & Crimson Ruby
+                {0xFFFFFFFF, 0xFFECEFF1, 0xFFCFD8DC, 0xFF90A4AE, 0xFFFF8A80, 0xFFFF5252, 0xFFD50000, 0xFFB71C1C}
+        };
+
+        for (int[] rowColors : palette48) {
+            LinearLayout row = new LinearLayout(activity);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER);
+            row.setPadding(0, (int) (3 * density), 0, (int) (3 * density));
+
+            for (final int c : rowColors) {
+                View swatch = new View(activity);
+                int size = (int) (30 * density);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+                lp.setMargins((int) (3 * density), 0, (int) (3 * density), 0);
+                swatch.setLayoutParams(lp);
+
+                GradientDrawable sBg = new GradientDrawable();
+                sBg.setColor(c);
+                sBg.setCornerRadius(8 * density);
+                sBg.setStroke((int) (1.2f * density), 0x44FFFFFF);
+                swatch.setBackground(sBg);
+
+                swatch.setOnClickListener(v -> {
+                    HapticHelper.pop(activity, v);
+                    curSelectedColor[0] = c;
+                    previewHexTv.setText(String.format("#%06X", (0xFFFFFF & c)));
+                    arrowPreviewView.invalidate();
+
+                    float[] hsv = new float[3];
+                    Color.colorToHSV(c, hsv);
+                    hueSlider.setProgress((int) hsv[0]);
+
+                    StockfishSettings.setArrowTierColor(activity, tier, c);
+                    boxBg.setColor(c);
+                    colorBox.invalidate();
+                    if (hexLabel != null) hexLabel.setText(String.format("#%06X", (0xFFFFFF & c)));
+                    StockfishExtension.resetArrowSignature();
+                    OverlayManager.invalidateArrowOverlay();
+                    StockfishExtension.invalidateAllBoards();
+                    StockfishExtension.triggerPlayAnalysisOnly();
                 });
 
                 row.addView(swatch);
@@ -1727,18 +2055,69 @@ public class StockfishSettingsDialog {
             root.addView(row);
         }
 
-        addDialogSpacer(root, 10, density);
+        addDialogSpacer(root, 14, density);
 
-        TextView cancelBtn = new TextView(activity);
-        cancelBtn.setText(I18n.get(activity, "cancel"));
-        cancelBtn.setTextColor(COLOR_TEXT_MUTED);
-        cancelBtn.setTextSize(13);
-        cancelBtn.setGravity(Gravity.CENTER);
-        cancelBtn.setPadding(0, (int) (8 * density), 0, (int) (8 * density));
-        cancelBtn.setOnClickListener(v -> pickerDialog.dismiss());
-        root.addView(cancelBtn);
+        // ── 5. FOOTER BUTTONS ──
+        LinearLayout footerRow = new LinearLayout(activity);
+        footerRow.setOrientation(LinearLayout.HORIZONTAL);
+        footerRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        pickerDialog.setContentView(root);
+        // Reset to Default Button
+        TextView resetBtn = new TextView(activity);
+        resetBtn.setText(I18n.get(activity, "btn_reset_default"));
+        resetBtn.setTextColor(COLOR_TEXT_MUTED);
+        resetBtn.setTextSize(12f);
+        resetBtn.setPadding((int) (12 * density), (int) (8 * density), (int) (12 * density), (int) (8 * density));
+        resetBtn.setOnClickListener(v -> {
+            HapticHelper.pop(activity, v);
+            int defColor = StockfishSettings.DEFAULT_TIER_COLORS[Math.max(1, Math.min(5, tier)) - 1];
+            curSelectedColor[0] = defColor;
+            previewHexTv.setText(String.format("#%06X", (0xFFFFFF & defColor)));
+            arrowPreviewView.invalidate();
+
+            float[] hsv = new float[3];
+            Color.colorToHSV(defColor, hsv);
+            hueSlider.setProgress((int) hsv[0]);
+
+            StockfishSettings.setArrowTierColor(activity, tier, defColor);
+            boxBg.setColor(defColor);
+            colorBox.invalidate();
+            if (hexLabel != null) hexLabel.setText(String.format("#%06X", (0xFFFFFF & defColor)));
+            StockfishExtension.resetArrowSignature();
+            OverlayManager.invalidateArrowOverlay();
+            StockfishExtension.invalidateAllBoards();
+            StockfishExtension.triggerPlayAnalysisOnly();
+        });
+        footerRow.addView(resetBtn);
+
+        // Spacer
+        View fSpacer = new View(activity);
+        LinearLayout.LayoutParams fsLp = new LinearLayout.LayoutParams(0, 1, 1.0f);
+        fSpacer.setLayoutParams(fsLp);
+        footerRow.addView(fSpacer);
+
+        // Done Button
+        TextView doneBtn = new TextView(activity);
+        doneBtn.setText(I18n.get(activity, "btn_done"));
+        doneBtn.setTextColor(0xFFFFFFFF);
+        doneBtn.setTextSize(13f);
+        doneBtn.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        doneBtn.setPadding((int) (20 * density), (int) (8 * density), (int) (20 * density), (int) (8 * density));
+
+        GradientDrawable doneBg = new GradientDrawable();
+        doneBg.setColor(COLOR_ACCENT_BLUE);
+        doneBg.setCornerRadius(10 * density);
+        doneBtn.setBackground(doneBg);
+
+        doneBtn.setOnClickListener(v -> {
+            HapticHelper.pop(activity, v);
+            pickerDialog.dismiss();
+        });
+        footerRow.addView(doneBtn);
+
+        root.addView(footerRow);
+
+        pickerDialog.setContentView(scroll);
         pickerDialog.show();
     }
 
