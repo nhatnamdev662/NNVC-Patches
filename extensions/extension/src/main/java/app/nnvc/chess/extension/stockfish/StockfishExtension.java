@@ -531,6 +531,7 @@ public class StockfishExtension {
 
         Log.d(TAG, "Position changed → FEN: " + fen);
         currentBoardFen = fen;
+        resetEmptyBoardRecovery();
         AutoMoveManager.cancelPendingAutoMove("onBoardChanged: position changed to " + fen);
         if (AutoFindManager.isSeeking()) {
             lastGameOverHandled = false;
@@ -1305,6 +1306,39 @@ public class StockfishExtension {
 
     private static volatile long lastMove0SmoothScanTime = 0L;
     private static volatile boolean isEvalBarEvaluatedForMove0 = false;
+    private static volatile long emptyBoardDetectedTimeMs = 0L;
+
+    public static void resetEmptyBoardRecovery() {
+        emptyBoardDetectedTimeMs = 0L;
+    }
+
+    private static void checkEmptyBoardRecovery(final Activity activity, final View boardView) {
+        if (activity == null || boardView == null || isGameOver(activity) || isReviewOrAnalysisActivity(activity)) {
+            emptyBoardDetectedTimeMs = 0L;
+            return;
+        }
+        long now = android.os.SystemClock.uptimeMillis();
+        if (emptyBoardDetectedTimeMs == 0L) {
+            emptyBoardDetectedTimeMs = now;
+            return;
+        }
+        // If board view is measured on screen but has had 0 pieces for over 4.5s (socket loss / hang)
+        if (now - emptyBoardDetectedTimeMs > 4500L) {
+            emptyBoardDetectedTimeMs = 0L;
+            Log.w(TAG, "[EMPTY BOARD RECOVERY] Bàn cờ rỗng không có quân quá 4.5s do kẹt socket mạng. Đang kích hoạt làm mới ván cờ...");
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        android.widget.Toast.makeText(activity, I18n.get(activity, "toast_empty_board_recovery"), android.widget.Toast.LENGTH_SHORT).show();
+                        activity.recreate();
+                    } catch (Throwable t) {
+                        Log.e(TAG, "Failed to recreate activity for empty board recovery: " + t.getMessage());
+                    }
+                }
+            });
+        }
+    }
 
     public static void checkAndTriggerMove0Watchdog(Activity activity) {
         if (activity == null || isReviewOrAnalysisActivity(activity) || isGameOver(activity)) return;
@@ -1318,26 +1352,21 @@ public class StockfishExtension {
         // 1. Geometry & Layout Check: Board MUST be physically measured and visible on screen
         // (Guards against early triggering during matchmaking spinner / 0x0 layout, preventing any flicker)
         OverlayManager.BoardMetrics bm = OverlayManager.getBoardMetrics(decorView);
-        if (bm == null || bm.boardW <= 0 || bm.boardH <= 0) return;
+        if (bm == null || bm.boardW <= 0 || bm.boardH <= 0) {
+            resetEmptyBoardRecovery();
+            return;
+        }
 
-        // 2. Extract position
+        // 2. Extract position: MUST come from active boardView directly to avoid stale position on empty board!
         Object pos = null;
         if (bm.boardView != null) {
             pos = extractPositionFromBoardView(bm.boardView);
         }
         if (pos == null) {
-            pos = extractPositionFromActivity(activity);
+            checkEmptyBoardRecovery(activity, bm.boardView);
+            return;
         }
-        if (pos == null) {
-            Object state = getStateImpl();
-            if (state != null) {
-                try {
-                    Method getPos = state.getClass().getMethod("getPosition");
-                    pos = getPos.invoke(state);
-                } catch (Throwable ignored) {}
-            }
-        }
-        if (pos == null) return;
+        resetEmptyBoardRecovery();
         String fen = extractFen(pos);
         if (fen == null) return;
 
@@ -1502,9 +1531,6 @@ public class StockfishExtension {
         Object pos = null;
         if (boardView != null) {
             pos = extractPositionFromBoardView(boardView);
-        }
-        if (pos == null) {
-            pos = extractPositionFromActivity(activity);
         }
         if (pos == null) return false;
 

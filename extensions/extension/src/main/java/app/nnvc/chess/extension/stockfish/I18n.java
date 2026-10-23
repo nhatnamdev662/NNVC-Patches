@@ -77,6 +77,8 @@ public class I18n {
                 return isVi ? "Tự động bắt đầu ván mới sau khi kết thúc" : "Automatically find a new match when game ends";
             case "toast_newgame":
                 return isVi ? "🎮 Đang tìm trận mới..." : "🎮 Finding new game...";
+            case "toast_empty_board_recovery":
+                return isVi ? "⚡ Đang làm mới bàn cờ do mất kết nối..." : "⚡ Refreshing board due to connection stall...";
             case "toast_cd_countdown":
                 return isVi ? "🎮 Tìm trận sau %ds... [Chạm để hủy]" : "🎮 New game in %ds... [Tap to cancel]";
             case "toast_cd_cancel":

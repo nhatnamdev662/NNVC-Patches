@@ -72,6 +72,17 @@ public class AutoFindManager {
     private static final int MAX_SEEK_RETRIES = 5;
     private static Runnable seekingWatchdogRunnable = null;
 
+    private static volatile int consecutiveMatchesCount = 0;
+    public static final int RECREATE_AFTER_MATCHES = 10;
+
+    public static int getConsecutiveMatchesCount() {
+        return consecutiveMatchesCount;
+    }
+
+    public static void resetConsecutiveMatchesCount() {
+        consecutiveMatchesCount = 0;
+    }
+
     private static synchronized Handler getMainHandler() {
         if (mainHandler == null) {
             mainHandler = new Handler(Looper.getMainLooper());
@@ -191,6 +202,13 @@ public class AutoFindManager {
         } else {
             cancelCelebrationReinflation(activity);
         }
+
+        // Lightweight background GC after match ends to keep heap clean across long AFK runs
+        new Thread(() -> {
+            try {
+                System.gc();
+            } catch (Throwable ignored) {}
+        }).start();
 
         if (currentState == State.COUNTDOWN || currentState == State.SEEKING) {
             return; // Already in progress
@@ -353,6 +371,28 @@ public class AutoFindManager {
     }
 
     private static void triggerAutoFind(final Activity activity) {
+        consecutiveMatchesCount++;
+        if (consecutiveMatchesCount >= RECREATE_AFTER_MATCHES && activity != null && !activity.isFinishing()) {
+            consecutiveMatchesCount = 0;
+            NnvcLogger.i(TAG, "Đã chơi liên tiếp " + RECREATE_AFTER_MATCHES + " ván. Tái tạo Activity để giải phóng RAM & làm mới WebSocket socket.");
+            currentState = State.SEEKING;
+            seekStartTimeMs = android.os.SystemClock.uptimeMillis();
+            seekRetryCount = 0;
+            vibrate(activity, 25);
+            try {
+                Toast.makeText(activity, I18n.get(activity, "toast_newgame"), Toast.LENGTH_SHORT).show();
+            } catch (Throwable ignored) {}
+            activity.runOnUiThread(() -> {
+                try {
+                    activity.recreate();
+                } catch (Throwable t) {
+                    NnvcLogger.e(TAG, "Activity recreate failed: " + t.getMessage());
+                    executeTrigger(activity);
+                }
+            });
+            return;
+        }
+
         currentState = State.SEEKING;
         seekStartTimeMs = android.os.SystemClock.uptimeMillis();
         seekRetryCount = 0;

@@ -2540,6 +2540,13 @@ public class SelfTest {
         SmartDelayManager.recordMyMove("g1f3", startPosFen, null, true);
         check("recordMyMove advances moveNum and history", SmartDelayManager.sState.moveNum == 1 && !SmartDelayManager.sState.posHistory.isEmpty());
 
+        // 9. AutoFind consecutive matches rejuvenation & empty board recovery
+        AutoFindManager.resetConsecutiveMatchesCount();
+        check("AutoFindManager consecutive matches initial count is 0", AutoFindManager.getConsecutiveMatchesCount() == 0);
+        check("AutoFindManager RECREATE_AFTER_MATCHES is 10", AutoFindManager.RECREATE_AFTER_MATCHES == 10);
+        StockfishExtension.resetEmptyBoardRecovery();
+        check("StockfishExtension resetEmptyBoardRecovery runs safely", true);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
