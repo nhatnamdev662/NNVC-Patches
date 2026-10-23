@@ -1609,9 +1609,8 @@ public class StockfishExtension {
             OverlayManager.hideArrowOverlay();
             lastArrowSignature = null;
             OverlayManager.hideEvalBar();
-            OverlayManager.hideMateAnnouncement();
             OverlayManager.hideEngineInfo();
-            OverlayManager.hideAccuracyEloPills();
+            OverlayManager.hideAccuracyEloWidget();
             AutoMoveManager.cancelPendingAutoMove("Engine toggled off");
         } else {
             triggerAnalysisForCurrentState();

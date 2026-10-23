@@ -62,9 +62,6 @@ public class GestureInterceptor {
                 new GestureHandler(originalCallback, gestureDetector)
             );
             window.setCallback(proxyCallback);
-            
-            // Tour overlay disabled to prevent dimming or blocking matches
-            // StockfishTourOverlay.showTourIfNeeded(activity);
         } catch (Throwable t) {
             android.util.Log.e("NNVC", "registerGestureInterceptor failed: " + t.getMessage());
         }

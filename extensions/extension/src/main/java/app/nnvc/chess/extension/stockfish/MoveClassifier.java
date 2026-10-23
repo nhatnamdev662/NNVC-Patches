@@ -626,7 +626,7 @@ public class MoveClassifier {
                                 final int fWhiteElo = whiteElo;
                                 final int fBlackElo = blackElo;
                                 currentAct.runOnUiThread(() -> {
-                                    OverlayManager.updateAccuracyEloPills(fWhiteAcc, fBlackAcc, fWhiteElo, fBlackElo, finalUserIsWhite);
+                                    OverlayManager.updateAccuracyEloWidget(fWhiteAcc, fBlackAcc, fWhiteElo, fBlackElo, finalUserIsWhite);
                                 });
                             }
                         } catch (Throwable t) {

@@ -44,8 +44,6 @@ public class OverlayManager {
     private static java.lang.ref.WeakReference<EvalBarView> cachedEvalBarRef = null;
     private static java.lang.ref.WeakReference<TextView> cachedEngineInfoRef = null;
     private static java.lang.ref.WeakReference<AccuracyEloWidgetView> cachedWidgetRef = null;
-    private static java.lang.ref.WeakReference<View> cachedTopPillRef = null;
-    private static java.lang.ref.WeakReference<View> cachedBotPillRef = null;
 
     @SuppressWarnings("unchecked")
     private static <T extends View> T getOrFindTaggedView(ViewGroup decorView, String tag, java.lang.ref.WeakReference<T> ref) {
@@ -135,14 +133,6 @@ public class OverlayManager {
             View info = getOrFindTaggedView(decorView, "stockfish_engine_info", cachedEngineInfoRef);
             if (info != null) {
                 info.setElevation(10f);
-            }
-            View topPill = getOrFindTaggedView(decorView, "nnvc_accuracy_top_pill", cachedTopPillRef);
-            if (topPill != null) {
-                topPill.setElevation(15f);
-            }
-            View botPill = getOrFindTaggedView(decorView, "nnvc_accuracy_bot_pill", cachedBotPillRef);
-            if (botPill != null) {
-                botPill.setElevation(15f);
             }
             View widget = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
             if (widget != null) {
@@ -636,32 +626,9 @@ public class OverlayManager {
         });
     }
 
-    public static void showMateAnnouncement(final int mateIn) {
-        // Vô hiệu hóa vĩnh viễn theo yêu cầu người dùng
-        hideMateAnnouncement();
-    }
-
-    public static void hideMateAnnouncement() {
-        new Handler(Looper.getMainLooper()).post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Activity activity = StockfishExtension.getCurrentActivity();
-                    if (activity == null) return;
-                    Window window = activity.getWindow();
-                    if (window == null) return;
-                    View decorView = window.getDecorView();
-                    if (decorView == null) return;
-                    View v = decorView.findViewWithTag("stockfish_mate_banner");
-                    if (v != null) v.setVisibility(View.GONE);
-                } catch (Throwable t) {
-                    Log.e(TAG, "hideMateAnnouncement failed: " + t.getMessage());
-                }
-            }
-        });
-    }
-
     private static final java.util.Set<Integer> hookedBoardViews = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
+    public static void hideMateAnnouncement() {}
 
     public static void clearHookedBoardViews() {
         hookedBoardViews.clear();
@@ -671,8 +638,6 @@ public class OverlayManager {
         cachedEvalBarRef = null;
         cachedEngineInfoRef = null;
         cachedWidgetRef = null;
-        cachedTopPillRef = null;
-        cachedBotPillRef = null;
     }
 
     public static View findChessBoardView(View root) {
@@ -946,12 +911,6 @@ public class OverlayManager {
                         return;
                     }
 
-                    // Loại bỏ các view pill cũ nếu còn sót lại từ phiên bản trước
-                    View oldTop = getOrFindTaggedView(decorView, "nnvc_accuracy_top_pill", cachedTopPillRef);
-                    if (oldTop != null) decorView.removeView(oldTop);
-                    View oldBot = getOrFindTaggedView(decorView, "nnvc_accuracy_bot_pill", cachedBotPillRef);
-                    if (oldBot != null) decorView.removeView(oldBot);
-
                     View widgetView = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
                     AccuracyEloWidgetView widget;
                     boolean isNew = false;
@@ -1007,12 +966,6 @@ public class OverlayManager {
         });
     }
 
-    public static void updateAccuracyEloPills(final float whiteAcc, final float blackAcc,
-                                               final int whiteElo, final int blackElo,
-                                               final boolean userIsWhite) {
-        updateAccuracyEloWidget(whiteAcc, blackAcc, whiteElo, blackElo, userIsWhite);
-    }
-
     public static void hideAccuracyEloWidget() {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
@@ -1028,17 +981,9 @@ public class OverlayManager {
                     View widget = getOrFindTaggedView(decorView, "nnvc_accuracy_elo_widget", cachedWidgetRef);
                     if (widget != null) widget.setVisibility(View.GONE);
 
-                    View oldTop = getOrFindTaggedView(decorView, "nnvc_accuracy_top_pill", cachedTopPillRef);
-                    if (oldTop != null) oldTop.setVisibility(View.GONE);
-                    View oldBot = getOrFindTaggedView(decorView, "nnvc_accuracy_bot_pill", cachedBotPillRef);
-                    if (oldBot != null) oldBot.setVisibility(View.GONE);
                 } catch (Throwable ignored) {}
             }
         });
-    }
-
-    public static void hideAccuracyEloPills() {
-        hideAccuracyEloWidget();
     }
 
     public static void resetAccuracyEloWidget() {

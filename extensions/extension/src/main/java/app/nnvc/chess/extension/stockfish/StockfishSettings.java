@@ -302,16 +302,6 @@ public class StockfishSettings {
         getPrefs(context).edit().putBoolean(KEY_SHOW_EVAL_BAR, enabled).apply();
     }
 
-    private static final String KEY_WARNING_ACCEPTED = "warning_accepted";
-
-    public static boolean isWarningAccepted(Context context) {
-        return getPrefs(context).getBoolean(KEY_WARNING_ACCEPTED, false);
-    }
-
-    public static void setWarningAccepted(Context context, boolean accepted) {
-        getPrefs(context).edit().putBoolean(KEY_WARNING_ACCEPTED, accepted).apply();
-    }
-
     private static final String KEY_SHOW_THREAT_ARROWS = "show_threat_arrows";
     private static final String KEY_THREAT_MODE = "threat_mode";
     private static final String KEY_THREAT_DEPTH = "threat_depth";
@@ -472,24 +462,9 @@ public class StockfishSettings {
         getPrefs(context).edit().putFloat(KEY_ACCURACY_WIDGET_SCALE, clamped).apply();
     }
 
-    /** Restores every engine setting to its default (the tour flag is kept). */
+    /** Restores every engine setting to its default. */
     public static void resetToDefaults(Context context) {
-        boolean tour = isTourShown(context);
-        boolean warning = isWarningAccepted(context);
-        getPrefs(context).edit().clear()
-                .putBoolean(KEY_TOUR_SHOWN, tour)
-                .putBoolean(KEY_WARNING_ACCEPTED, warning)
-                .apply();
-    }
-
-    private static final String KEY_TOUR_SHOWN = "stockfish_tour_shown";
-
-    public static boolean isTourShown(Context context) {
-        return getPrefs(context).getBoolean(KEY_TOUR_SHOWN, false);
-    }
-
-    public static void setTourShown(Context context, boolean shown) {
-        getPrefs(context).edit().putBoolean(KEY_TOUR_SHOWN, shown).apply();
+        getPrefs(context).edit().clear().apply();
     }
 
     // ── Fake / Custom Title Settings ─────────────────────────────────────────
@@ -521,9 +496,8 @@ public class StockfishSettings {
         getPrefs(context).edit().putString(KEY_CUSTOM_TITLE_USER, username != null ? username.trim() : "").apply();
     }
 
-    // ── Update & Announcement Settings ───────────────────────────────────────
+    // ── Update Settings ─────────────────────────────────────────────────────
     private static final String KEY_LAST_UPDATE_CHECK_MS = "nnvc_last_update_check_ms";
-    private static final String KEY_DISMISSED_ANNOUNCEMENT_ID = "nnvc_dismissed_announcement_id";
 
     public static long getLastUpdateCheckTime(Context context) {
         return getPrefs(context).getLong(KEY_LAST_UPDATE_CHECK_MS, 0L);
@@ -531,14 +505,6 @@ public class StockfishSettings {
 
     public static void setLastUpdateCheckTime(Context context, long timeMs) {
         getPrefs(context).edit().putLong(KEY_LAST_UPDATE_CHECK_MS, timeMs).apply();
-    }
-
-    public static String getDismissedAnnouncementId(Context context) {
-        return getPrefs(context).getString(KEY_DISMISSED_ANNOUNCEMENT_ID, "");
-    }
-
-    public static void setDismissedAnnouncementId(Context context, String id) {
-        getPrefs(context).edit().putString(KEY_DISMISSED_ANNOUNCEMENT_ID, id != null ? id : "").apply();
     }
 
     // ── Chess.com Sound FX Settings (Brilliant Move Only) ──────────────────────
