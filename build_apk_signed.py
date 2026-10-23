@@ -75,6 +75,7 @@ def inject_patched_dex_if_needed(apk_path):
     import zipfile
     patched_dex5_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes5.dex")
     patched_dex8_clean_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes8_clean.dex")
+    patched_dex9_clean_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes9_clean.dex")
     ext_mpe_path = os.path.join(SCRIPT_DIR, "extensions", "extension.mpe")
 
     updates = {}
@@ -85,6 +86,10 @@ def inject_patched_dex_if_needed(apk_path):
     if os.path.exists(patched_dex8_clean_path):
         with open(patched_dex8_clean_path, "rb") as pf:
             updates["classes8.dex"] = pf.read()
+
+    if os.path.exists(patched_dex9_clean_path):
+        with open(patched_dex9_clean_path, "rb") as pf:
+            updates["classes9.dex"] = pf.read()
 
     if os.path.exists(ext_mpe_path):
         with open(ext_mpe_path, "rb") as pf:

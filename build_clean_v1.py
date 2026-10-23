@@ -26,6 +26,7 @@ ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 ORIG_APK = os.path.join(ROOT_DIR, "apk", "original", "chess_4.10.20.apk")
 PATCHED_C5 = os.path.join(SCRIPT_DIR, "patches", "patched_classes5.dex")
 PATCHED_C8 = os.path.join(SCRIPT_DIR, "patches", "patched_classes8_clean.dex")
+PATCHED_C9 = os.path.join(SCRIPT_DIR, "patches", "patched_classes9_clean.dex")
 EXT_MPE = os.path.join(SCRIPT_DIR, "extensions", "extension.mpe")
 KEYSTORE = os.path.join(SCRIPT_DIR, "nnvc-release.jks")
 
@@ -63,6 +64,7 @@ def main():
     assert os.path.exists(ORIG_APK), f"Original APK missing: {ORIG_APK}"
     assert os.path.exists(PATCHED_C5), f"Patched classes5.dex missing: {PATCHED_C5}"
     assert os.path.exists(PATCHED_C8), f"Patched classes8.dex missing: {PATCHED_C8}"
+    assert os.path.exists(PATCHED_C9), f"Patched classes9.dex missing: {PATCHED_C9}"
     assert os.path.exists(EXT_MPE), f"extension.mpe missing: {EXT_MPE}"
     assert os.path.exists(KEYSTORE), f"Keystore missing: {KEYSTORE}"
 
@@ -70,6 +72,8 @@ def main():
         c5_bytes = f.read()
     with open(PATCHED_C8, "rb") as f:
         c8_bytes = f.read()
+    with open(PATCHED_C9, "rb") as f:
+        c9_bytes = f.read()
     with open(EXT_MPE, "rb") as f:
         c12_bytes = f.read()
 
@@ -103,8 +107,11 @@ def main():
                     print("  Replacing classes5.dex with clean patched entrypoint...")
                     zout.writestr(item, c5_bytes)
                 elif fname == "classes8.dex":
-                    print("  Replacing classes8.dex with clean Ad-Free patched version...")
+                    print("  Replacing classes8.dex with clean Ad-Free & anti-logout patched version...")
                     zout.writestr(item, c8_bytes)
+                elif fname == "classes9.dex":
+                    print("  Replacing classes9.dex with clean Signup fix...")
+                    zout.writestr(item, c9_bytes)
                 else:
                     zout.writestr(item, zin.read(fname))
 

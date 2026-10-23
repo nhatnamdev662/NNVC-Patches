@@ -25,8 +25,64 @@ public class GestureInterceptor {
 
     public static boolean isComposeActivity(Object activity) {
         if (activity == null) return false;
+        String name = activity.getClass().getName();
         String simpleName = activity.getClass().getSimpleName();
-        return simpleName.equals("LessonChallengesActivity") || simpleName.contains("LessonChallenges");
+        if (simpleName.contains("Signup")
+                || simpleName.contains("Welcome")
+                || simpleName.contains("Guided")
+                || simpleName.contains("Onboarding")
+                || simpleName.contains("Splash")
+                || simpleName.contains("Home")
+                || simpleName.contains("Settings")
+                || simpleName.contains("LessonChallenges")
+                || simpleName.contains("Compose")
+                || name.contains(".welcome.")
+                || name.contains(".splash.")) {
+            return true;
+        }
+        if (activity instanceof Activity) {
+            try {
+                Activity act = (Activity) activity;
+                if (act.getWindow() != null && act.getWindow().getDecorView() != null) {
+                    return containsComposeView(act.getWindow().getDecorView());
+                }
+            } catch (Throwable ignored) {}
+        }
+        return false;
+    }
+
+    private static boolean containsComposeView(View view) {
+        if (view == null) return false;
+        String name = view.getClass().getName();
+        if (name.contains("ComposeView") || name.contains("AndroidComposeView")) {
+            return true;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            int count = vg.getChildCount();
+            for (int i = 0; i < count; i++) {
+                if (containsComposeView(vg.getChildAt(i))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static boolean isGameBoardActivity(Activity activity) {
+        if (activity == null) return false;
+        String name = activity.getClass().getName();
+        String simpleName = activity.getClass().getSimpleName();
+        return simpleName.contains("RealGame")
+                || simpleName.contains("Puzzle")
+                || simpleName.contains("Daily")
+                || simpleName.contains("Solo")
+                || simpleName.contains("Drills")
+                || simpleName.contains("Practice")
+                || simpleName.contains("Bot")
+                || simpleName.contains("ChessBoard")
+                || name.contains(".game.")
+                || name.contains(".puzzles.");
     }
 
     public static void ensureGestureInterceptorRegistered() {
@@ -43,8 +99,8 @@ public class GestureInterceptor {
             Window.Callback originalCallback = window.getCallback();
             if (originalCallback == null) return;
 
-            // In Jetpack Compose activities, proxying Window.Callback breaks Compose touch delegation and freezes UI
-            if (isComposeActivity(activity)) {
+            // Only hook game board activities. Non-game activities (Signup, Welcome, Home) must NEVER be touched.
+            if (!isGameBoardActivity(activity) || isComposeActivity(activity)) {
                 if (Proxy.isProxyClass(originalCallback.getClass())) {
                     try {
                         InvocationHandler handler = Proxy.getInvocationHandler(originalCallback);
@@ -89,9 +145,6 @@ public class GestureInterceptor {
                 new GestureHandler(originalCallback, gestureDetector)
             );
             window.setCallback(proxyCallback);
-            
-            // Tour overlay disabled to prevent dimming or blocking matches
-            // StockfishTourOverlay.showTourIfNeeded(activity);
         } catch (Throwable t) {
             android.util.Log.e("NNVC", "registerGestureInterceptor failed: " + t.getMessage());
         }
