@@ -115,6 +115,17 @@ public class StockfishExtension {
         return watchdogHandler;
     }
 
+    private static volatile android.os.Handler uiHandler = null;
+
+    private static android.os.Handler getUiHandler() {
+        if (uiHandler == null) {
+            try {
+                uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            } catch (Throwable ignored) {}
+        }
+        return uiHandler;
+    }
+
     private static Runnable gameOverWatchdogRunnable = null;
     private static android.view.ViewTreeObserver.OnGlobalLayoutListener globalLayoutListener = null;
     private static WeakReference<View> currentDecorViewRef = new WeakReference<>(null);
@@ -754,6 +765,16 @@ public class StockfishExtension {
                 StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV,
                         partial -> {
                             MoveClassifier.recordResult(fen, partial);
+                            if (!isStale(jobKey) && partial != null && !partial.moves.isEmpty()) {
+                                android.os.Handler h = getUiHandler();
+                                if (h != null) {
+                                    h.post(() -> {
+                                        if (!isStale(jobKey)) {
+                                            displayLiveResult(ctx, fen, partial, false);
+                                        }
+                                    });
+                                }
+                            }
                         });
                 lastEngineThinkMs = Math.max(0, System.currentTimeMillis() - searchStartMs);
 
@@ -2313,13 +2334,30 @@ public class StockfishExtension {
                 vm = AutoFindManager.getLastKnownViewModel();
             }
             if (vm != null) {
-                // 1a. Check synthetic getter e8() on RealGameViewModel
+                // 1a. Check synthetic getter e8(RealGameViewModel) on RealGameViewModel
                 try {
-                    Method e8 = vm.getClass().getMethod("e8");
-                    e8.setAccessible(true);
-                    Object sideVal = e8.invoke(vm);
+                    for (Method m : vm.getClass().getDeclaredMethods()) {
+                        if (m.getName().equals("e8") && m.getParameterCount() == 1) {
+                            m.setAccessible(true);
+                            Object sideVal = m.invoke(null, vm);
+                            Boolean sw = sideToWhite(sideVal);
+                            if (sw != null) {
+                                nativeUserSideIsWhite = sw;
+                                cachedUserIsWhite = sw;
+                                return sw;
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
+
+                // 1a2. Check direct field V on RealGameViewModel
+                try {
+                    Field vf = vm.getClass().getDeclaredField("V");
+                    vf.setAccessible(true);
+                    Object sideVal = vf.get(vm);
                     Boolean sw = sideToWhite(sideVal);
                     if (sw != null) {
+                        nativeUserSideIsWhite = sw;
                         cachedUserIsWhite = sw;
                         return sw;
                     }

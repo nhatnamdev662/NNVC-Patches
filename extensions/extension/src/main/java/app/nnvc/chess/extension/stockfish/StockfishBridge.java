@@ -172,7 +172,7 @@ public class StockfishBridge {
     }
 
     private static void putCache(String fen, StockfishProcess.AnalysisResult r, int depth, int multiPV, int limited, String engineChoice, String komodoStyle) {
-        if (r == null || !r.isValid()) return;
+        if (r == null || !r.isValid() || r.moves == null || r.moves.isEmpty()) return;
         // Never cache a search that was interrupted before reaching the requested depth.
         if (!r.terminal && !r.hasMate && r.depth < depth) return;
         String key = positionKey(fen);

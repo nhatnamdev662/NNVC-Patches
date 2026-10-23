@@ -24,8 +24,8 @@ public class StockfishProcess {
     public static final float MATE_SCORE = 99.0f;
     private static final int READY_TIMEOUT_MS = 10_000;
     private static final int BESTMOVE_GRACE_MS = 10_000;
-    private static final int PROGRESS_MIN_DEPTH = 8;
-    private static final long PROGRESS_INTERVAL_MS = 250;
+    private static final int PROGRESS_MIN_DEPTH = 4;
+    private static final long PROGRESS_INTERVAL_MS = 150;
 
     // Active Engine Mode: strictly "wasm"
     private volatile String activeEngineMode = "wasm";
@@ -191,7 +191,7 @@ public class StockfishProcess {
         }
 
         public boolean isValid() {
-            return !moves.isEmpty() || terminal;
+            return !moves.isEmpty() || (terminal && hasMate && depth > 0);
         }
     }
 
@@ -368,10 +368,15 @@ public class StockfishProcess {
             }
 
             if (line.startsWith("bestmove")) {
+                // If bestmove arrives before any info line and reachedDepth == 0, it is a ghost bestmove from a previous search -> ignore it!
+                if (reachedDepth == 0 && firstMoves[0] == null) {
+                    NnvcLogger.w(TAG, "Ignoring stale ghost bestmove before search began: " + line);
+                    continue;
+                }
                 String[] parts = line.split("\\s+");
                 if (parts.length > 1 && !"(none)".equals(parts[1])) bestmove = parts[1];
                 if (parts.length > 3 && "ponder".equals(parts[2])) ponder = parts[3];
-                if (bestmove == null) terminal = true;
+                if (bestmove == null && reachedDepth > 0) terminal = true;
                 NnvcLogger.d(TAG, "BestMove: " + bestmove + ", eval=" + scores[0] + ", depth=" + reachedDepth);
                 break;
             }
@@ -484,10 +489,10 @@ public class StockfishProcess {
 
             if (depth > reachedDepth) reachedDepth = depth;
 
-            // Only report progress when ALL multiPV branches for this depth are received, never drop lines!
-            if (progress != null && depth >= PROGRESS_MIN_DEPTH && (multiPV <= 1 || mpv == multiPV) && firstMoves[0] != null) {
+            // Progressive Arrow Rendering: Report progress as soon as depth >= 4 so arrows appear immediately!
+            if (progress != null && depth >= PROGRESS_MIN_DEPTH && firstMoves[0] != null) {
                 long now = System.currentTimeMillis();
-                if (now - lastReport >= PROGRESS_INTERVAL_MS) {
+                if (now - lastReport >= PROGRESS_INTERVAL_MS || (depth > reportedDepth && depth >= 4)) {
                     lastReport = now;
                     reportedDepth = depth;
                     try {
@@ -624,6 +629,17 @@ public class StockfishProcess {
 
     private void drainReady() {
         if (wasmManager != null) {
+            wasmManager.clearPlayOutputQueue();
+            // Send isready to synchronize with WASM engine worker and discard any trailing output (e.g. ghost bestmove)
+            sendUciCommand("isready");
+            long deadline = System.currentTimeMillis() + 1500;
+            while (System.currentTimeMillis() < deadline) {
+                String line = wasmManager.readPlayLine(100);
+                if (line != null && line.startsWith("readyok")) {
+                    break;
+                }
+            }
+            // Once readyok is received, queue is clean and engine is confirmed ready!
             wasmManager.clearPlayOutputQueue();
         }
     }

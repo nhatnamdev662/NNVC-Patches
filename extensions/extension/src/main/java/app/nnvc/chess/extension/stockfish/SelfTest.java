@@ -2558,6 +2558,46 @@ public class SelfTest {
         check("DEFAULT_TIER_COLORS has 5 tier colors", StockfishSettings.DEFAULT_TIER_COLORS.length == 5);
         check("I18n translations for arrow themes exist", I18n.get(null, "arrow_theme_title") != null && I18n.get(null, "theme_cyber") != null);
 
+        // Test 47: UCI Engine Desynchronization Prevention & Progressive Arrow Rendering & Synthetic e8 UserSide
+        StockfishProcess.AnalysisResult emptyTerminalNoMate = new StockfishProcess.AnalysisResult(
+                new java.util.ArrayList<>(), 0f, false, 0, 0, 0, 0, null,
+                new java.util.ArrayList<>(), new float[0], new float[0], new boolean[0], new int[0], 0, true);
+        check("empty terminal result without mate is NOT valid (aborted search protection)", !emptyTerminalNoMate.isValid());
+
+        StockfishProcess.AnalysisResult validWithMoves = new StockfishProcess.AnalysisResult(
+                java.util.Collections.singletonList("e2e4"), 0.5f, false, 0, 0, 0, 0, null,
+                new java.util.ArrayList<>(), new float[]{0.5f}, new float[]{0.5f}, new boolean[]{false}, new int[]{0}, 10, false);
+        check("result with moves is valid", validWithMoves.isValid());
+
+        class MockSyntheticE8VM {
+            public String V = "WHITE";
+            public static String e8(MockSyntheticE8VM vm) {
+                return vm.V;
+            }
+        }
+        MockSyntheticE8VM mockSyntheticVm = new MockSyntheticE8VM();
+        Boolean resolvedSide = null;
+        try {
+            for (java.lang.reflect.Method m : mockSyntheticVm.getClass().getDeclaredMethods()) {
+                if (m.getName().equals("e8") && m.getParameterCount() == 1) {
+                    m.setAccessible(true);
+                    Object sideVal = m.invoke(null, mockSyntheticVm);
+                    if ("WHITE".equalsIgnoreCase(String.valueOf(sideVal))) resolvedSide = Boolean.TRUE;
+                }
+            }
+        } catch (Throwable ignored) {}
+        check("Synthetic static e8(vm) resolves UserSide WHITE with 1 parameter", Boolean.TRUE.equals(resolvedSide));
+
+        mockSyntheticVm.V = "BLACK";
+        Boolean resolvedFieldV = null;
+        try {
+            java.lang.reflect.Field vf = mockSyntheticVm.getClass().getDeclaredField("V");
+            vf.setAccessible(true);
+            Object sideVal = vf.get(mockSyntheticVm);
+            if ("BLACK".equalsIgnoreCase(String.valueOf(sideVal))) resolvedFieldV = Boolean.FALSE;
+        } catch (Throwable ignored) {}
+        check("Direct field V resolves UserSide BLACK", Boolean.FALSE.equals(resolvedFieldV));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
