@@ -306,18 +306,14 @@ public class ArrowOverlayView extends View {
         ViewGroup.LayoutParams lp = getLayoutParams();
         if (lp == null) {
             lp = new FrameLayout.LayoutParams(width, height);
-            if (lp instanceof FrameLayout.LayoutParams) {
-                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
-            }
-            setLayoutParams(lp);
-        } else if (lp.width != width || lp.height != height) {
+        } else {
             lp.width = width;
             lp.height = height;
-            if (lp instanceof FrameLayout.LayoutParams) {
-                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
-            }
-            setLayoutParams(lp);
         }
+        if (lp instanceof FrameLayout.LayoutParams) {
+            ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
+        }
+        setLayoutParams(lp);
         setTranslationX(boardX);
         setTranslationY(boardY);
 
@@ -329,18 +325,14 @@ public class ArrowOverlayView extends View {
         ViewGroup.LayoutParams lp = getLayoutParams();
         if (lp == null) {
             lp = new FrameLayout.LayoutParams(width, height);
-            if (lp instanceof FrameLayout.LayoutParams) {
-                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
-            }
-            setLayoutParams(lp);
-        } else if (lp.width != width || lp.height != height) {
+        } else {
             lp.width = width;
             lp.height = height;
-            if (lp instanceof FrameLayout.LayoutParams) {
-                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
-            }
-            setLayoutParams(lp);
         }
+        if (lp instanceof FrameLayout.LayoutParams) {
+            ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
+        }
+        setLayoutParams(lp);
         setTranslationX(boardX);
         setTranslationY(boardY);
         invalidate();

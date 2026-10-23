@@ -13,7 +13,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Map;
 
 /**
  * AutoMoveManager – Direct Controller/Model Chess Move Automation.
@@ -407,271 +406,6 @@ public class AutoMoveManager {
         return v.performClick();
     }
 
-    public static boolean isBoardReadyForAutoMove(Activity activity, View boardView) {
-        return isBoardReadyForAutoMove((Object) activity, (Object) boardView);
-    }
-
-    public static boolean isBoardReadyForAutoMove(Object activity, Object boardView) {
-        if (activity != null) {
-            try {
-                if (activity instanceof Activity) {
-                    Activity act = (Activity) activity;
-                    if (act.isFinishing()) return false;
-                    if (android.os.Build.VERSION.SDK_INT >= 17 && act.isDestroyed()) return false;
-                    if (StockfishExtension.isGameOver(act)) return false;
-                } else {
-                    for (Method m : activity.getClass().getMethods()) {
-                        if ("isFinishing".equals(m.getName()) && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
-                            if ((boolean) m.invoke(activity)) return false;
-                        }
-                    }
-                }
-            } catch (Throwable ignored) {}
-        }
-        if (boardView != null) {
-            try {
-                if (boardView instanceof View) {
-                    if (((View) boardView).getVisibility() != View.VISIBLE) return false;
-                } else {
-                    for (Method m : boardView.getClass().getMethods()) {
-                        if ("getVisibility".equals(m.getName()) && m.getParameterCount() == 0 && m.getReturnType() == int.class) {
-                            if ((int) m.invoke(boardView) != 0) return false;
-                        }
-                    }
-                }
-            } catch (Throwable ignored) {}
-        }
-        return true;
-    }
-
-    public static boolean isV2Board(View boardView) {
-        return isV2Board((Object) boardView);
-    }
-
-    public static boolean isV2Board(Object boardView) {
-        if (boardView == null) return false;
-        String name = boardView.getClass().getName();
-        return name.contains(".v2.") || name.contains("V2") || name.equals("com.chess.chessboard.v2.ChessBoardView");
-    }
-
-    public static Object extractCBViewModelFromObject(Object obj) {
-        return extractCBViewModelFromObject(obj, 0);
-    }
-
-    private static Object extractCBViewModelFromObject(Object obj, int depth) {
-        if (obj == null || depth > 2) return null;
-        if (obj.getClass().getName().contains("CBViewModel")) {
-            return obj;
-        }
-
-        // 1. Check no-arg methods returning CBViewModel (e.g. T6(), c8()) or intermediate ViewModels
-        try {
-            for (Method m : obj.getClass().getMethods()) {
-                if (m.getParameterCount() == 0 && m.getReturnType() != void.class) {
-                    String retName = m.getReturnType().getName();
-                    String mName = m.getName();
-                    if (retName.contains("CBViewModel")) {
-                        try {
-                            m.setAccessible(true);
-                            Object res = m.invoke(obj);
-                            if (res != null) return res;
-                        } catch (Throwable ignored) {}
-                    } else if (depth < 2 && (mName.toLowerCase(java.util.Locale.US).contains("viewmodel") || retName.contains("ViewModel"))) {
-                        try {
-                            m.setAccessible(true);
-                            Object res = m.invoke(obj);
-                            if (res != null && res != obj) {
-                                Object extracted = extractCBViewModelFromObject(res, depth + 1);
-                                if (extracted != null) return extracted;
-                            }
-                        } catch (Throwable ignored) {}
-                    }
-                }
-            }
-        } catch (Throwable ignored) {}
-
-        // 2. Check declared fields
-        Class<?> c = obj.getClass();
-        while (c != null && c != Object.class) {
-            for (Field f : c.getDeclaredFields()) {
-                try {
-                    String typeName = f.getType().getName();
-                    String fName = f.getName();
-
-                    // Direct field match
-                    if (typeName.contains("CBViewModel")) {
-                        f.setAccessible(true);
-                        Object val = f.get(obj);
-                        if (val != null) return val;
-                    }
-
-                    // Check Kotlin Lazy or Function0 (e.g. field z or lambda in RatedPuzzlesGameViewModel)
-                    if (depth < 2 && (typeName.contains("Lazy") || typeName.contains("Function0") || fName.equals("z") || fName.contains("viewModel") || fName.contains("ViewModel"))) {
-                        f.setAccessible(true);
-                        Object val = f.get(obj);
-                        if (val != null) {
-                            if (val.getClass().getName().contains("CBViewModel")) {
-                                return val;
-                            }
-                            // Try Lazy.getValue()
-                            try {
-                                Method gv = val.getClass().getMethod("getValue");
-                                gv.setAccessible(true);
-                                Object lazyVal = gv.invoke(val);
-                                if (lazyVal != null) {
-                                    if (lazyVal.getClass().getName().contains("CBViewModel")) {
-                                        return lazyVal;
-                                    }
-                                    Object extracted = extractCBViewModelFromObject(lazyVal, depth + 1);
-                                    if (extracted != null) return extracted;
-                                }
-                            } catch (NoSuchMethodException ignored) {}
-
-                            // Try Function0.invoke()
-                            try {
-                                Method inv = val.getClass().getMethod("invoke");
-                                if (inv.getParameterCount() == 0) {
-                                    inv.setAccessible(true);
-                                    Object fnVal = inv.invoke(val);
-                                    if (fnVal != null) {
-                                        if (fnVal.getClass().getName().contains("CBViewModel")) {
-                                            return fnVal;
-                                        }
-                                        Object extracted = extractCBViewModelFromObject(fnVal, depth + 1);
-                                        if (extracted != null) return extracted;
-                                    }
-                                }
-                            } catch (NoSuchMethodException ignored) {}
-                        }
-                    }
-                } catch (Throwable ignored) {}
-            }
-            c = c.getSuperclass();
-        }
-        return null;
-    }
-
-    public static Object resolveCBViewModelFromActivity(Activity activity) {
-        if (activity == null) return null;
-        try {
-            // 1. Inspect ViewModelStore
-            try {
-                Method getVmStore = activity.getClass().getMethod("getViewModelStore");
-                getVmStore.setAccessible(true);
-                Object vmStore = getVmStore.invoke(activity);
-                if (vmStore != null) {
-                    Field mapField = null;
-                    Class<?> sc = vmStore.getClass();
-                    while (sc != null && sc != Object.class && mapField == null) {
-                        for (Field f : sc.getDeclaredFields()) {
-                            if (Map.class.isAssignableFrom(f.getType())) {
-                                mapField = f;
-                                break;
-                            }
-                        }
-                        sc = sc.getSuperclass();
-                    }
-                    if (mapField != null) {
-                        mapField.setAccessible(true);
-                        Map<?, ?> map = (Map<?, ?>) mapField.get(vmStore);
-                        if (map != null) {
-                            for (Object vm : map.values()) {
-                                if (vm != null) {
-                                    Object resolved = extractCBViewModelFromObject(vm);
-                                    if (resolved != null) {
-                                        NnvcLogger.d(TAG, "Resolved CBViewModel from ViewModelStore map: " + resolved.getClass().getName());
-                                        return resolved;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (Throwable ignored) {}
-
-            // 2. Inspect Activity's own fields and methods
-            Object resolved = extractCBViewModelFromObject(activity);
-            if (resolved != null) {
-                NnvcLogger.d(TAG, "Resolved CBViewModel from Activity hierarchy: " + resolved.getClass().getName());
-                return resolved;
-            }
-        } catch (Throwable ignored) {}
-        return null;
-    }
-
-    public static boolean executeDirectV2Move(ClassLoader cl, View boardView, String fromSq, String toSq, boolean isPromo, char promoPiece, String fenBeforeMove) {
-        return executeDirectV2Move(cl, (Object) boardView, fromSq, toSq, isPromo, promoPiece, fenBeforeMove);
-    }
-
-    public static boolean executeDirectV2Move(ClassLoader cl, Object boardView, String fromSq, String toSq, boolean isPromo, char promoPiece, String fenBeforeMove) {
-        if (cl == null || boardView == null || fromSq == null || toSq == null) return false;
-        try {
-            Object fromSquare = getSquare(cl, fromSq);
-            Object toSquare = getSquare(cl, toSq);
-            if (fromSquare == null || toSquare == null) {
-                NnvcLogger.w(TAG, "executeDirectV2Move: Square objects not resolved (" + fromSq + ", " + toSq + ")");
-                return false;
-            }
-
-            // 1. Get listener via getChessBoardGestureListener()
-            Object listener = null;
-            for (Method m : boardView.getClass().getMethods()) {
-                if ("getChessBoardGestureListener".equals(m.getName()) && m.getParameterCount() == 0) {
-                    m.setAccessible(true);
-                    listener = m.invoke(boardView);
-                    break;
-                }
-            }
-            if (listener == null) {
-                Class<?> c = boardView.getClass();
-                while (c != null && c != Object.class) {
-                    for (Field f : c.getDeclaredFields()) {
-                        if (f.getType().getName().contains(".chessboard.v2.") || f.getName().contains("gestureListener") || f.getName().contains("Listener")) {
-                            f.setAccessible(true);
-                            Object val = f.get(boardView);
-                            if (val != null) {
-                                listener = val;
-                                break;
-                            }
-                        }
-                    }
-                    if (listener != null) break;
-                    c = c.getSuperclass();
-                }
-            }
-
-            boolean dispatched = false;
-            if (listener != null) {
-                // Method s.e(Square from, Square to)
-                for (Method m : listener.getClass().getMethods()) {
-                    if ("e".equals(m.getName()) && m.getParameterCount() == 2) {
-                        m.setAccessible(true);
-                        m.invoke(listener, fromSquare, toSquare);
-                        dispatched = true;
-                        NnvcLogger.i(TAG, "⚡ [DIRECT V2 MOVE] Dispatched piece drop via listener.e: " + fromSq + " -> " + toSq);
-                        break;
-                    }
-                }
-            }
-
-            // 2. Animate move via boardView.j(Square from, Square to)
-            for (Method m : boardView.getClass().getMethods()) {
-                if ("j".equals(m.getName()) && m.getParameterCount() == 2) {
-                    m.setAccessible(true);
-                    m.invoke(boardView, fromSquare, toSquare);
-                    NnvcLogger.d(TAG, "⚡ [DIRECT V2 MOVE] Animated piece move via boardView.j: " + fromSq + " -> " + toSq);
-                    break;
-                }
-            }
-
-            return dispatched;
-        } catch (Throwable t) {
-            Throwable cause = t.getCause() != null ? t.getCause() : t;
-            NnvcLogger.w(TAG, "executeDirectV2Move error: " + cause.getMessage());
-            return false;
-        }
-    }
-
     /**
      * Resolves the native CBViewModel instance controlling the chessboard.
      * Priority 1: Safe Field Reflection on boardView (viewModel, x, or CBViewModel type)
@@ -729,9 +463,6 @@ public class AutoMoveManager {
                     }
                 }
             } catch (Throwable ignored) {}
-
-            Object vmExt = extractCBViewModelFromObject(boardView);
-            if (vmExt != null) return vmExt;
         }
 
         // Priority 2 & 3: Resolve from RealGameViewModel (rvm)
@@ -903,11 +634,6 @@ public class AutoMoveManager {
                     }
                 } catch (Throwable ignored) {}
             }
-        }
-
-        // Priority 3.5: Resolve CBViewModel from non-RealGame Activity (Lessons, Puzzles, Daily, Bots)
-        if (cbVm == null && act != null) {
-            cbVm = resolveCBViewModelFromActivity(act);
         }
 
         // Priority 4: StockfishExtension.getStateImpl()
@@ -1420,14 +1146,6 @@ public class AutoMoveManager {
                                             final long fittsDelay,
                                             final int retryCount) {
         try {
-            // 0. Board and Activity readiness check
-            if (!isBoardReadyForAutoMove(activity, boardView)) {
-                NnvcLogger.d(TAG, "executeMoveWithRetry aborted: Board or Activity is not ready.");
-                isExecutingMove = false;
-                pendingMoveRunnable = null;
-                return;
-            }
-
             // 1. Just-In-Time (JIT) check: verify board is still on target position and it is user's turn
             if (!isTurnAndPositionMatching(boardView, currentFen)) {
                 NnvcLogger.i(TAG, "🛑 [AUTO MOVE JIT ABORT] Ván cờ đã đổi hoặc không còn là lượt người chơi. Hủy nước đi chống PREMOVE: " + uciMove);
@@ -1439,16 +1157,13 @@ public class AutoMoveManager {
 
             // 2. Direct Model Hook (0ms execution, 100% Desktop Extension Parity)
             boolean directSuccess = executeDirectModelMove(cl, boardView, activity, fromSq, toSq, isPromo, promoChar, currentFen);
-            if (!directSuccess && isV2Board(boardView)) {
-                directSuccess = executeDirectV2Move(cl, boardView, fromSq, toSq, isPromo, promoChar, currentFen);
-            }
             if (directSuccess) {
                 isExecutingMove = false;
                 pendingMoveRunnable = null;
                 if (isPromo && promoChar == 'q') {
                     applyPromotionQueen(boardView);
                 }
-                NnvcLogger.i(TAG, "⚡ [DIRECT AUTO MOVE] Nước đi đã được đẩy trực tiếp (0ms): " + uciMove);
+                NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Nước đi đã được đẩy trực tiếp vào CBViewModel (0ms): " + uciMove);
                 SmartDelayManager.recordMyMove(uciMove, currentFen, activity, userWhite);
                 schedulePostMoveValidation(boardView, currentFen, uciMove);
                 return;
@@ -1529,11 +1244,6 @@ public class AutoMoveManager {
 
         if (!StockfishSettings.isAutoMoveEnabled(context)) {
             NnvcLogger.w(TAG, "executeAutoMove aborted: Auto Move is DISABLED in settings (Tab LIVE).");
-            return;
-        }
-
-        if (!isBoardReadyForAutoMove(activity, boardView)) {
-            NnvcLogger.d(TAG, "executeAutoMove skipped: Board or Activity not ready.");
             return;
         }
 

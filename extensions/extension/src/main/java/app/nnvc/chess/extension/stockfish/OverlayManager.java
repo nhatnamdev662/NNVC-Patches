@@ -126,13 +126,7 @@ public class OverlayManager {
         try {
             View arrowView = getOrFindTaggedView(decorView, "nnvc_arrow_overlay", cachedArrowOverlayRef);
             if (arrowView != null) {
-                if (arrowView.getElevation() != 25f) {
-                    arrowView.setElevation(25f);
-                }
-                int count = decorView.getChildCount();
-                if (count > 0 && decorView.getChildAt(count - 1) != arrowView) {
-                    arrowView.bringToFront();
-                }
+                arrowView.setElevation(2f);
             }
             View evalBar = getOrFindTaggedView(decorView, "stockfish_eval_bar", cachedEvalBarRef);
             if (evalBar != null) {
@@ -781,37 +775,8 @@ public class OverlayManager {
     }
 
     public static boolean isBoardFlipped(View boardView, Object stateImpl) {
-        return isBoardFlipped((Object) boardView, stateImpl);
-    }
-
-    public static boolean isBoardFlipped(Object boardView, Object stateImpl) {
         if (boardView != null) {
             try {
-                String bvName = boardView.getClass().getName();
-                boolean isV2 = bvName.contains(".v2.") || bvName.contains("V2") || bvName.equals("com.chess.chessboard.v2.ChessBoardView");
-                if (isV2) {
-                    for (Method m : boardView.getClass().getMethods()) {
-                        if ("a".equals(m.getName()) && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
-                            m.setAccessible(true);
-                            boolean res = (boolean) m.invoke(boardView);
-                            lastKnownFlipped = res;
-                            return res;
-                        }
-                    }
-                    Class<?> bc = boardView.getClass();
-                    while (bc != null && bc != Object.class) {
-                        for (Method m : bc.getDeclaredMethods()) {
-                            if ("a".equals(m.getName()) && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
-                                m.setAccessible(true);
-                                boolean res = (boolean) m.invoke(boardView);
-                                lastKnownFlipped = res;
-                                return res;
-                            }
-                        }
-                        bc = bc.getSuperclass();
-                    }
-                }
-
                 for (Method m : boardView.getClass().getMethods()) {
                     String n = m.getName();
                     if ((n.equals("getFlipBoard") || n.equals("isFlipped") || n.equals("getFlipped"))

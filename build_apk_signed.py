@@ -51,81 +51,38 @@ def find_tool(name, default_path):
                     return cand_exe
     return None
 
-def get_merged_classes12_dex(morphe_14_path, ext_mpe_path):
-    import tempfile
-    d8_cmd = find_tool("d8", r"C:\Android\build-tools\android-37.0\d8.bat")
-    android_jar = r"C:\Users\MAY1\AppData\Local\Android\Sdk\platforms\android-35\android.jar"
-    if not d8_cmd or not os.path.exists(d8_cmd) or not os.path.exists(morphe_14_path) or not os.path.exists(ext_mpe_path):
-        return None
-    with tempfile.TemporaryDirectory() as td:
-        ext_dex = os.path.join(td, "extension.dex")
-        shutil.copy2(ext_mpe_path, ext_dex)
-        out_dir = os.path.join(td, "out")
-        os.makedirs(out_dir, exist_ok=True)
-        cmd = [d8_cmd, "--lib", android_jar, "--output", out_dir, morphe_14_path, ext_dex]
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode == 0:
-            merged_file = os.path.join(out_dir, "classes.dex")
-            if os.path.exists(merged_file):
-                with open(merged_file, "rb") as f:
-                    return f.read()
-    return None
-
 def inject_patched_dex_if_needed(apk_path):
     import zipfile
-    patched_dex5_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes5.dex")
-    patched_dex8_clean_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes8_clean.dex")
-    patched_dex9_clean_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes9_clean.dex")
-    ext_mpe_path = os.path.join(SCRIPT_DIR, "extensions", "extension.mpe")
-
-    updates = {}
-    if os.path.exists(patched_dex5_path):
-        with open(patched_dex5_path, "rb") as pf:
-            updates["classes5.dex"] = pf.read()
-
-    if os.path.exists(patched_dex8_clean_path):
-        with open(patched_dex8_clean_path, "rb") as pf:
-            updates["classes8.dex"] = pf.read()
-
-    if os.path.exists(patched_dex9_clean_path):
-        with open(patched_dex9_clean_path, "rb") as pf:
-            updates["classes9.dex"] = pf.read()
-
-    if os.path.exists(ext_mpe_path):
-        with open(ext_mpe_path, "rb") as pf:
-            updates["classes12.dex"] = pf.read()
-
-    need_update = {}
-    with zipfile.ZipFile(apk_path, "r") as z:
-        names = z.namelist()
-        for dex_name, dex_bytes in updates.items():
-            if dex_name in names:
-                if z.read(dex_name) != dex_bytes:
-                    need_update[dex_name] = dex_bytes
-            else:
-                need_update[dex_name] = dex_bytes
-
-    if not need_update:
-        print("[OK] All DEX files (classes8.dex, classes9.dex, classes12.dex) are already up to date.")
+    patched_dex_path = os.path.join(SCRIPT_DIR, "patches", "patched_classes9.dex")
+    if not os.path.exists(patched_dex_path):
+        patched_dex_path = os.path.join(os.path.dirname(SCRIPT_DIR), "project", "patches", "patched_classes9.dex")
+    if not os.path.exists(patched_dex_path):
         return
 
-    for dex_name in need_update:
-        print(f"[*] Injecting updated {dex_name} into APK...")
+    with open(patched_dex_path, "rb") as pf:
+        patched_dex_bytes = pf.read()
+
+    # Check if input APK already has this patched dex
+    with zipfile.ZipFile(apk_path, "r") as z:
+        if "classes9.dex" in z.namelist():
+            current_dex = z.read("classes9.dex")
+            if current_dex == patched_dex_bytes:
+                print("[OK] classes9.dex is already up to date with patched_classes9.dex.")
+                return
+
+    print("[*] Injecting native patched_classes9.dex hooks into classes9.dex...")
     temp_apk = apk_path + ".dex_patch.tmp"
     with zipfile.ZipFile(apk_path, "r") as zin:
         with zipfile.ZipFile(temp_apk, "w", compression=zipfile.ZIP_DEFLATED) as zout:
             for item in zin.infolist():
-                if item.filename in need_update:
-                    zout.writestr(item, need_update[item.filename])
+                if item.filename == "classes9.dex":
+                    zout.writestr(item, patched_dex_bytes)
                 else:
                     zout.writestr(item, zin.read(item.filename))
-            for dex_name, dex_bytes in need_update.items():
-                if dex_name not in zin.namelist():
-                    zout.writestr(dex_name, dex_bytes)
 
     os.remove(apk_path)
     os.rename(temp_apk, apk_path)
-    print(f"[OK] {list(need_update.keys())} successfully injected into APK!")
+    print("[OK] classes9.dex successfully injected into APK!")
 
 def sign_apk(input_apk, output_apk=None):
     if not os.path.exists(input_apk):
