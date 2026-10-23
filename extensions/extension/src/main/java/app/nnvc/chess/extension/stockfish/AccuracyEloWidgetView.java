@@ -32,7 +32,9 @@ import java.util.Locale;
  * 3. Hỗ trợ kéo thả (drag & drop) tự do khắp màn hình, tự động nhớ vị trí người dùng.
  * 4. Nút thu gọn / mở rộng (collapse / expand) tiện lợi khi cần thoáng màn hình.
  * 5. Tự động kẹp an toàn (screen boundary clamp) không bao giờ bị rơi ra ngoài mép.
- * 6. Song ngữ Anh / Việt đồng bộ theo I18n.
+ * 6. Tay cầm kéo góc (Corner Resize Grip): Thay đổi kích thước bằng 1 ngón tay cực mượt.
+ * 7. Bố cục thích ứng linh hoạt (Adaptive Layout): Tự động chuyển đổi giữa Thẻ 2 tầng và Thanh ngang Mini.
+ * 8. Song ngữ Anh / Việt đồng bộ theo I18n.
  */
 public class AccuracyEloWidgetView extends View {
 
@@ -53,6 +55,7 @@ public class AccuracyEloWidgetView extends View {
     private final RectF stripBounds = new RectF();
     private final RectF badgeBounds = new RectF();
     private final RectF metricBoxBounds = new RectF();
+    private final RectF iconBounds = new RectF();
     private final Path stripPath = new Path();
 
     private float whiteAccuracy = -1f;
@@ -63,13 +66,21 @@ public class AccuracyEloWidgetView extends View {
     private boolean isCollapsed = false;
     private boolean isPositioned = false;
 
-    // Phóng to / Thu nhỏ (Pinch-to-zoom)
+    // Phóng to / Thu nhỏ & Bố cục thích ứng (Scale & Adaptive Layout)
     private float widgetScale = 1.0f;
     private final ScaleGestureDetector scaleGestureDetector;
     private boolean isScaling = false;
     private boolean hadMultiTouch = false;
 
-    // Kéo thả (Touch & Drag)
+    // Tay cầm kéo góc 1 ngón tay (Corner Resize Grip)
+    private boolean isResizing = false;
+    private float resizeStartScale = 1.0f;
+    private float resizeDownRawX = 0f;
+    private float resizeDownRawY = 0f;
+    private float resizeStartTransX = 0f;
+    private float resizeStartTransY = 0f;
+
+    // Kéo thả vị trí (Touch & Drag)
     private final int touchSlop;
     private float downRawX = 0f;
     private float downRawY = 0f;
@@ -81,7 +92,8 @@ public class AccuracyEloWidgetView extends View {
         @Override
         public void onLayoutChange(View v, int left, int top, int right, int bottom,
                                    int oldLeft, int oldTop, int oldRight, int oldBottom) {
-            if ((right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) && !isDragging && !isScaling) {
+            if ((right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop)
+                    && !isDragging && !isScaling && !isResizing) {
                 clampAndSetPosition(getTranslationX(), getTranslationY());
             }
         }
@@ -102,6 +114,7 @@ public class AccuracyEloWidgetView extends View {
             public boolean onScaleBegin(ScaleGestureDetector detector) {
                 isScaling = true;
                 isDragging = false;
+                isResizing = false;
                 hadMultiTouch = true;
                 animate().cancel();
                 return true;
@@ -166,7 +179,7 @@ public class AccuracyEloWidgetView extends View {
     }
 
     public boolean isDragging() {
-        return isDragging || isScaling;
+        return isDragging || isScaling || isResizing;
     }
 
     public float getWidgetScale() {
@@ -181,6 +194,10 @@ public class AccuracyEloWidgetView extends View {
             StockfishSettings.setAccuracyWidgetScale(getContext(), clamped);
             updateDimensions();
         }
+    }
+
+    public boolean isCompactPillMode() {
+        return widgetScale < 0.72f;
     }
 
     public boolean isPositioned() {
@@ -209,17 +226,37 @@ public class AccuracyEloWidgetView extends View {
     }
 
     public int calculateDesiredWidth() {
-        float density = getResources().getDisplayMetrics().density * widgetScale;
+        float baseDensity = getResources().getDisplayMetrics().density;
+        if (isCompactPillMode()) {
+            float norm = (widgetScale - StockfishSettings.MIN_ACCURACY_WIDGET_SCALE)
+                    / (0.72f - StockfishSettings.MIN_ACCURACY_WIDGET_SCALE);
+            norm = Math.max(0f, Math.min(1.0f, norm));
+            float wDp = 185f + (norm * 35f); // 185dp -> 220dp
+            return (int) Math.ceil(wDp * baseDensity);
+        }
+        float density = baseDensity * widgetScale;
         return (int) Math.ceil(164f * density);
     }
 
     public int calculateExpandedHeight() {
-        float density = getResources().getDisplayMetrics().density * widgetScale;
+        float baseDensity = getResources().getDisplayMetrics().density;
+        if (isCompactPillMode()) {
+            float norm = (widgetScale - StockfishSettings.MIN_ACCURACY_WIDGET_SCALE)
+                    / (0.72f - StockfishSettings.MIN_ACCURACY_WIDGET_SCALE);
+            norm = Math.max(0f, Math.min(1.0f, norm));
+            float hDp = 30f + (norm * 6f); // 30dp -> 36dp mỏng nhẹ
+            return (int) Math.ceil(hDp * baseDensity);
+        }
+        float density = baseDensity * widgetScale;
         return (int) Math.ceil(172f * density);
     }
 
     public int calculateCollapsedHeight() {
-        float density = getResources().getDisplayMetrics().density * widgetScale;
+        float baseDensity = getResources().getDisplayMetrics().density;
+        if (isCompactPillMode()) {
+            return (int) Math.ceil(28f * baseDensity);
+        }
+        float density = baseDensity * widgetScale;
         return (int) Math.ceil(32f * density);
     }
 
@@ -321,6 +358,30 @@ public class AccuracyEloWidgetView extends View {
                 startTransY = getTranslationY();
                 isDragging = false;
                 hadMultiTouch = false;
+
+                float x = event.getX();
+                float y = event.getY();
+                int w = getWidth();
+                int h = getHeight();
+                float baseDensity = getResources().getDisplayMetrics().density;
+                float gripTouchArea = Math.max(28f * baseDensity, 26f * baseDensity * widgetScale);
+
+                // Chạm vào góc dưới phải -> Kéo thay đổi kích thước 1 ngón tay (Resize Grip)
+                if (!isCollapsed && x >= w - gripTouchArea && y >= h - gripTouchArea) {
+                    isResizing = true;
+                    resizeStartScale = widgetScale;
+                    resizeDownRawX = downRawX;
+                    resizeDownRawY = downRawY;
+                    resizeStartTransX = startTransX;
+                    resizeStartTransY = startTransY;
+                    if (getParent() != null) {
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    invalidate();
+                    return true;
+                }
+                isResizing = false;
+
                 if (getParent() != null) {
                     getParent().requestDisallowInterceptTouchEvent(true);
                 }
@@ -338,6 +399,21 @@ public class AccuracyEloWidgetView extends View {
                 if (isScaling || hadMultiTouch) {
                     return true;
                 }
+                if (isResizing) {
+                    float dx = event.getRawX() - resizeDownRawX;
+                    float dy = event.getRawY() - resizeDownRawY;
+                    float delta = (dx + dy) / 2.0f;
+                    float baseDens = getResources().getDisplayMetrics().density;
+                    float sensitivity = 175f * baseDens;
+                    float targetScale = resizeStartScale + (delta / sensitivity);
+                    float newScale = Math.max(StockfishSettings.MIN_ACCURACY_WIDGET_SCALE,
+                            Math.min(StockfishSettings.MAX_ACCURACY_WIDGET_SCALE, targetScale));
+                    if (Math.abs(newScale - widgetScale) > 0.005f) {
+                        widgetScale = newScale;
+                        updateDimensionsWithPosition(resizeStartTransX, resizeStartTransY);
+                    }
+                    return true;
+                }
                 float dx = event.getRawX() - downRawX;
                 float dy = event.getRawY() - downRawY;
                 if (!isDragging && Math.hypot(dx, dy) > touchSlop) {
@@ -353,15 +429,36 @@ public class AccuracyEloWidgetView extends View {
 
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
+                if (isResizing) {
+                    isResizing = false;
+                    StockfishSettings.setAccuracyWidgetScale(getContext(), widgetScale);
+                    StockfishSettings.setAccuracyWidgetPosition(getContext(), getTranslationX(), getTranslationY());
+                    clampAndSetPosition(getTranslationX(), getTranslationY());
+                    invalidate();
+                    return true;
+                }
                 if (isDragging) {
                     isDragging = false;
                     animate().scaleX(1.0f).scaleY(1.0f).alpha(1.0f).setDuration(100).start();
                     StockfishSettings.setAccuracyWidgetPosition(getContext(), getTranslationX(), getTranslationY());
                 } else if (action == MotionEvent.ACTION_UP && !hadMultiTouch && !isScaling) {
+                    float touchX = event.getX();
                     float touchY = event.getY();
-                    float density = getResources().getDisplayMetrics().density * widgetScale;
-                    // Chạm vào thanh header hoặc khi đang thu gọn -> chuyển đổi thu gọn / mở rộng
-                    if (isCollapsed || touchY <= 32f * density) {
+                    float baseDens = getResources().getDisplayMetrics().density;
+                    float dens = baseDens * widgetScale;
+
+                    // Chạm vào icon âm dương bên trái -> 1 chạm chuyển đổi ngay giữa Thẻ Đầy Đủ (Card) và Thanh Ngang (Bar)
+                    if (!isCollapsed && touchX <= 36f * baseDens && touchY <= 32f * (isCompactPillMode() ? baseDens : dens)) {
+                        if (isCompactPillMode()) {
+                            setWidgetScale(1.0f); // Mở rộng thành Thẻ chuẩn
+                        } else {
+                            setWidgetScale(0.60f); // Thu gọn thành Thanh ngang
+                        }
+                        return true;
+                    }
+
+                    // Chạm vào thanh header còn lại hoặc khi đang thu gọn -> chuyển đổi thu gọn / mở rộng
+                    if (isCollapsed || (!isCompactPillMode() && touchY <= 32f * dens)) {
                         toggleCollapsed();
                     }
                 }
@@ -381,7 +478,15 @@ public class AccuracyEloWidgetView extends View {
         if (w <= 0 || h <= 0) return;
 
         Context ctx = getContext();
-        float density = getResources().getDisplayMetrics().density * widgetScale;
+        float baseDensity = getResources().getDisplayMetrics().density;
+
+        // Nếu ở chế độ Thanh Ngang Mini (Pill Mode khi kích thước nhỏ)
+        if (isCompactPillMode()) {
+            drawCompactPill(canvas, ctx, w, h, baseDensity);
+            return;
+        }
+
+        float density = baseDensity * widgetScale;
         float radius = 15f * density;
 
         // 1. Nền tổng thể Cyber Glass
@@ -390,7 +495,7 @@ public class AccuracyEloWidgetView extends View {
         canvas.drawRoundRect(bounds, radius, radius, bgPaint);
 
         strokePaint.setShader(null);
-        strokePaint.setColor(isDragging ? 0x990A84FF : 0x24FFFFFF);
+        strokePaint.setColor((isDragging || isResizing) ? 0x990A84FF : 0x24FFFFFF);
         strokePaint.setStrokeWidth(1.2f * density);
         canvas.drawRoundRect(bounds, radius, radius, strokePaint);
 
@@ -399,7 +504,7 @@ public class AccuracyEloWidgetView extends View {
         float iconLeft = 8f * density;
         float iconTop = headerY - (9f * density);
         float iconSize = 18f * density;
-        RectF iconBounds = new RectF(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
+        iconBounds.set(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
 
         // Khung icon vuông bo góc chia đôi màu trắng/đen chuẩn Extension
         headerIconPaint.setShader(new LinearGradient(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize,
@@ -453,6 +558,152 @@ public class AccuracyEloWidgetView extends View {
         float blackTop = whiteTop + cardH + (4.5f * density);
         drawPlayerCard(canvas, ctx, density, false, !userIsWhite, blackAccuracy, blackElo,
                 cardLeft, blackTop, cardRight, blackTop + cardH, cardRadius);
+
+        // 4. Tay cầm kéo góc ở góc dưới bên phải (Corner Resize Grip)
+        drawResizeGrip(canvas, w, h, baseDensity);
+    }
+
+    private void drawCompactPill(Canvas canvas, Context ctx, int w, int h, float baseDensity) {
+        float radius = 9f * baseDensity;
+        bounds.set(1f * baseDensity, 1f * baseDensity, w - 1f * baseDensity, h - 1f * baseDensity);
+
+        // 1. Nền Cyber Frosted Glass mỏng
+        bgPaint.setShader(new LinearGradient(0, 0, 0, h, 0xF20D1117, 0xF2161E28, Shader.TileMode.CLAMP));
+        canvas.drawRoundRect(bounds, radius, radius, bgPaint);
+
+        // 2. Viền phát sáng
+        strokePaint.setShader(null);
+        strokePaint.setColor((isDragging || isResizing) ? 0xFF0A84FF : 0x2EFFFFFF);
+        strokePaint.setStrokeWidth(1.2f * baseDensity);
+        canvas.drawRoundRect(bounds, radius, radius, strokePaint);
+
+        // 3. Icon âm dương nhỏ gọn ở đầu mép trái (chạm vào để bung to thành thẻ)
+        float iconR = 5.5f * baseDensity;
+        float iconCx = 9f * baseDensity;
+        float centerY = h / 2f;
+        iconBounds.set(iconCx - iconR, centerY - iconR, iconCx + iconR, centerY + iconR);
+        headerIconPaint.setShader(new LinearGradient(iconBounds.left, iconBounds.top, iconBounds.right, iconBounds.bottom,
+                new int[]{0xFFFFFFFF, 0xFFFFFFFF, 0xFF121720, 0xFF121720},
+                new float[]{0f, 0.5f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawRoundRect(iconBounds, 3f * baseDensity, 3f * baseDensity, headerIconPaint);
+        strokePaint.setColor(0x33FFFFFF);
+        strokePaint.setStrokeWidth(0.6f * baseDensity);
+        canvas.drawRoundRect(iconBounds, 3f * baseDensity, 3f * baseDensity, strokePaint);
+
+        // 4. Vạch chia giữa
+        float contentLeft = iconCx + iconR + (4f * baseDensity);
+        float gripArea = 15f * baseDensity;
+        float contentRight = w - gripArea;
+        float midX = contentLeft + ((contentRight - contentLeft) / 2f);
+
+        strokePaint.setColor(0x22FFFFFF);
+        strokePaint.setStrokeWidth(0.8f * baseDensity);
+        canvas.drawLine(midX, 4f * baseDensity, midX, h - (4f * baseDensity), strokePaint);
+
+        // 5. Nửa Trái: Quân Trắng
+        drawPillSide(canvas, ctx, baseDensity, true, userIsWhite, whiteAccuracy, whiteElo,
+                contentLeft, midX - (2f * baseDensity), centerY);
+
+        // 6. Nửa Phải: Quân Đen
+        drawPillSide(canvas, ctx, baseDensity, false, !userIsWhite, blackAccuracy, blackElo,
+                midX + (2f * baseDensity), contentRight, centerY);
+
+        // 7. Tay cầm kéo góc ở mép phải
+        drawResizeGrip(canvas, w, h, baseDensity);
+    }
+
+    private void drawPillSide(Canvas canvas, Context ctx, float baseDensity,
+                              boolean isWhiteSide, boolean isYou,
+                              float accuracy, int elo,
+                              float left, float right, float centerY) {
+        float pieceR = 4.2f * baseDensity;
+        float pieceCx = left + pieceR + (2f * baseDensity);
+
+        // Chấm tròn quân cờ Trắng / Đen
+        if (isWhiteSide) {
+            pieceCirclePaint.setShader(new RadialGradient(pieceCx - 1f, centerY - 1f, pieceR * 1.5f,
+                    0xFFFFFFFF, 0xFFCBD5E1, Shader.TileMode.CLAMP));
+            canvas.drawCircle(pieceCx, centerY, pieceR, pieceCirclePaint);
+            strokePaint.setColor(0x26000000);
+            strokePaint.setStrokeWidth(0.6f * baseDensity);
+            canvas.drawCircle(pieceCx, centerY, pieceR, strokePaint);
+        } else {
+            pieceCirclePaint.setShader(new RadialGradient(pieceCx - 1f, centerY - 1f, pieceR * 1.5f,
+                    0xFF5A6578, 0xFF0D1117, Shader.TileMode.CLAMP));
+            canvas.drawCircle(pieceCx, centerY, pieceR, pieceCirclePaint);
+            strokePaint.setColor(0x33FFFFFF);
+            strokePaint.setStrokeWidth(0.6f * baseDensity);
+            canvas.drawCircle(pieceCx, centerY, pieceR, strokePaint);
+        }
+
+        float curX = pieceCx + pieceR + (3.5f * baseDensity);
+
+        // Huy hiệu [BẠN] / [YOU] nếu là phe của người chơi
+        if (isYou) {
+            String roleText = I18n.get(ctx, "role_you");
+            labelPaint.setTextAlign(Paint.Align.LEFT);
+            labelPaint.setTextSize(6.5f * baseDensity);
+            labelPaint.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            float badgeTextW = labelPaint.measureText(roleText);
+            float bW = badgeTextW + (5f * baseDensity);
+            float bH = 10f * baseDensity;
+            badgeBounds.set(curX, centerY - (bH / 2f), curX + bW, centerY + (bH / 2f));
+
+            roleBadgePaint.setColor(0xFF0A84FF);
+            canvas.drawRoundRect(badgeBounds, 999f, 999f, roleBadgePaint);
+
+            labelPaint.setColor(0xFFFFFFFF);
+            Paint.FontMetrics bFm = labelPaint.getFontMetrics();
+            float bBase = badgeBounds.centerY() - (bFm.ascent + bFm.descent) / 2f;
+            canvas.drawText(roleText, curX + (2.5f * baseDensity), bBase, labelPaint);
+            curX += bW + (3.5f * baseDensity);
+        }
+
+        // % Độ chính xác
+        String accText = accuracy >= 0f ? String.format(Locale.US, "%.1f%%", accuracy) : "--";
+        valPaint.setTextAlign(Paint.Align.LEFT);
+        valPaint.setTextSize(9.5f * baseDensity);
+
+        if (accuracy >= 85f) {
+            valPaint.setColor(0xFF34D399); // Emerald
+        } else if (accuracy >= 70f) {
+            valPaint.setColor(0xFFF0B84B); // Amber
+        } else if (accuracy >= 0f) {
+            valPaint.setColor(0xFF64D2FF); // Cyber Blue
+        } else {
+            valPaint.setColor(0x88FFFFFF);
+        }
+
+        Paint.FontMetrics vFm = valPaint.getFontMetrics();
+        float valBase = centerY - (vFm.ascent + vFm.descent) / 2f;
+        canvas.drawText(accText, curX, valBase, valPaint);
+        curX += valPaint.measureText(accText) + (3f * baseDensity);
+
+        // Điểm Elo (vẽ nếu còn đủ chỗ)
+        if (elo > 0 && curX + (18f * baseDensity) <= right) {
+            textPaint.setTextAlign(Paint.Align.LEFT);
+            textPaint.setTextSize(7.5f * baseDensity);
+            textPaint.setColor(0xFFFFD760);
+            Paint.FontMetrics tFm = textPaint.getFontMetrics();
+            float tBase = centerY - (tFm.ascent + tFm.descent) / 2f;
+            canvas.drawText(String.valueOf(elo), curX, tBase, textPaint);
+        }
+    }
+
+    private void drawResizeGrip(Canvas canvas, int w, int h, float density) {
+        float pad = 3.5f * density;
+        float gx = w - pad;
+        float gy = h - pad;
+
+        strokePaint.setShader(null);
+        strokePaint.setColor(isResizing ? 0xFF0A84FF : 0x55FFFFFF);
+        strokePaint.setStrokeWidth(1.2f * density);
+        strokePaint.setStrokeCap(Paint.Cap.ROUND);
+
+        canvas.drawLine(gx - (3.5f * density), gy, gx, gy - (3.5f * density), strokePaint);
+        canvas.drawLine(gx - (7.0f * density), gy, gx, gy - (7.0f * density), strokePaint);
+        canvas.drawLine(gx - (10.5f * density), gy, gx, gy - (10.5f * density), strokePaint);
+        strokePaint.setStrokeCap(Paint.Cap.BUTT);
     }
 
     private void drawPlayerCard(Canvas canvas, Context ctx, float density,
@@ -543,17 +794,15 @@ public class AccuracyEloWidgetView extends View {
         badgeBounds.set(badgeLeft, headY - (badgeH / 2f), badgeRight, headY + (badgeH / 2f));
 
         if (isYou) {
-            // Nền xanh Cyber Blue rực rỡ, đậm đà, 100% OPAQUE - không bao giờ bị dính alpha từ thẻ khác
+            // Nền xanh Cyber Blue rực rỡ, đậm đà, 100% OPAQUE
             roleBadgePaint.setShader(null);
             roleBadgePaint.setColor(0xFF0A84FF);
             canvas.drawRoundRect(badgeBounds, 999f, 999f, roleBadgePaint);
 
-            // Viền sắc nét cho badge Cyber Blue
             strokePaint.setColor(0xFF64D2FF);
             strokePaint.setStrokeWidth(0.8f * density);
             canvas.drawRoundRect(badgeBounds, 999f, 999f, strokePaint);
 
-            // Chữ BẠN / YOU màu trắng tinh, đậm nét, cực kỳ rõ ràng
             labelPaint.setColor(0xFFFFFFFF);
         } else {
             roleBadgePaint.setShader(null);

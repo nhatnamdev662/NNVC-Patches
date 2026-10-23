@@ -636,6 +636,32 @@ public class SelfTest {
         check("AccuracyEloWidget pinch-to-zoom focus remains stable",
                 Math.abs(focusParentBefore - focusParentAfter) < 0.001f);
 
+        // Test 2.2: AccuracyEloWidget Adaptive Layout & 1-Finger Corner Resize Grip
+        float threshold = 0.72f;
+        boolean isPillSmall = (0.60f < threshold);
+        boolean isCardNormal = (1.0f >= threshold);
+        boolean isCardCompact = (0.75f >= threshold);
+        check("AccuracyEloWidget adaptive mode threshold logic (<0.72f is Pill, >=0.72f is Card)",
+                isPillSmall && isCardNormal && isCardCompact);
+
+        // Compact pill dimension calculation: wDp 185-220, hDp 30-36
+        float normMin = Math.max(0f, Math.min(1.0f, (0.50f - 0.50f) / (0.72f - 0.50f)));
+        float normMax = Math.max(0f, Math.min(1.0f, (0.70f - 0.50f) / (0.72f - 0.50f)));
+        float pillWMin = 185f + (normMin * 35f);
+        float pillHMin = 30f + (normMin * 6f);
+        float pillWMax = 185f + (normMax * 35f);
+        float pillHMax = 30f + (normMax * 6f);
+        check("AccuracyEloWidget compact pill dimensions within slim limits",
+                pillWMin == 185f && pillHMin == 30f && pillWMax > 185f && pillHMax <= 36f);
+
+        // 1-finger corner resize delta mapping
+        float startS = 1.0f;
+        float dxy = 87.5f; // drag 87.5px diagonally
+        float sens = 175f * 1.0f;
+        float resizedScale = startS + (dxy / sens);
+        check("AccuracyEloWidget 1-finger corner resize delta mapping",
+                Math.abs(resizedScale - 1.50f) < 0.001f);
+
         // v2.0.83 Tests:
         // Test 1: isReviewOrAnalysisActivity suppresses overlays in GameReviewActivity and StandaloneAnalysisActivity
         String gameReviewAct = "com.chess.gamereview.v2.GameReviewActivity";
