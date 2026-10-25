@@ -2106,6 +2106,34 @@ public class SelfTest {
         StockfishExtension.setMove0AnalysisCompleted(true);
         StockfishExtension.onGameOverNative(null, null);
         check("onGameOverNative clears isMove0AnalysisCompleted to prevent next game poisoning", !StockfishExtension.isMove0AnalysisCompleted());
+        // Instant Arrow Rendering, Side Leak Prevention & Classification Tests
+        StockfishExtension.resetUserWhiteCache();
+        boolean nativeWhiteNull = false;
+        try {
+            java.lang.reflect.Field nwf = StockfishExtension.class.getDeclaredField("nativeUserSideIsWhite");
+            nwf.setAccessible(true);
+            nativeWhiteNull = (nwf.get(null) == null);
+        } catch (Throwable ignored) {}
+        check("resetUserWhiteCache clears both cachedUserIsWhite and nativeUserSideIsWhite to prevent side leak",
+                StockfishExtension.getCachedUserIsWhite() == null && nativeWhiteNull);
+
+        try {
+            java.lang.reflect.Field pmdF = StockfishProcess.class.getDeclaredField("PROGRESS_MIN_DEPTH");
+            pmdF.setAccessible(true);
+            int pmd = pmdF.getInt(null);
+            check("StockfishProcess PROGRESS_MIN_DEPTH is set to 2 for instant arrow rendering (<100ms)", pmd == 2);
+        } catch (Throwable t) {
+            check("StockfishProcess PROGRESS_MIN_DEPTH reflection check failed: " + t.getMessage(), false);
+        }
+
+        boolean hideArrowCalledSafely = true;
+        try {
+            OverlayManager.hideArrowOverlay();
+        } catch (Throwable t) {
+            // Expected Looper stub exception on headless JVM test runner
+            hideArrowCalledSafely = t instanceof RuntimeException && t.getMessage() != null && t.getMessage().contains("Stub");
+        }
+        check("OverlayManager hideArrowOverlay invoked safely without unexpected errors", hideArrowCalledSafely);
 
         // 3. Direct Model Hook Auto Move
         class MockCBViewModel {

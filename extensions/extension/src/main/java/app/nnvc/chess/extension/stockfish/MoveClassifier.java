@@ -458,18 +458,8 @@ public class MoveClassifier {
         final List<String> snapshotMoves = (currentPositionMoves != null) ? new ArrayList<>(currentPositionMoves) : null;
         final Context appContext = context.getApplicationContext();
 
-        android.os.Handler handler = getClassifyHandler();
-        if (handler != null && pendingClassifyRunnable != null) {
-            handler.removeCallbacks(pendingClassifyRunnable);
-        }
-
-        pendingClassifyRunnable = () -> {
-            pendingClassifyRunnable = null;
-            classifyMoveIfPossible(appContext, currentFen, null, snapshotMoves);
-        };
-        if (handler != null) {
-            handler.postDelayed(pendingClassifyRunnable, 100);
-        }
+        // Zero-Lag Direct Classification: Execute directly without 100ms debounce drop
+        classifyMoveIfPossible(appContext, currentFen, null, snapshotMoves);
     }
 
     @android.annotation.SuppressLint("MissingPermission")
@@ -565,20 +555,13 @@ public class MoveClassifier {
 
                 String userColor = (userIsWhite != null && !userIsWhite) ? "black" : "white";
                 final String finalUci = uciMove;
-                classifiedMoves.add(moveIdentifier);
-
-                // Kiểm tra tính hợp lệ của chuỗi nước đi tính từ bàn cờ ban đầu (startpos)
-                String firstMove = moves.get(0);
-                if (!STARTPOS_LEGAL_FIRST_MOVES.contains(firstMove)) {
-                    TorchEngine.log("[TORCH CLASSIFIER BLOCKED] Nước đầu tiên '" + firstMove + "' không thể đi từ startpos (Vào lại giữa ván và không có lịch sử). Chặn gửi lệnh để bảo vệ WebAssembly khỏi Abort.");
-                    return;
-                }
 
                 final boolean finalWhiteMoved = whiteMoved;
                 int coachDepth = StockfishSettings.getCoachDepth(context);
                 final boolean finalIsMyMove = isMyMove;
                 final boolean finalUserIsWhite = (userIsWhite != null) ? userIsWhite.booleanValue() : true;
-                torch.analyze(moves, userColor, coachDepth, (classificationName, playedMoveLan, bestMoveLan, speechText, audioUrlHash, rawJson) -> {
+
+                TorchEngine.TorchClassificationCallback torchCallback = (classificationName, playedMoveLan, bestMoveLan, speechText, audioUrlHash, rawJson) -> {
                     TorchEngine.log("[CLASSIFIER CALLBACK] class=" + classificationName + ", act=" + (currentAct != null) + ", isMyMove=" + finalIsMyMove + ", audioHash=" + audioUrlHash);
                     
                     // Kích hoạt giọng nói Huấn Luyện Viên chính hãng (nếu có audioUrlHash)
@@ -648,7 +631,21 @@ public class MoveClassifier {
                         // 100% phụ thuộc vào Torch: Không chuyển sang Stockfish, chỉ ghi log
                         TorchEngine.log("[TORCH CLASSIFIER ERROR] Không thể phân loại: Torch CEE trả về null (Thiếu chuỗi startpos hoặc lỗi WebAssembly)");
                     }
-                });
+                };
+
+                // Kiểm tra tính hợp lệ của chuỗi nước đi tính từ bàn cờ ban đầu (startpos)
+                String firstMove = (moves != null && !moves.isEmpty()) ? moves.get(0) : null;
+                boolean isStartposStandard = firstMove != null && STARTPOS_LEGAL_FIRST_MOVES.contains(firstMove);
+                if (isStartposStandard) {
+                    classifiedMoves.add(moveIdentifier);
+                    torch.analyze(moves, userColor, coachDepth, torchCallback);
+                } else if (currentFen != null) {
+                    classifiedMoves.add(moveIdentifier);
+                    TorchEngine.log("[TORCH CLASSIFIER FEN] Nước đầu không thuộc startpos, phân tích theo FEN: " + currentFen);
+                    torch.analyzePosition("position fen " + currentFen, userColor, coachDepth, torchCallback);
+                } else {
+                    TorchEngine.log("[TORCH CLASSIFIER SKIP] Không thể xác định startpos hay FEN hợp lệ.");
+                }
                 return;
             }
 

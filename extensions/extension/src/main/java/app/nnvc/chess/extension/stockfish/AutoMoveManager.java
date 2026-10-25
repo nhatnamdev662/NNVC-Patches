@@ -1088,6 +1088,7 @@ public class AutoMoveManager {
             pMethod.setAccessible(true);
             pMethod.invoke(cbVm, moveObj, moveVerification, true);
             NnvcLogger.i(TAG, "⚡ [DIRECT MODEL AUTO MOVE] Executed 0ms move directly via CBViewModel.p: " + fromSq + toSq + (isPromo ? promoPiece : ""));
+            OverlayManager.hideArrowOverlay();
             return true;
         } catch (Throwable t) {
             Throwable cause = t.getCause() != null ? t.getCause() : t;

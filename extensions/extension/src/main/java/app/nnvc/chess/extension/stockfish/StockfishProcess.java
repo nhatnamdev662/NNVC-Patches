@@ -24,7 +24,7 @@ public class StockfishProcess {
     public static final float MATE_SCORE = 99.0f;
     private static final int READY_TIMEOUT_MS = 10_000;
     private static final int BESTMOVE_GRACE_MS = 10_000;
-    private static final int PROGRESS_MIN_DEPTH = 4;
+    private static final int PROGRESS_MIN_DEPTH = 2;
     private static final long PROGRESS_INTERVAL_MS = 150;
 
     // Active Engine Mode: strictly "wasm"
@@ -484,10 +484,10 @@ public class StockfishProcess {
 
             if (depth > reachedDepth) reachedDepth = depth;
 
-            // Progressive Arrow Rendering: Report progress as soon as depth >= 4 so arrows appear immediately!
+            // Progressive Arrow Rendering: Report progress as soon as depth >= 2 so arrows appear immediately!
             if (progress != null && depth >= PROGRESS_MIN_DEPTH && firstMoves[0] != null) {
                 long now = System.currentTimeMillis();
-                if (now - lastReport >= PROGRESS_INTERVAL_MS || (depth > reportedDepth && depth >= 4)) {
+                if (now - lastReport >= PROGRESS_INTERVAL_MS || (depth > reportedDepth && depth >= 2)) {
                     lastReport = now;
                     reportedDepth = depth;
                     try {

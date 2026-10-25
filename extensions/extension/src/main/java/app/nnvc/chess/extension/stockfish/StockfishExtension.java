@@ -531,7 +531,7 @@ public class StockfishExtension {
             return;
         }
 
-        OverlayManager.clearClassificationBadge();
+        OverlayManager.hideArrowOverlay();
         lastArrowSignature = null;
 
         String fen = extractFen(positionObject);
@@ -1016,7 +1016,7 @@ public class StockfishExtension {
                 boolean whiteTurn = isWhiteTurnFromFen(fen);
                 OverlayManager.updateArrowOverlay(movesToInject, threatListToInject, premoveMoveToInject, result.sideToMoveScores, result.lineMates, result.lineMateIn, whiteTurn, getStateImpl());
             }
-        } else if (isFinal) {
+        } else {
             lastArrowSignature = null;
             OverlayManager.hideArrowOverlay();
             ArrowInjector.clearEngineArrows(getStateImpl());
@@ -2321,6 +2321,7 @@ public class StockfishExtension {
 
     public static void resetUserWhiteCache() {
         cachedUserIsWhite = null;
+        nativeUserSideIsWhite = null;
     }
 
     public static Boolean getCachedUserIsWhite() {
