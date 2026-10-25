@@ -96,17 +96,27 @@ public class ArrowOverlayView extends View {
     }
 
     private static class HeadPoints {
-        final float tipX, tipY;
-        final float leftOuterX, leftOuterY;
-        final float rightOuterX, rightOuterY;
-        final float leftNotchX, leftNotchY;
-        final float rightNotchX, rightNotchY;
+        float tipX, tipY;
+        float leftOuterX, leftOuterY;
+        float rightOuterX, rightOuterY;
+        float leftNotchX, leftNotchY;
+        float rightNotchX, rightNotchY;
+
+        HeadPoints() {}
 
         HeadPoints(float tipX, float tipY,
                    float leftOuterX, float leftOuterY,
                    float rightOuterX, float rightOuterY,
                    float leftNotchX, float leftNotchY,
                    float rightNotchX, float rightNotchY) {
+            set(tipX, tipY, leftOuterX, leftOuterY, rightOuterX, rightOuterY, leftNotchX, leftNotchY, rightNotchX, rightNotchY);
+        }
+
+        void set(float tipX, float tipY,
+                 float leftOuterX, float leftOuterY,
+                 float rightOuterX, float rightOuterY,
+                 float leftNotchX, float leftNotchY,
+                 float rightNotchX, float rightNotchY) {
             this.tipX = tipX;
             this.tipY = tipY;
             this.leftOuterX = leftOuterX;
@@ -119,6 +129,10 @@ public class ArrowOverlayView extends View {
             this.rightNotchY = rightNotchY;
         }
     }
+
+    private final HeadPoints reusableHeadPoints = new HeadPoints();
+    private final float[] reusableLeftElbow = new float[2];
+    private final float[] reusableRightElbow = new float[2];
 
 
     private final List<ArrowData> arrows = new ArrayList<>();
@@ -306,16 +320,20 @@ public class ArrowOverlayView extends View {
         ViewGroup.LayoutParams lp = getLayoutParams();
         if (lp == null) {
             lp = new FrameLayout.LayoutParams(width, height);
-        } else {
+            if (lp instanceof FrameLayout.LayoutParams) {
+                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
+            }
+            setLayoutParams(lp);
+        } else if (lp.width != width || lp.height != height) {
             lp.width = width;
             lp.height = height;
+            if (lp instanceof FrameLayout.LayoutParams) {
+                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
+            }
+            setLayoutParams(lp);
         }
-        if (lp instanceof FrameLayout.LayoutParams) {
-            ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
-        }
-        setLayoutParams(lp);
-        setTranslationX(boardX);
-        setTranslationY(boardY);
+        if (getTranslationX() != boardX) setTranslationX(boardX);
+        if (getTranslationY() != boardY) setTranslationY(boardY);
 
         invalidate();
     }
@@ -325,16 +343,20 @@ public class ArrowOverlayView extends View {
         ViewGroup.LayoutParams lp = getLayoutParams();
         if (lp == null) {
             lp = new FrameLayout.LayoutParams(width, height);
-        } else {
+            if (lp instanceof FrameLayout.LayoutParams) {
+                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
+            }
+            setLayoutParams(lp);
+        } else if (lp.width != width || lp.height != height) {
             lp.width = width;
             lp.height = height;
+            if (lp instanceof FrameLayout.LayoutParams) {
+                ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
+            }
+            setLayoutParams(lp);
         }
-        if (lp instanceof FrameLayout.LayoutParams) {
-            ((FrameLayout.LayoutParams) lp).gravity = Gravity.TOP | Gravity.START;
-        }
-        setLayoutParams(lp);
-        setTranslationX(boardX);
-        setTranslationY(boardY);
+        if (getTranslationX() != boardX) setTranslationX(boardX);
+        if (getTranslationY() != boardY) setTranslationY(boardY);
         invalidate();
     }
 
@@ -948,35 +970,39 @@ public class ArrowOverlayView extends View {
             return;
         }
 
-        // Color computation matching NNVC extension with custom tier palette
-        int[] rawRgb = getBaseRgb(getContext(), arrow.tier, arrow.isThreat, arrow.isPremove);
-        int[] rgb = (arrow.tier == 2) ? tint(rawRgb, 0.12f)
-                : (arrow.tier >= 3) ? tint(rawRgb, 0.30f)
+        // Color computation matching NNVC extension with custom tier palette (Zero-Allocation)
+        int rawRgb = getBaseRgbPacked(getContext(), arrow.tier, arrow.isThreat, arrow.isPremove);
+        int rgb = (arrow.tier == 2) ? tintPacked(rawRgb, 0.12f)
+                : (arrow.tier >= 3) ? tintPacked(rawRgb, 0.30f)
                 : rawRgb;
 
-        int[] colTail = shade(rgb, 0.14f);
-        int[] colMid = rgb;
-        int[] colHeadLight = tint(rgb, 0.22f);
-        int[] colEdge = shade(rgb, 0.42f);
+        int colTail = shadePacked(rgb, 0.14f);
+        int colMid = rgb;
+        int colHeadLight = tintPacked(rgb, 0.22f);
+        int colEdge = shadePacked(rgb, 0.42f);
 
         float opacity = (arrow.tier == 1) ? 0.94f
                 : (arrow.tier == 2) ? 0.82f
                 : 0.65f;
 
+        int midR = (colMid >> 16) & 0xFF;
+        int midG = (colMid >> 8) & 0xFF;
+        int midB = colMid & 0xFF;
+
         // 1. Neon Drop Shadow / Glow (GPU accelerated 2-pass stroke)
         glowPaint.setMaskFilter(null);
-        glowPaint.setColor(Color.argb((int)(0.25f * opacity * 255), colMid[0], colMid[1], colMid[2]));
+        glowPaint.setColor(Color.argb((int)(0.25f * opacity * 255), midR, midG, midB));
         glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.040f);
         canvas.drawPath(arrowPath, glowPaint);
 
-        glowPaint.setColor(Color.argb((int)(0.50f * opacity * 255), colMid[0], colMid[1], colMid[2]));
+        glowPaint.setColor(Color.argb((int)(0.50f * opacity * 255), midR, midG, midB));
         glowPaint.setStrokeWidth(edgeStroke + sqSize * 0.018f);
         canvas.drawPath(arrowPath, glowPaint);
 
         // 2. Linear Gradient Fill
-        int cTail = Color.argb((int)(0.88f * opacity * 255), colTail[0], colTail[1], colTail[2]);
-        int cMid  = Color.argb((int)(0.96f * opacity * 255), colMid[0], colMid[1], colMid[2]);
-        int cHead = Color.argb((int)(1.0f  * opacity * 255), colHeadLight[0], colHeadLight[1], colHeadLight[2]);
+        int cTail = Color.argb((int)(0.88f * opacity * 255), (colTail >> 16) & 0xFF, (colTail >> 8) & 0xFF, colTail & 0xFF);
+        int cMid  = Color.argb((int)(0.96f * opacity * 255), midR, midG, midB);
+        int cHead = Color.argb((int)(1.0f  * opacity * 255), (colHeadLight >> 16) & 0xFF, (colHeadLight >> 8) & 0xFF, colHeadLight & 0xFF);
         int slotIdx = Math.max(0, Math.min(cachedFillShaders.length - 1, arrow.tier));
         ShaderSlot fillSlot = cachedFillShaders[slotIdx];
         if (!fillSlot.matches(x1, y1, x2, y2, cTail, cMid, cHead)) {
@@ -989,7 +1015,7 @@ public class ArrowOverlayView extends View {
         canvas.drawPath(arrowPath, fillPaint);
 
         // 3. Highlight Edge Stroke
-        int cEdgeTail = Color.argb((int)(0.75f * opacity * 255), colEdge[0], colEdge[1], colEdge[2]);
+        int cEdgeTail = Color.argb((int)(0.75f * opacity * 255), (colEdge >> 16) & 0xFF, (colEdge >> 8) & 0xFF, colEdge & 0xFF);
         int cEdgeHead = Color.argb((int)(0.65f * opacity * 255), 255, 255, 255);
         edgePaint.setStrokeWidth(edgeStroke);
         ShaderSlot edgeSlot = cachedEdgeShaders[slotIdx];
@@ -1076,10 +1102,14 @@ public class ArrowOverlayView extends View {
         float shiftedElbowX = elbowX + p1x * perpOffset;
         float shiftedElbowY = elbowY + p1y * perpOffset;
 
-        float[] leftElbow = lineIntersect(leftStartX, leftStartY, u1x, u1y,
-                shiftedElbowX + p2x * shaftHalf, shiftedElbowY + p2y * shaftHalf, u2x, u2y);
-        float[] rightElbow = lineIntersect(rightStartX, rightStartY, u1x, u1y,
-                shiftedElbowX - p2x * shaftHalf, shiftedElbowY - p2y * shaftHalf, u2x, u2y);
+        lineIntersect(leftStartX, leftStartY, u1x, u1y,
+                shiftedElbowX + p2x * shaftHalf, shiftedElbowY + p2y * shaftHalf, u2x, u2y,
+                reusableLeftElbow);
+        lineIntersect(rightStartX, rightStartY, u1x, u1y,
+                shiftedElbowX - p2x * shaftHalf, shiftedElbowY - p2y * shaftHalf, u2x, u2y,
+                reusableRightElbow);
+        float[] leftElbow = reusableLeftElbow;
+        float[] rightElbow = reusableRightElbow;
 
         reusableArrowPath.reset();
         reusableArrowPath.moveTo(leftStartX, leftStartY);
@@ -1100,21 +1130,28 @@ public class ArrowOverlayView extends View {
                                        float headHalf, float neckHalf, boolean isThreat) {
         float headBaseX = tipX - ux * headLen;
         float headBaseY = tipY - uy * headLen;
-        return new HeadPoints(
+        reusableHeadPoints.set(
                 tipX, tipY,
                 headBaseX + px * headHalf, headBaseY + py * headHalf,
                 headBaseX - px * headHalf, headBaseY - py * headHalf,
                 headBaseX + px * neckHalf, headBaseY + py * neckHalf,
                 headBaseX - px * neckHalf, headBaseY - py * neckHalf
         );
+        return reusableHeadPoints;
     }
 
-    private float[] lineIntersect(float ax, float ay, float adx, float ady,
-                                  float bx, float by, float bdx, float bdy) {
+    private void lineIntersect(float ax, float ay, float adx, float ady,
+                               float bx, float by, float bdx, float bdy,
+                               float[] out) {
         float den = adx * bdy - ady * bdx;
-        if (Math.abs(den) < 1e-6f) return new float[]{ax, ay};
+        if (Math.abs(den) < 1e-6f) {
+            out[0] = ax;
+            out[1] = ay;
+            return;
+        }
         float t = ((bx - ax) * bdy - (by - ay) * bdx) / den;
-        return new float[]{ax + adx * t, ay + ady * t};
+        out[0] = ax + adx * t;
+        out[1] = ay + ady * t;
     }
 
     private float[] getSquareCenter(String sq, boolean flipped, float sqSize) {
@@ -1138,6 +1175,39 @@ public class ArrowOverlayView extends View {
         }
 
         return squareCenters[rank * 8 + file];
+    }
+
+    private static int getBaseRgbPacked(Context context, int tier, boolean isThreat, boolean isPremove) {
+        if (isPremove) {
+            return 0xF59E0B;
+        }
+        if (isThreat) {
+            return 0xEF4444;
+        }
+        int color = (context != null)
+                ? StockfishSettings.getArrowTierColor(context, tier)
+                : StockfishSettings.DEFAULT_TIER_COLORS[Math.max(1, Math.min(5, tier)) - 1];
+        return color & 0xFFFFFF;
+    }
+
+    private static int tintPacked(int rgb, float amt) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
+        int tr = clamp((int)(r + (255 - r) * amt));
+        int tg = clamp((int)(g + (255 - g) * amt));
+        int tb = clamp((int)(b + (255 - b) * amt));
+        return (tr << 16) | (tg << 8) | tb;
+    }
+
+    private static int shadePacked(int rgb, float amt) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
+        int sr = clamp((int)(r * (1.0f - amt)));
+        int sg = clamp((int)(g * (1.0f - amt)));
+        int sb = clamp((int)(b * (1.0f - amt)));
+        return (sr << 16) | (sg << 8) | sb;
     }
 
     private static int[] getBaseRgb(Context context, int tier, boolean isThreat, boolean isPremove) {

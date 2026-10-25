@@ -357,6 +357,8 @@ public class SmartDelayManager {
         lastWasCheck = false;
         lastEvalScore = 0f;
         lastScenarioLabel = "Tự động";
+        sCachedLiveClockInfo = null;
+        sLastClockDetectMs = 0;
     }
 
     // ── 5. Cấu hình State Tâm Lý Người Thật (_humanStateCfg dòng 7363-7420) ──────
@@ -1301,6 +1303,8 @@ public class SmartDelayManager {
         sLastRunningColor = null;
         hasNotifiedThisGame = false;
         activeTcSignature = null;
+        sCachedLiveClockInfo = null;
+        sLastClockDetectMs = 0;
     }
 
     public static int matchPresetIndex(int initSec, int incSec) {
@@ -1347,11 +1351,27 @@ public class SmartDelayManager {
         return bestIdx;
     }
 
-    public static LiveClockInfo detectLiveClocks(Activity activity, boolean userWhite) {
-        LiveClockInfo info = new LiveClockInfo();
+    // ── Zero-Lag Move-Level Clock Cache & Reflection Cache ───────────────
+    private static LiveClockInfo sCachedLiveClockInfo = null;
+    private static long sLastClockDetectMs = 0;
+    private static boolean sCachedClockUserWhite = false;
+    private static int sCachedClockActivityHash = 0;
+    private static final long CLOCK_CACHE_TTL_MS = 350L;
 
+    private static Class<?> sCachedVmClass = null;
+    private static Field sCachedClocksField = null;
+    private static Field sCachedGameTimeField = null;
+    private static Method sCachedStateFlowGetVal = null;
+
+    public static void clearClockCache() {
+        sCachedLiveClockInfo = null;
+        sLastClockDetectMs = 0;
+    }
+
+    public static LiveClockInfo detectLiveClocks(Activity activity, boolean userWhite) {
         // Tầng 0: Bytecode Native Hook từ b.<init> (0ms delay, Zero-Fallback)
         if (sLastWhiteMillis >= 0 && sLastBlackMillis >= 0) {
+            LiveClockInfo info = new LiveClockInfo();
             info.mySec = (userWhite ? sLastWhiteMillis : sLastBlackMillis) / 1000.0;
             info.oppSec = (userWhite ? sLastBlackMillis : sLastWhiteMillis) / 1000.0;
             long initMillis = userWhite ? sInitialWhiteMillis : sInitialBlackMillis;
@@ -1363,24 +1383,45 @@ public class SmartDelayManager {
             return info;
         }
 
-        if (activity == null) return info;
+        if (activity == null) return new LiveClockInfo();
+
+        long now = System.currentTimeMillis();
+        int actHash = System.identityHashCode(activity);
+        if (sCachedLiveClockInfo != null && (now - sLastClockDetectMs) < CLOCK_CACHE_TTL_MS
+                && sCachedClockUserWhite == userWhite
+                && sCachedClockActivityHash == actHash) {
+            return sCachedLiveClockInfo;
+        }
+
+        LiveClockInfo info = new LiveClockInfo();
 
         // Tầng 1: Native ViewModel Hooking
         try {
             Object vm = resolveRealGameViewModel(activity);
             if (vm != null) {
+                Class<?> vmCls = vm.getClass();
                 Field fClocks = null;
-                for (Field f : vm.getClass().getDeclaredFields()) {
-                    if (f.getName().contains("clocksState") || f.getName().contains("_clocksState") || "P0".equals(f.getName())) {
-                        fClocks = f;
-                        break;
+                if (vmCls == sCachedVmClass && sCachedClocksField != null) {
+                    fClocks = sCachedClocksField;
+                } else {
+                    for (Field f : vmCls.getDeclaredFields()) {
+                        if (f.getName().contains("clocksState") || f.getName().contains("_clocksState") || "P0".equals(f.getName())) {
+                            fClocks = f;
+                            sCachedVmClass = vmCls;
+                            sCachedClocksField = f;
+                            break;
+                        }
                     }
                 }
                 if (fClocks != null) {
                     fClocks.setAccessible(true);
                     Object stateFlow = fClocks.get(vm);
                     if (stateFlow != null) {
-                        Method mVal = stateFlow.getClass().getMethod("getValue");
+                        Method mVal = sCachedStateFlowGetVal;
+                        if (mVal == null || mVal.getDeclaringClass() != stateFlow.getClass()) {
+                            mVal = stateFlow.getClass().getMethod("getValue");
+                            sCachedStateFlowGetVal = mVal;
+                        }
                         Object clocksState = mVal.invoke(stateFlow);
                         if (clocksState != null) {
                             long[] millis = extractClockMillis(clocksState);
@@ -1396,10 +1437,11 @@ public class SmartDelayManager {
                     }
                 }
 
-                for (Field f : vm.getClass().getDeclaredFields()) {
+                Field fGt = (vmCls == sCachedVmClass) ? sCachedGameTimeField : null;
+                if (fGt != null) {
                     try {
-                        f.setAccessible(true);
-                        Object val = f.get(vm);
+                        fGt.setAccessible(true);
+                        Object val = fGt.get(vm);
                         if (val != null) {
                             for (Method m : val.getClass().getMethods()) {
                                 if ("getGameTime".equals(m.getName()) || "getSecPerGame".equals(m.getName())) {
@@ -1417,33 +1459,68 @@ public class SmartDelayManager {
                             }
                         }
                     } catch (Throwable ignored) {}
+                } else {
+                    for (Field f : vmCls.getDeclaredFields()) {
+                        try {
+                            f.setAccessible(true);
+                            Object val = f.get(vm);
+                            if (val != null) {
+                                for (Method m : val.getClass().getMethods()) {
+                                    if ("getGameTime".equals(m.getName()) || "getSecPerGame".equals(m.getName())) {
+                                        Object gt = "getGameTime".equals(m.getName()) ? m.invoke(val) : val;
+                                        if (gt != null) {
+                                            Method mSec = gt.getClass().getMethod("getSecPerGame");
+                                            Method mInc = gt.getClass().getMethod("getBonusSecPerMove");
+                                            info.initBaseSec = ((Number) mSec.invoke(gt)).intValue();
+                                            info.incrementSec = ((Number) mInc.invoke(gt)).intValue();
+                                            info.source = "auto";
+                                            info.isAutoDetected = true;
+                                            sCachedGameTimeField = f;
+                                            sCachedVmClass = vmCls;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (sCachedGameTimeField != null) break;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
                 }
             }
         } catch (Throwable t) {
             NnvcLogger.w(TAG, "Native clock detection error: " + t.getMessage());
         }
 
-        // Tầng 2: UI View Hierarchy Scanning
-        try {
-            LiveClockInfo uiInfo = new LiveClockInfo();
-            scanClocksFromUi(activity, userWhite, uiInfo);
-            if (uiInfo.mySec >= 0 && uiInfo.oppSec >= 0) {
-                if (info.mySec >= 0 && info.oppSec >= 0) {
-                    info.mySec = Math.min(info.mySec, uiInfo.mySec);
-                    info.oppSec = Math.min(info.oppSec, uiInfo.oppSec);
-                } else {
-                    info.mySec = uiInfo.mySec;
-                    info.oppSec = uiInfo.oppSec;
-                    info.source = "clock";
-                    info.isAutoDetected = true;
+        // Tầng 2: UI View Hierarchy Scanning (Chỉ quét cây View nếu tầng VM chưa lấy được đồng hồ hợp lệ)
+        if (!info.isAutoDetected || info.mySec < 0 || info.oppSec < 0) {
+            try {
+                LiveClockInfo uiInfo = new LiveClockInfo();
+                scanClocksFromUi(activity, userWhite, uiInfo);
+                if (uiInfo.mySec >= 0 && uiInfo.oppSec >= 0) {
+                    if (info.mySec >= 0 && info.oppSec >= 0) {
+                        info.mySec = Math.min(info.mySec, uiInfo.mySec);
+                        info.oppSec = Math.min(info.oppSec, uiInfo.oppSec);
+                    } else {
+                        info.mySec = uiInfo.mySec;
+                        info.oppSec = uiInfo.oppSec;
+                        info.source = "clock";
+                        info.isAutoDetected = true;
+                    }
+                    if (info.initBaseSec <= 0 && uiInfo.initBaseSec > 0) {
+                        info.initBaseSec = uiInfo.initBaseSec;
+                        info.incrementSec = uiInfo.incrementSec;
+                    }
                 }
-                if (info.initBaseSec <= 0 && uiInfo.initBaseSec > 0) {
-                    info.initBaseSec = uiInfo.initBaseSec;
-                    info.incrementSec = uiInfo.incrementSec;
-                }
+            } catch (Throwable t) {
+                NnvcLogger.w(TAG, "UI clock scan error: " + t.getMessage());
             }
-        } catch (Throwable t) {
-            NnvcLogger.w(TAG, "UI clock scan error: " + t.getMessage());
+        }
+
+        if (info.isAutoDetected || info.mySec >= 0) {
+            sCachedLiveClockInfo = info;
+            sLastClockDetectMs = now;
+            sCachedClockUserWhite = userWhite;
+            sCachedClockActivityHash = actHash;
         }
 
         return info;

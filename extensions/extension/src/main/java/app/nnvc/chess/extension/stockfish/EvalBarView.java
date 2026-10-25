@@ -29,6 +29,7 @@ public class EvalBarView extends View {
 
     private final RectF rectWhite = new RectF();
     private final RectF rectBlack = new RectF();
+    private float cachedTextOffset = 0f;
 
     public EvalBarView(Context context) {
         super(context);
@@ -50,6 +51,8 @@ public class EvalBarView extends View {
         paintText.setTextSize(8.8f * density);
         paintText.setTextAlign(Paint.Align.CENTER);
         paintText.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        Paint.FontMetrics fm = paintText.getFontMetrics();
+        this.cachedTextOffset = (fm.descent + fm.ascent) / -2.0f;
     }
 
     @Override
@@ -121,8 +124,8 @@ public class EvalBarView extends View {
             setLayoutParams(lp);
         }
 
-        setTranslationX(x);
-        setTranslationY(y);
+        if (getTranslationX() != x) setTranslationX(x);
+        if (getTranslationY() != y) setTranslationY(y);
         invalidate();
     }
 
@@ -224,18 +227,25 @@ public class EvalBarView extends View {
             paintText.setColor(0xFFFFFFFF);
         }
 
-        Paint.FontMetrics fm = paintText.getFontMetrics();
-        float textOffset = (fm.descent + fm.ascent) / -2.0f;
-
         canvas.save();
         canvas.rotate(-90, w / 2.0f, textY);
-        canvas.drawText(label, w / 2.0f, textY + textOffset, paintText);
+        canvas.drawText(label, w / 2.0f, textY + cachedTextOffset, paintText);
         canvas.restore();
     }
 
-    /** "0.4", "3.2", "12" (locale-independent: never "0,4"). */
+    /** "0.4", "3.2", "12" (locale-independent: never "0,4"). Zero-allocation & zero-regex format. */
     static String formatScore(float score) {
         float a = Math.abs(score);
-        return a >= 10f ? String.valueOf(Math.round(a)) : String.format(java.util.Locale.US, "%.1f", a);
+        if (a >= 9.95f) {
+            return String.valueOf(Math.round(a));
+        }
+        int tenths = Math.round(a * 10.0f);
+        int whole = tenths / 10;
+        int frac = tenths % 10;
+        if (frac == 10) {
+            whole++;
+            frac = 0;
+        }
+        return whole + "." + frac;
     }
 }

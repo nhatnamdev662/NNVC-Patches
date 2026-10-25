@@ -99,6 +99,65 @@ public class AccuracyEloWidgetView extends View {
         }
     };
 
+    private static class LinearSlot {
+        float x1, y1, x2, y2;
+        int c1, c2;
+        LinearGradient shader;
+        LinearGradient get(float x1, float y1, float x2, float y2, int c1, int c2) {
+            if (shader == null || this.x1 != x1 || this.y1 != y1 || this.x2 != x2 || this.y2 != y2
+                    || this.c1 != c1 || this.c2 != c2) {
+                this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2;
+                this.c1 = c1; this.c2 = c2;
+                this.shader = new LinearGradient(x1, y1, x2, y2, c1, c2, Shader.TileMode.CLAMP);
+            }
+            return shader;
+        }
+    }
+
+    private static class RadialSlot {
+        float cx, cy, r;
+        int c1, c2;
+        RadialGradient shader;
+        RadialGradient get(float cx, float cy, float r, int c1, int c2) {
+            if (shader == null || this.cx != cx || this.cy != cy || this.r != r
+                    || this.c1 != c1 || this.c2 != c2) {
+                this.cx = cx; this.cy = cy; this.r = r;
+                this.c1 = c1; this.c2 = c2;
+                this.shader = new RadialGradient(cx, cy, r, c1, c2, Shader.TileMode.CLAMP);
+            }
+            return shader;
+        }
+    }
+
+    private static class IconLinearSlot {
+        float x1, y1, x2, y2;
+        LinearGradient shader;
+        LinearGradient get(float x1, float y1, float x2, float y2, int[] colors, float[] positions) {
+            if (shader == null || this.x1 != x1 || this.y1 != y1 || this.x2 != x2 || this.y2 != y2) {
+                this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2;
+                this.shader = new LinearGradient(x1, y1, x2, y2, colors, positions, Shader.TileMode.CLAMP);
+            }
+            return shader;
+        }
+    }
+
+    // Zero-Allocation Shader Slots
+    private final LinearSlot slotBg = new LinearSlot();
+    private final IconLinearSlot slotHeaderIcon = new IconLinearSlot();
+    private final IconLinearSlot slotHeaderDot = new IconLinearSlot();
+    private final RadialSlot slotPillWhitePiece = new RadialSlot();
+    private final RadialSlot slotPillBlackPiece = new RadialSlot();
+    private final LinearSlot slotWhiteCardBg = new LinearSlot();
+    private final LinearSlot slotBlackCardBg = new LinearSlot();
+    private final LinearSlot slotWhiteStrip = new LinearSlot();
+    private final LinearSlot slotBlackStrip = new LinearSlot();
+    private final RadialSlot slotCardWhitePiece = new RadialSlot();
+    private final RadialSlot slotCardBlackPiece = new RadialSlot();
+
+    private static final int[] ICON_GRADIENT_COLORS_1 = new int[]{0xFFFFFFFF, 0xFFFFFFFF, 0xFF121720, 0xFF121720};
+    private static final int[] ICON_GRADIENT_COLORS_2 = new int[]{0xFF121720, 0xFF121720, 0xFFFFFFFF, 0xFFFFFFFF};
+    private static final float[] ICON_GRADIENT_POSITIONS = new float[]{0f, 0.5f, 0.5f, 1f};
+
     public AccuracyEloWidgetView(Context context) {
         super(context);
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
@@ -491,7 +550,7 @@ public class AccuracyEloWidgetView extends View {
 
         // 1. Nền tổng thể Cyber Glass
         bounds.set(1f * density, 1f * density, w - 1f * density, h - 1f * density);
-        bgPaint.setShader(new LinearGradient(0, 0, 0, h, 0xF20D1117, 0xF2161E28, Shader.TileMode.CLAMP));
+        bgPaint.setShader(slotBg.get(0, 0, 0, h, 0xF20D1117, 0xF2161E28));
         canvas.drawRoundRect(bounds, radius, radius, bgPaint);
 
         strokePaint.setShader(null);
@@ -507,9 +566,8 @@ public class AccuracyEloWidgetView extends View {
         iconBounds.set(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
 
         // Khung icon vuông bo góc chia đôi màu trắng/đen chuẩn Extension
-        headerIconPaint.setShader(new LinearGradient(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize,
-                new int[]{0xFFFFFFFF, 0xFFFFFFFF, 0xFF121720, 0xFF121720},
-                new float[]{0f, 0.5f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        headerIconPaint.setShader(slotHeaderIcon.get(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize,
+                ICON_GRADIENT_COLORS_1, ICON_GRADIENT_POSITIONS));
         canvas.drawRoundRect(iconBounds, 5f * density, 5f * density, headerIconPaint);
 
         strokePaint.setColor(0x33FFFFFF);
@@ -518,10 +576,9 @@ public class AccuracyEloWidgetView extends View {
 
         // Chấm tròn âm dương ngược lại ở tâm icon
         float dotR = 3.8f * density;
-        headerDotPaint.setShader(new LinearGradient(iconBounds.centerX() - dotR, iconBounds.centerY() - dotR,
+        headerDotPaint.setShader(slotHeaderDot.get(iconBounds.centerX() - dotR, iconBounds.centerY() - dotR,
                 iconBounds.centerX() + dotR, iconBounds.centerY() + dotR,
-                new int[]{0xFF121720, 0xFF121720, 0xFFFFFFFF, 0xFFFFFFFF},
-                new float[]{0f, 0.5f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+                ICON_GRADIENT_COLORS_2, ICON_GRADIENT_POSITIONS));
         canvas.drawCircle(iconBounds.centerX(), iconBounds.centerY(), dotR, headerDotPaint);
 
         // Tiêu đề "Accuracy / Elo"
@@ -568,7 +625,7 @@ public class AccuracyEloWidgetView extends View {
         bounds.set(1f * baseDensity, 1f * baseDensity, w - 1f * baseDensity, h - 1f * baseDensity);
 
         // 1. Nền Cyber Frosted Glass mỏng
-        bgPaint.setShader(new LinearGradient(0, 0, 0, h, 0xF20D1117, 0xF2161E28, Shader.TileMode.CLAMP));
+        bgPaint.setShader(slotBg.get(0, 0, 0, h, 0xF20D1117, 0xF2161E28));
         canvas.drawRoundRect(bounds, radius, radius, bgPaint);
 
         // 2. Viền phát sáng
@@ -582,9 +639,8 @@ public class AccuracyEloWidgetView extends View {
         float iconCx = 9f * baseDensity;
         float centerY = h / 2f;
         iconBounds.set(iconCx - iconR, centerY - iconR, iconCx + iconR, centerY + iconR);
-        headerIconPaint.setShader(new LinearGradient(iconBounds.left, iconBounds.top, iconBounds.right, iconBounds.bottom,
-                new int[]{0xFFFFFFFF, 0xFFFFFFFF, 0xFF121720, 0xFF121720},
-                new float[]{0f, 0.5f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        headerIconPaint.setShader(slotHeaderIcon.get(iconBounds.left, iconBounds.top, iconBounds.right, iconBounds.bottom,
+                ICON_GRADIENT_COLORS_1, ICON_GRADIENT_POSITIONS));
         canvas.drawRoundRect(iconBounds, 3f * baseDensity, 3f * baseDensity, headerIconPaint);
         strokePaint.setColor(0x33FFFFFF);
         strokePaint.setStrokeWidth(0.6f * baseDensity);
@@ -621,15 +677,15 @@ public class AccuracyEloWidgetView extends View {
 
         // Chấm tròn quân cờ Trắng / Đen
         if (isWhiteSide) {
-            pieceCirclePaint.setShader(new RadialGradient(pieceCx - 1f, centerY - 1f, pieceR * 1.5f,
-                    0xFFFFFFFF, 0xFFCBD5E1, Shader.TileMode.CLAMP));
+            pieceCirclePaint.setShader(slotPillWhitePiece.get(pieceCx - 1f, centerY - 1f, pieceR * 1.5f,
+                    0xFFFFFFFF, 0xFFCBD5E1));
             canvas.drawCircle(pieceCx, centerY, pieceR, pieceCirclePaint);
             strokePaint.setColor(0x26000000);
             strokePaint.setStrokeWidth(0.6f * baseDensity);
             canvas.drawCircle(pieceCx, centerY, pieceR, strokePaint);
         } else {
-            pieceCirclePaint.setShader(new RadialGradient(pieceCx - 1f, centerY - 1f, pieceR * 1.5f,
-                    0xFF5A6578, 0xFF0D1117, Shader.TileMode.CLAMP));
+            pieceCirclePaint.setShader(slotPillBlackPiece.get(pieceCx - 1f, centerY - 1f, pieceR * 1.5f,
+                    0xFF5A6578, 0xFF0D1117));
             canvas.drawCircle(pieceCx, centerY, pieceR, pieceCirclePaint);
             strokePaint.setColor(0x33FFFFFF);
             strokePaint.setStrokeWidth(0.6f * baseDensity);
@@ -716,11 +772,11 @@ public class AccuracyEloWidgetView extends View {
 
         // 1. Nền thẻ
         if (isWhiteSide) {
-            bgPaint.setShader(new LinearGradient(cLeft, cTop, cRight, cBottom,
-                    0xFFFFFFFF, 0xFFEAF0F6, Shader.TileMode.CLAMP));
+            bgPaint.setShader(slotWhiteCardBg.get(cLeft, cTop, cRight, cBottom,
+                    0xFFFFFFFF, 0xFFEAF0F6));
         } else {
-            bgPaint.setShader(new LinearGradient(cLeft, cTop, cRight, cBottom,
-                    0xD9202632, 0xEB12171F, Shader.TileMode.CLAMP));
+            bgPaint.setShader(slotBlackCardBg.get(cLeft, cTop, cRight, cBottom,
+                    0xD9202632, 0xEB12171F));
         }
         canvas.drawRoundRect(cardBounds, radius, radius, bgPaint);
 
@@ -738,9 +794,9 @@ public class AccuracyEloWidgetView extends View {
         float stripW = 3f * density;
         stripBounds.set(cLeft, cTop, cLeft + stripW, cBottom);
         if (isWhiteSide) {
-            stripPaint.setShader(new LinearGradient(0, cTop, 0, cBottom, 0xFFFFFFFF, 0xFFB0BAC7, Shader.TileMode.CLAMP));
+            stripPaint.setShader(slotWhiteStrip.get(0, cTop, 0, cBottom, 0xFFFFFFFF, 0xFFB0BAC7));
         } else {
-            stripPaint.setShader(new LinearGradient(0, cTop, 0, cBottom, 0xFF64D2FF, 0xFF0A84FF, Shader.TileMode.CLAMP));
+            stripPaint.setShader(slotBlackStrip.get(0, cTop, 0, cBottom, 0xFF64D2FF, 0xFF0A84FF));
         }
         canvas.save();
         stripPath.reset();
@@ -756,15 +812,15 @@ public class AccuracyEloWidgetView extends View {
 
         // Icon quân tròn
         if (isWhiteSide) {
-            pieceCirclePaint.setShader(new RadialGradient(pieceCx - (2f * density), headY - (2f * density), pieceR * 1.5f,
-                    0xFFFFFFFF, 0xFFCBD5E1, Shader.TileMode.CLAMP));
+            pieceCirclePaint.setShader(slotCardWhitePiece.get(pieceCx - (2f * density), headY - (2f * density), pieceR * 1.5f,
+                    0xFFFFFFFF, 0xFFCBD5E1));
             canvas.drawCircle(pieceCx, headY, pieceR, pieceCirclePaint);
             strokePaint.setColor(0x26000000);
             strokePaint.setStrokeWidth(0.8f * density);
             canvas.drawCircle(pieceCx, headY, pieceR, strokePaint);
         } else {
-            pieceCirclePaint.setShader(new RadialGradient(pieceCx - (2f * density), headY - (2f * density), pieceR * 1.5f,
-                    0xFF5A6578, 0xFF0D1117, Shader.TileMode.CLAMP));
+            pieceCirclePaint.setShader(slotCardBlackPiece.get(pieceCx - (2f * density), headY - (2f * density), pieceR * 1.5f,
+                    0xFF5A6578, 0xFF0D1117));
             canvas.drawCircle(pieceCx, headY, pieceR, pieceCirclePaint);
             strokePaint.setColor(0x33FFFFFF);
             strokePaint.setStrokeWidth(0.8f * density);

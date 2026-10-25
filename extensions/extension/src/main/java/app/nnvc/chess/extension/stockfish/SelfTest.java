@@ -2699,6 +2699,23 @@ public class SelfTest {
                 bookMoveResult.isValid() && !bookMoveResult.moves.isEmpty() && "e2e4".equals(bookMoveResult.moves.get(0)));
         check("Move 0 bestmove has valid move count for arrow display", bookMoveResult.moves.size() == 1);
 
+        // Test 49: Zero-Lag Move-Level Optimizations (Zero-Allocation & Zero-Relayout)
+        // 1. EvalBar formatScore boundary cases
+        check("EvalBar formatScore(9.94) = 9.9", EvalBarView.formatScore(9.94f).equals("9.9"));
+        check("EvalBar formatScore(9.96) = 10", EvalBarView.formatScore(9.96f).equals("10"));
+        check("EvalBar formatScore(0.04) = 0.0", EvalBarView.formatScore(0.04f).equals("0.0"));
+        check("EvalBar formatScore(0.06) = 0.1", EvalBarView.formatScore(0.06f).equals("0.1"));
+
+        // 2. SmartDelayManager clock caching
+        SmartDelayManager.resetClockNative();
+        SmartDelayManager.clearClockCache();
+        SmartDelayManager.onClockUpdatedNative(300000, 300000, "WHITE");
+        SmartDelayManager.LiveClockInfo clk1 = SmartDelayManager.detectLiveClocks(null, true);
+        SmartDelayManager.LiveClockInfo clk2 = SmartDelayManager.detectLiveClocks(null, true);
+        check("SmartDelayManager native clock detects 300s", clk1.mySec == 300.0 && clk1.oppSec == 300.0);
+        check("SmartDelayManager detects clock from native layer without error", clk1.isAutoDetected);
+        SmartDelayManager.resetClockNative();
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {
