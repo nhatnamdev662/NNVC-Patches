@@ -57,7 +57,7 @@ import java.util.regex.Pattern;
  *  10. Delay state committer (_humanCommitDelayState: timeDebt, fastChain, investChain, humanRelease, tempoEma)
  *  11. Engine think time deduction & physical buffer clamp (16420-16437)
  *  12. Mate panic reflex (180-500ms, 25ms buffer) & First move cap (350-1200ms)
- *  13. Headroom cap: Never sleep past 6.5s panic threshold
+ *  13. Headroom cap: Never sleep past 8.0s panic threshold
  *  14. 100% Native Time Control & Clock detection via RealGameViewModel & b.<init> Bytecode hook
  *
  * Strict Rule: Zero Fallback.
@@ -1838,12 +1838,12 @@ public class SmartDelayManager {
 
         // A. Dirty Flagging & Low Time Panic (Chống Rụng Kim Tức Thời - Chuẩn 100% Extension dòng 8158-8180)
         boolean isFastGame = tcIdx <= 5;
-        boolean isDirtyFlagging = isFastGame && ((oppSec != null && oppSec <= 6.0) || (mySec != null && mySec <= 6.5));
-        boolean isUnder6_5s = (mySec != null && mySec <= 6.5);
+        boolean isDirtyFlagging = isFastGame && ((oppSec != null && oppSec <= 6.0) || (mySec != null && mySec <= 8.0));
+        boolean isUnder8s = (mySec != null && mySec <= 8.0);
 
-        if (isDirtyFlagging || isUnder6_5s) {
+        if (isDirtyFlagging || isUnder8s) {
             sState.lastMoveMs = 0;
-            sState._lastScenarioLabel = isUnder6_5s ? "⚡ No Delay (<= 6.5s)" : "⚡ Dirty Flagging (<= 6s)";
+            sState._lastScenarioLabel = isUnder8s ? "⚡ No Delay (<= 8s)" : "⚡ Dirty Flagging (<= 6s)";
             lastScenarioLabel = sState._lastScenarioLabel;
             NnvcLogger.d(TAG, "▶ [SMART DELAY] " + sState._lastScenarioLabel + " -> 0ms (mySec=" + mySec + "s, oppSec=" + oppSec + "s)");
             return 0;
@@ -2040,11 +2040,11 @@ public class SmartDelayManager {
         long minPhysicalBuffer = isPanic ? 0 : (isBullet ? 160 : (isBlitz ? 260 : 380));
         long netDelay = isPanic ? Math.max(25, rawDelayMs - engineThinkMs) : Math.max(minPhysicalBuffer, rawDelayMs - engineThinkMs);
 
-        // Cap delay to ensure we NEVER sleep past the 6.5s panic threshold
-        if (mySec != null && mySec > 6.5) {
-            long headroomMs = Math.max(0, (long) ((mySec - 6.5) * 1000.0));
+        // Cap delay to ensure we NEVER sleep past the 8.0s panic threshold
+        if (mySec != null && mySec > 8.0) {
+            long headroomMs = Math.max(0, (long) ((mySec - 8.0) * 1000.0));
             if (netDelay > headroomMs) {
-                NnvcLogger.d(TAG, "⏱️ [SMART DELAY HEADROOM CAP] Capping delay from " + netDelay + "ms to " + headroomMs + "ms to avoid dropping below 6.5s");
+                NnvcLogger.d(TAG, "⏱️ [SMART DELAY HEADROOM CAP] Capping delay from " + netDelay + "ms to " + headroomMs + "ms to avoid dropping below 8s");
                 netDelay = headroomMs;
             }
         }

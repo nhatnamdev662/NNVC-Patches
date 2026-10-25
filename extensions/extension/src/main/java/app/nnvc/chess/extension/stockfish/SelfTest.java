@@ -1768,14 +1768,14 @@ public class SelfTest {
         check("Dirty Flagging <= 6s prioritizes check move within 35 cp gap",
                 "e1e7".equals(dDF.chosenMove) && dDF.chosenIndex == 1 && "dirty_flagging_check".equals(dDF.reason));
 
-        SafeMoveSelector.MoveDecision d6_5s = SafeMoveSelector.selectMove(
-                dfMoves, dfScores, dfMates, dfMateIn, 2, 6200L, 20000L, checkFen, true, true);
-        check("Dirty Flagging <= 6.5s player clock prioritizes check move within 35 cp gap",
-                "e1e7".equals(d6_5s.chosenMove) && d6_5s.chosenIndex == 1 && "dirty_flagging_check".equals(d6_5s.reason));
+        SafeMoveSelector.MoveDecision d8s = SafeMoveSelector.selectMove(
+                dfMoves, dfScores, dfMates, dfMateIn, 2, 7500L, 20000L, checkFen, true, true);
+        check("Dirty Flagging <= 8.0s player clock prioritizes check move within 35 cp gap",
+                "e1e7".equals(d8s.chosenMove) && d8s.chosenIndex == 1 && "dirty_flagging_check".equals(d8s.reason));
 
         SafeMoveSelector.MoveDecision dAbove = SafeMoveSelector.selectMove(
-                dfMoves, dfScores, dfMates, dfMateIn, 2, 7500L, 20000L, checkFen, true, true);
-        check("Above 6.5s clock does not trigger dirty flagging", !"dirty_flagging_check".equals(dAbove.reason));
+                dfMoves, dfScores, dfMates, dfMateIn, 2, 9500L, 20000L, checkFen, true, true);
+        check("Above 8.0s clock does not trigger dirty flagging", !"dirty_flagging_check".equals(dAbove.reason));
 
         // 39h. Desktop Extension Parity: Engine arrow list remains untouched, chosenMove executed directly
         List<String> liveMoves = new java.util.ArrayList<>(java.util.Arrays.asList("e2e4", "d2d4", "g1f3"));
@@ -2354,8 +2354,8 @@ public class SelfTest {
         StockfishExtension.setCurrentBoardFen(fenStart);
         check("isGameOver returns false at startpos even if activity has lingering endData", !StockfishExtension.isGameOver(null));
 
-        // Test under-6.5s delay threshold
-        check("SmartDelayManager 6.5s headroom cap formula valid", Math.max(0, (long) ((7.0 - 6.5) * 1000.0)) == 500);
+        // Test under-8.0s delay threshold
+        check("SmartDelayManager 8.0s headroom cap formula valid", Math.max(0, (long) ((9.0 - 8.0) * 1000.0)) == 1000);
 
         // === 40l. Tests for Pre-move FEN Sound Classification & Aborted Game Auto-Find ===
         // 1. Move Sound Classification based on pre-move FEN
