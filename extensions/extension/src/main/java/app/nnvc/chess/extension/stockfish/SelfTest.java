@@ -2172,6 +2172,24 @@ public class SelfTest {
             check("onSeekActivityDestroyed clears dismissingSeekActivityRef", AutoFindManager.getDismissingSeekActivityForTest() == null);
         }
 
+        // 40o. AutoFind Multi-Activity Race Condition Hardening
+        if (dummySeekAct != null && dummyNewSeekAct != null) {
+            AutoFindManager.setStateForTest(AutoFindManager.State.SEEKING);
+            AutoFindManager.setUserExplicitlyCancelledForTest(false);
+            AutoFindManager.setDismissingSeekActivityForTest(dummySeekAct);
+            // When dummyNewSeekAct is created, dummySeekAct is NOT wiped from dismissing set
+            AutoFindManager.onSeekActivityCreated(dummyNewSeekAct);
+            check("onSeekActivityCreated does not wipe older dismissing activity",
+                    AutoFindManager.getDismissingSeekActivityForTest() == dummySeekAct);
+            // When dummySeekAct is destroyed, it should be recognized as dismissed by us
+            AutoFindManager.onSeekActivityDestroyed(dummySeekAct);
+            check("onSeekActivityDestroyed recognizes programmatic dismiss and does not set userExplicitlyCancelled",
+                    !AutoFindManager.isUserExplicitlyCancelledForTest());
+            check("onSeekActivityDestroyed clears dismissing set once processed",
+                    AutoFindManager.getDismissingSeekActivityForTest() == null);
+            AutoFindManager.setStateForTest(AutoFindManager.State.IDLE);
+        }
+
         // 2. CustomTitlesExtension ENTITIES_TITLE_CACHE O(1) Lookup
         Object gm1 = app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsChessTitle("GM", null);
         Object gm2 = app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsChessTitle("GM", null);

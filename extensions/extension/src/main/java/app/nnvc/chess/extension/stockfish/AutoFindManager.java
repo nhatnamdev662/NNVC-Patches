@@ -27,7 +27,10 @@ import android.widget.Toast;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -69,7 +72,8 @@ public class AutoFindManager {
 
     private static volatile boolean userExplicitlyCancelled = false;
     private static volatile boolean isDismissingByAutoFind = false;
-    private static volatile WeakReference<Activity> dismissingSeekActivityRef = new WeakReference<>(null);
+    private static final Set<Activity> dismissingSeekActivities =
+            Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
     private static Runnable resetDismissingFlagRunnable = null;
     private static volatile int seekRetryCount = 0;
     private static final int MAX_SEEK_RETRIES = 5;
@@ -94,11 +98,18 @@ public class AutoFindManager {
     }
 
     public static Activity getDismissingSeekActivityForTest() {
-        return dismissingSeekActivityRef != null ? dismissingSeekActivityRef.get() : null;
+        synchronized (dismissingSeekActivities) {
+            return dismissingSeekActivities.isEmpty() ? null : dismissingSeekActivities.iterator().next();
+        }
     }
 
     public static void setDismissingSeekActivityForTest(Activity act) {
-        dismissingSeekActivityRef = new WeakReference<>(act);
+        synchronized (dismissingSeekActivities) {
+            dismissingSeekActivities.clear();
+            if (act != null) {
+                dismissingSeekActivities.add(act);
+            }
+        }
     }
 
     public static boolean isUserExplicitlyCancelledForTest() {
@@ -511,12 +522,9 @@ public class AutoFindManager {
     public static void onSeekActivityCreated(Activity activity) {
         if (activity == null) return;
         activeSeekActivityRef = new WeakReference<>(activity);
-        isDismissingByAutoFind = false;
-        dismissingSeekActivityRef = new WeakReference<>(null);
-        if (resetDismissingFlagRunnable != null) {
-            removeCallbacksOnMain(resetDismissingFlagRunnable);
-            resetDismissingFlagRunnable = null;
-        }
+        // Do NOT reset isDismissingByAutoFind or clear dismissingSeekActivities here!
+        // Previous seek activities being dismissed programmatically are still undergoing onDestroy in Android OS.
+        dismissingSeekActivities.remove(activity);
         NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen created: " + activity.getClass().getSimpleName());
     }
 
@@ -527,16 +535,16 @@ public class AutoFindManager {
         }
         NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen destroyed: " + activity.getClass().getSimpleName());
 
-        boolean isDismissedByUs = isDismissingByAutoFind || (dismissingSeekActivityRef != null && dismissingSeekActivityRef.get() == activity);
+        boolean isDismissedByUs = isDismissingByAutoFind || dismissingSeekActivities.contains(activity);
         if (isDismissedByUs) {
             // Dismissed programmatically by AutoFind for immediate re-queue; do not reset state.
-            isDismissingByAutoFind = false;
-            if (dismissingSeekActivityRef != null && dismissingSeekActivityRef.get() == activity) {
-                dismissingSeekActivityRef = new WeakReference<>(null);
-            }
-            if (resetDismissingFlagRunnable != null) {
-                removeCallbacksOnMain(resetDismissingFlagRunnable);
-                resetDismissingFlagRunnable = null;
+            dismissingSeekActivities.remove(activity);
+            if (dismissingSeekActivities.isEmpty()) {
+                isDismissingByAutoFind = false;
+                if (resetDismissingFlagRunnable != null) {
+                    removeCallbacksOnMain(resetDismissingFlagRunnable);
+                    resetDismissingFlagRunnable = null;
+                }
             }
             return;
         }
@@ -558,6 +566,7 @@ public class AutoFindManager {
         if (currentState != State.SEEKING && currentState != State.COUNTDOWN) {
             return;
         }
+        userExplicitlyCancelled = false;
         postOnMain(() -> {
             if (seekingWatchdogRunnable != null) {
                 removeCallbacksOnMain(seekingWatchdogRunnable);
@@ -575,6 +584,7 @@ public class AutoFindManager {
         if (currentState != State.SEEKING && currentState != State.COUNTDOWN) {
             return;
         }
+        userExplicitlyCancelled = false;
         postOnMain(() -> {
             if (seekingWatchdogRunnable != null) {
                 removeCallbacksOnMain(seekingWatchdogRunnable);
@@ -591,12 +601,21 @@ public class AutoFindManager {
         isDismissingByAutoFind = true;
         Activity seekAct = activeSeekActivityRef != null ? activeSeekActivityRef.get() : null;
         if (seekAct != null) {
-            dismissingSeekActivityRef = new WeakReference<>(seekAct);
+            dismissingSeekActivities.add(seekAct);
         }
         try {
             boolean dismissed = false;
             try {
                 Class<?> seekClz = Class.forName("com.chess.realchess.ui.wait.LiveGameSeekV6Activity");
+                try {
+                    Field f = seekClz.getDeclaredField("sActiveInstance");
+                    f.setAccessible(true);
+                    Object inst = f.get(null);
+                    if (inst instanceof Activity) {
+                        dismissingSeekActivities.add((Activity) inst);
+                    }
+                } catch (Throwable ignored) {}
+
                 Method m = seekClz.getMethod("dismissSeekNative");
                 Object res = m.invoke(null);
                 if (res instanceof Boolean && (Boolean) res) {
@@ -625,10 +644,10 @@ public class AutoFindManager {
             }
             resetDismissingFlagRunnable = () -> {
                 isDismissingByAutoFind = false;
-                dismissingSeekActivityRef = new WeakReference<>(null);
+                dismissingSeekActivities.clear();
                 resetDismissingFlagRunnable = null;
             };
-            postDelayedOnMain(resetDismissingFlagRunnable, 1500L);
+            postDelayedOnMain(resetDismissingFlagRunnable, 2500L);
         }
     }
 
