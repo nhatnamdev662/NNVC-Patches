@@ -156,6 +156,7 @@ parse_*.py
 extract_*.py
 scripts_archive/
 mpp_archive/
+archive/
 
 # Internal notes and Antigravity tracking files
 GEMINI.md

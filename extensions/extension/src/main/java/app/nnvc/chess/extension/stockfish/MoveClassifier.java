@@ -563,6 +563,9 @@ public class MoveClassifier {
             if (cached == null && currentKey != null) {
                 cached = sSessionClassificationCache.get(moveIndex + ":" + uciMove + ":" + currentKey);
             }
+            if (cached == null && moveIndex > 0 && uciMove != null) {
+                cached = sSessionClassificationCache.get(moveIndex + ":" + uciMove);
+            }
             if (cached != null) {
                 final SavedClassification sc = cached;
                 if (activity != null) {
@@ -660,6 +663,9 @@ public class MoveClassifier {
                         sSessionClassificationCache.put(finalCacheKey, sc);
                         if (finalCurrentKey != null) {
                             sSessionClassificationCache.put(moveIndex + ":" + finalUci + ":" + finalCurrentKey, sc);
+                        }
+                        if (moveIndex > 0 && finalUci != null) {
+                            sSessionClassificationCache.put(moveIndex + ":" + finalUci, sc);
                         }
                         if (currentAct != null) {
                             currentAct.runOnUiThread(() -> {
