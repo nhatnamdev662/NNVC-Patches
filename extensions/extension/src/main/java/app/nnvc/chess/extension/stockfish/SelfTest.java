@@ -2741,13 +2741,19 @@ public class SelfTest {
         MoveClassifier.pruneDivergentBranchIfNeeded(lineNavBack);
         check("sSessionClassificationCache still preserves move 3 after stepping back", MoveClassifier.getSessionClassificationCache().containsKey("3:g1f3"));
 
+        // User plays divergent move at ply 3: 2. d4 (Scotch instead of Nf3)
+        List<String> lineC = java.util.Arrays.asList("e2e4", "e7e5", "d2d4");
+        MoveClassifier.pruneDivergentBranchIfNeeded(lineC);
+        check("sSessionClassificationCache pruned abandoned move 3 (Nf3) after divergence at ply 3 (d4)",
+                !MoveClassifier.getSessionClassificationCache().containsKey("3:g1f3"));
+
         // User plays divergent move at ply 2: c7c5 (Sicilian)
         List<String> lineB = java.util.Arrays.asList("e2e4", "c7c5");
         MoveClassifier.pruneDivergentBranchIfNeeded(lineB);
-        check("sSessionClassificationCache pruned abandoned move 3 after divergence at ply 2",
-                !MoveClassifier.getSessionClassificationCache().containsKey("3:g1f3"));
         check("sSessionClassificationCache pruned move 2 after divergence at ply 2",
                 !MoveClassifier.getSessionClassificationCache().containsKey("2:e7e5"));
+        check("sSessionClassificationCache pruned abandoned move 3 after divergence at ply 2",
+                !MoveClassifier.getSessionClassificationCache().containsKey("3:g1f3"));
 
         // 2. Low-Depth Komodo Play Engine Optimization (buildGoCommand without movetime 700ms)
         check("buildGoCommand returns pure depth 2 without movetime when AutoDepth is disabled (<100ms instant play)",

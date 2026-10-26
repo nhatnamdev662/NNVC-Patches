@@ -99,7 +99,9 @@ public class MoveClassifier {
             }
         }
 
-        sLastKnownMoveList = new ArrayList<>(currentMoves);
+        if (diverged || currentSize > lastSize) {
+            sLastKnownMoveList = new ArrayList<>(currentMoves);
+        }
     }
 
     /** Move and loss tracking across plies for recapture and missed win / miss detection. */
@@ -254,7 +256,9 @@ public class MoveClassifier {
         fenToMateMap.clear();
         classifiedMoves.clear();
         sSessionClassificationCache.clear();
-        sLastKnownMoveList.clear();
+        synchronized (MoveClassifier.class) {
+            sLastKnownMoveList = new ArrayList<>();
+        }
         lastPlayedUci = null;
         lastWasCapture = false;
         lastOppLoss = -1f;
