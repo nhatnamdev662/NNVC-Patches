@@ -2977,6 +2977,9 @@ public class SelfTest {
             java.lang.reflect.Field fLastFen = StockfishExtension.class.getDeclaredField("lastLoadedMove0Fen");
             fLastFen.setAccessible(true);
             check("resetMove0State() clears lastLoadedMove0Fen", fLastFen.get(null) == null);
+            java.lang.reflect.Field fEval = StockfishExtension.class.getDeclaredField("isEvalBarEvaluatedForMove0");
+            fEval.setAccessible(true);
+            check("resetMove0State() clears isEvalBarEvaluatedForMove0", !fEval.getBoolean(null));
         } catch (Throwable t) {
             check("StockfishExtension reflection check failed: " + t.getMessage(), false);
         }
@@ -2990,9 +2993,15 @@ public class SelfTest {
         // 4. StockfishProcess UCI command generation: startpos without moves produces 'position startpos'
         String startposUciFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         java.util.List<String> emptyMoves = java.util.Collections.emptyList();
-        boolean isStartposUci = (emptyMoves == null || emptyMoves.isEmpty()) && (startposUciFen != null && (startposUciFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") || "startpos".equals(startposUciFen)));
-        String generatedPos = isStartposUci ? "position startpos" : ("position fen " + startposUciFen);
+        String generatedPos = StockfishProcess.buildPositionCommand(startposUciFen, emptyMoves);
         check("Komodo book.bin UCI command generation selects 'position startpos' at move 0", "position startpos".equals(generatedPos));
+        check("buildPositionCommand handles 'startpos' string", "position startpos".equals(StockfishProcess.buildPositionCommand("startpos", null)));
+        String blackStartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1";
+        check("Black to move startpos does not produce 'position startpos'", StockfishProcess.buildPositionCommand(blackStartFen, emptyMoves).startsWith("position fen "));
+        List<String> e4Moves = java.util.Collections.singletonList("e2e4");
+        check("Startpos with moves uses 'position startpos moves e2e4'", "position startpos moves e2e4".equals(StockfishProcess.buildPositionCommand(startposUciFen, e4Moves)));
+        String customMidgameFen = "r1bqk2r/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQK2R w KQkq - 2 7";
+        check("Custom/midgame FEN uses 'position fen'", StockfishProcess.buildPositionCommand(customMidgameFen, emptyMoves).startsWith("position fen "));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

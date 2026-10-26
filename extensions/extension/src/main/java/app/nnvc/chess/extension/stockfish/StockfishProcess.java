@@ -254,17 +254,8 @@ public class StockfishProcess {
             drainReady();
             applyPlayEngineOptions(context, elo, multiPV, honorLimit);
 
-            StringBuilder pos = new StringBuilder(fen.length() + 32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
-            // Send position startpos moves if moves list is present and matches standard startpos to maximize Transposition Table reuse (3x faster)
-            if (uciMoves != null && !uciMoves.isEmpty() && WasmEngineManager.isStandardStartposMoves(uciMoves)) {
-                pos.append("position startpos moves");
-                for (String m : uciMoves) pos.append(' ').append(m);
-            } else if ((uciMoves == null || uciMoves.isEmpty()) && (fen != null && (fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") || "startpos".equals(fen)))) {
-                pos.append("position startpos");
-            } else {
-                pos.append("position fen ").append(fen);
-            }
-            sendUciCommand(pos.toString());
+            String posCmd = buildPositionCommand(fen, uciMoves);
+            sendUciCommand(posCmd);
 
             String goCmd = buildGoCommand(isAutoDepth, honorLimit, effectiveDepth, movetimeMs);
             int timeoutForSearch = calculateSearchTimeout(isAutoDepth, honorLimit, effectiveDepth, movetimeMs);
@@ -775,6 +766,20 @@ public class StockfishProcess {
                 }
             }
         }
+    }
+
+    public static String buildPositionCommand(String fen, List<String> uciMoves) {
+        StringBuilder pos = new StringBuilder((fen != null ? fen.length() : 8) + 32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
+        // Send position startpos moves if moves list is present and matches standard startpos to maximize Transposition Table reuse (3x faster)
+        if (uciMoves != null && !uciMoves.isEmpty() && WasmEngineManager.isStandardStartposMoves(uciMoves)) {
+            pos.append("position startpos moves");
+            for (String m : uciMoves) pos.append(' ').append(m);
+        } else if ((uciMoves == null || uciMoves.isEmpty()) && (fen != null && (fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w") || "startpos".equals(fen)))) {
+            pos.append("position startpos");
+        } else {
+            pos.append("position fen ").append(fen);
+        }
+        return pos.toString();
     }
 
     public static boolean isWhiteToMove(String fen) {

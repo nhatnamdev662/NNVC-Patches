@@ -91,6 +91,7 @@ public class StockfishExtension {
         lastLoadedMove0Fen = null;
         isMove0AnalysisScheduled = false;
         isMove0AnalysisCompleted = false;
+        isEvalBarEvaluatedForMove0 = false;
     }
 
     static boolean isEngineReady() {
