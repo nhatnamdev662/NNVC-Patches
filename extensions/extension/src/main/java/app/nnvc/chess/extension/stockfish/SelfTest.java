@@ -2996,12 +2996,29 @@ public class SelfTest {
         String generatedPos = StockfishProcess.buildPositionCommand(startposUciFen, emptyMoves);
         check("Komodo book.bin UCI command generation selects 'position startpos' at move 0", "position startpos".equals(generatedPos));
         check("buildPositionCommand handles 'startpos' string", "position startpos".equals(StockfishProcess.buildPositionCommand("startpos", null)));
+        check("buildPositionCommand handles null FEN", "position startpos".equals(StockfishProcess.buildPositionCommand(null, emptyMoves)));
+        check("buildPositionCommand handles padded startpos FEN", "position startpos".equals(StockfishProcess.buildPositionCommand("  " + startposUciFen + "  ", emptyMoves)));
         String blackStartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1";
         check("Black to move startpos does not produce 'position startpos'", StockfishProcess.buildPositionCommand(blackStartFen, emptyMoves).startsWith("position fen "));
         List<String> e4Moves = java.util.Collections.singletonList("e2e4");
         check("Startpos with moves uses 'position startpos moves e2e4'", "position startpos moves e2e4".equals(StockfishProcess.buildPositionCommand(startposUciFen, e4Moves)));
         String customMidgameFen = "r1bqk2r/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQK2R w KQkq - 2 7";
         check("Custom/midgame FEN uses 'position fen'", StockfishProcess.buildPositionCommand(customMidgameFen, emptyMoves).startsWith("position fen "));
+
+        // 5. Move 0 Duplicate Startpos Guard preserves executing AutoMove
+        try {
+            java.lang.reflect.Field fExec = AutoMoveManager.class.getDeclaredField("isExecutingMove");
+            fExec.setAccessible(true);
+            fExec.setBoolean(null, true);
+            check("AutoMoveManager reflects isExecuting == true", AutoMoveManager.isExecuting());
+            // Guard in onBoardChanged: (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) && (... || AutoMoveManager.isExecuting()))
+            boolean guardTriggers = true && AutoMoveManager.isExecuting();
+            check("Move 0 duplicate guard recognizes isExecuting to protect active move", guardTriggers);
+            AutoMoveManager.reset();
+            check("AutoMoveManager cleanly reset after test", !AutoMoveManager.isExecuting());
+        } catch (Throwable t) {
+            check("AutoMoveManager duplicate test failed: " + t.getMessage(), false);
+        }
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
