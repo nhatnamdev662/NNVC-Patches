@@ -125,6 +125,11 @@ public class CustomTitlesExtension {
         return cachedUsername;
     }
 
+    public static void setCachedUsernameForTest(String u) {
+        cachedUsername = u;
+        lastUsernameCheckTime = System.currentTimeMillis();
+    }
+
     /**
      * Kiểm tra xem một đối tượng hoặc username có thuộc về chính người dùng đang chơi hay không.
      * Đảm bảo CHỈ áp dụng danh hiệu fake cho chính tài khoản của người dùng, không gán nhầm cho đối thủ!
@@ -147,23 +152,41 @@ public class CustomTitlesExtension {
         return false;
     }
 
+    public static Context getSafeContext(Context context) {
+        if (context != null) return context;
+        try {
+            return StockfishExtension.getContext();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     /**
      * Xác định mã danh hiệu cuối cùng (GM, IM, FM, CM, NM, WGM...) áp dụng cho đối tượng.
      * Hoạt động 100% Real-Time và độc lập với mạng.
      */
     public static String getResolvedTitle(Context context, String username, Object containerObj, String defaultTitle) {
-        if (context == null) {
+        context = getSafeContext(context);
+
+        boolean customTitleEnabled = true;
+        if (context != null) {
             try {
-                context = StockfishExtension.getContext();
+                customTitleEnabled = StockfishSettings.isCustomTitleEnabled(context);
             } catch (Throwable ignored) {
-                context = null;
+                customTitleEnabled = true;
             }
         }
 
-        boolean customTitleEnabled = (context != null) && StockfishSettings.isCustomTitleEnabled(context);
         if (customTitleEnabled && isTargetCurrentUser(context, username, containerObj)) {
             // Đúng là tài khoản của người dùng và tính năng Fake Title đang bật
-            String customCode = StockfishSettings.getCustomTitleCode(context);
+            String customCode = "GM";
+            if (context != null) {
+                try {
+                    customCode = StockfishSettings.getCustomTitleCode(context);
+                } catch (Throwable ignored) {
+                    customCode = "GM";
+                }
+            }
             if (customCode != null && !customCode.trim().isEmpty()) {
                 return customCode.trim().toUpperCase();
             }
@@ -189,8 +212,19 @@ public class CustomTitlesExtension {
         }
         String upper = titleCode.trim().toUpperCase();
         try {
-            Class<?> companionClass = Class.forName("com.chess.entities.ChessTitle$Companion");
             Class<?> chessTitleClass = Class.forName("com.chess.entities.ChessTitle");
+            String enumName = CODE_TO_ENUM_NAME.get(upper);
+            if (enumName != null) {
+                try {
+                    Field f = chessTitleClass.getField(enumName);
+                    Object val = f.get(null);
+                    if (val != null) {
+                        return val;
+                    }
+                } catch (Throwable ignored) {}
+            }
+
+            Class<?> companionClass = Class.forName("com.chess.entities.ChessTitle$Companion");
             Object instance = null;
             try {
                 instance = chessTitleClass.getField("Companion").get(null);
@@ -201,13 +235,7 @@ public class CustomTitlesExtension {
             Object overrideObj = fromCode.invoke(instance, upper);
             return overrideObj != null ? overrideObj : defaultTitleObj;
         } catch (Throwable e) {
-            try {
-                Class<?> chessTitleClass = Class.forName("com.chess.entities.ChessTitle");
-                Method valueOf = chessTitleClass.getMethod("valueOf", String.class);
-                return valueOf.invoke(null, upper);
-            } catch (Throwable ex) {
-                return defaultTitleObj;
-            }
+            return defaultTitleObj;
         }
     }
 
@@ -394,7 +422,7 @@ public class CustomTitlesExtension {
                 defaultTitle = (String) chessTitleField.get(modelObj);
             }
 
-            return getResolvedTitle(StockfishExtension.getContext(), username, modelObj, defaultTitle);
+            return getResolvedTitle(null, username, modelObj, defaultTitle);
         } catch (Throwable e) {
             logE("overrideModelChessTitle failed: " + e.getMessage());
             return defaultTitle;
@@ -423,28 +451,26 @@ public class CustomTitlesExtension {
                 defaultTitleObj = titleField.get(obj);
             }
 
-            String username = null;
-            for (String un : new String[]{"a", "username"}) {
-                try {
-                    Field uf = clazz.getDeclaredField(un);
-                    if (uf.getType() == String.class) {
-                        uf.setAccessible(true);
-                        Object uVal = uf.get(obj);
-                        if (uVal instanceof String && isValidUsername((String) uVal)) {
-                            username = ((String) uVal).trim();
-                            break;
-                        }
-                    }
-                } catch (NoSuchFieldException ignored) {}
-            }
-            if (username == null) {
-                username = extractUsername(obj);
-            }
+            String username = extractUsername(obj);
 
-            Context context = StockfishExtension.getContext();
-            boolean customEnabled = (context == null) || StockfishSettings.isCustomTitleEnabled(context);
+            Context context = getSafeContext(null);
+            boolean customEnabled = true;
+            if (context != null) {
+                try {
+                    customEnabled = StockfishSettings.isCustomTitleEnabled(context);
+                } catch (Throwable ignored) {
+                    customEnabled = true;
+                }
+            }
             if (customEnabled && isTargetCurrentUser(context, username, obj)) {
-                String customCode = (context != null) ? StockfishSettings.getCustomTitleCode(context) : "GM";
+                String customCode = "GM";
+                if (context != null) {
+                    try {
+                        customCode = StockfishSettings.getCustomTitleCode(context);
+                    } catch (Throwable ignored) {
+                        customCode = "GM";
+                    }
+                }
                 if (customCode == null || customCode.trim().isEmpty()) {
                     customCode = "GM";
                 }
@@ -501,7 +527,7 @@ public class CustomTitlesExtension {
             }
 
             String defaultTitleCode = defaultTitleObj != null ? defaultTitleObj.toString() : null;
-            String resolvedTitle = getResolvedTitle(StockfishExtension.getContext(), username, uiStateObj, defaultTitleCode);
+            String resolvedTitle = getResolvedTitle(null, username, uiStateObj, defaultTitleCode);
 
             if (resolvedTitle != null) {
                 Object titleObj = getOverrideAsPaletteChessTitle(resolvedTitle, defaultTitleObj);

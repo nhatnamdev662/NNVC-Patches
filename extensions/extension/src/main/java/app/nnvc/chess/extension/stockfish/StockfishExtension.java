@@ -2226,7 +2226,9 @@ public class StockfishExtension {
                 ctx = (Context) currentApplicationMethod.invoke(null);
                 if (ctx != null) appContext = ctx;
             } catch (Throwable t) {
-                Log.e(TAG, "getContext failed: " + t.getMessage());
+                try {
+                    Log.e(TAG, "getContext failed: " + t.getMessage());
+                } catch (Throwable ignored) {}
             }
         }
         if (ctx == null) {

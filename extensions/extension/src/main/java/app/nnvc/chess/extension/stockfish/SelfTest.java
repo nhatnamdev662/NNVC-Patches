@@ -1278,15 +1278,27 @@ public class SelfTest {
             public String b = "trannnguyennhatnam";
             public String f = null;
         }
-        check("overrideModelChessTitle extracts from field 'f' in mock Palette Header l",
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest("different_player");
+        check("overrideModelChessTitle preserves default for other players on Palette Header l",
                 app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideModelChessTitle(new MockPaletteHeaderL()) == null);
+
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest("trannnguyennhatnam");
+        check("overrideModelChessTitle applies custom title for current user on Palette Header l",
+                "GM".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideModelChessTitle(new MockPaletteHeaderL())));
 
         class MockPaletteItemO {
             public String a = "trannnguyennhatnam";
             public Object f = "NONE";
         }
-        check("overrideEntitiesChessTitle handles mock Palette Item o safely",
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest("different_player");
+        check("overrideEntitiesChessTitle preserves default for other players on Palette Item o",
                 "NONE".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideEntitiesChessTitle(new MockPaletteItemO())));
+
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest("trannnguyennhatnam");
+        Object overriddenO = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideEntitiesChessTitle(new MockPaletteItemO());
+        check("overrideEntitiesChessTitle overrides for current user on Palette Item o",
+                overriddenO != null);
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest(null);
 
         // 28. Arrow count limits & MultiPV trimming tests
         java.util.List<String> rawMoves = java.util.Arrays.asList("e2e4", "d2d4", "g1f3", "c2c4", "b1c3");
@@ -2059,9 +2071,19 @@ public class SelfTest {
 
         // 40j. Native Seek Watchdog & Server Cancellation Hooks (Zero-Fallback)
         check("AutoFindManager SEEKING_TIMEOUT_MS is 20000ms", AutoFindManager.SEEKING_TIMEOUT_MS == 20000L);
+        AutoFindManager.resetSeekRetryCountForTest();
+        check("AutoFindManager initial seek retry count is 0", AutoFindManager.getSeekRetryCount() == 0);
         AutoFindManager.onSeekActivityCreated(null);
         AutoFindManager.onSeekActivityDestroyed(null);
         AutoFindManager.dismissActiveSeekActivity();
+        AutoFindManager.triggerImmediateReSeek(null);
+        check("AutoFindManager incremented seek retry count on immediate re-seek", AutoFindManager.getSeekRetryCount() == 1);
+        for (int i = 0; i < 6; i++) {
+            AutoFindManager.triggerImmediateReSeek(null);
+        }
+        check("AutoFindManager caps seek retry count at MAX_SEEK_RETRIES and enters IDLE",
+                AutoFindManager.getSeekRetryCount() <= 5 && AutoFindManager.getState() == AutoFindManager.State.IDLE);
+        AutoFindManager.resetSeekRetryCountForTest();
         AutoFindManager.onNativeChallengeCancelled();
         AutoFindManager.onNativeSeekError(503);
         check("AutoFindManager native seek hooks executed safely", true);
