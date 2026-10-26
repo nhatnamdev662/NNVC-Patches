@@ -207,6 +207,9 @@ def sign_apk(input_apk, output_apk=None):
         print(f"[*] Certificate SHA-256: {OFFICIAL_SHA256}")
         print("[*] Level 2 Cryptographic Coupling: ACTIVE & MATHEMATICALLY BOUND.")
         print(f"[*] Protected APK ready for installation: {output_apk}")
+        if input_apk and output_apk and os.path.abspath(input_apk) != os.path.abspath(output_apk):
+            shutil.copy2(output_apk, input_apk)
+            print(f"[*] Synchronized signed & aligned APK to: {input_apk}")
         print("=================================================================")
     else:
         print("\n[!] WARNING: APK signature SHA-256 does NOT match official fingerprint!")
