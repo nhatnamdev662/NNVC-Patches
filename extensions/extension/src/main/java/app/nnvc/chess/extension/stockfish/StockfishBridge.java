@@ -220,11 +220,13 @@ public class StockfishBridge {
         StockfishProcess.AnalysisResult r;
         liveSearchRunning = true;
         List<String> uciMoves = MoveClassifier.getCurrentPositionMoves();
+        boolean isAutoDepth = StockfishSettings.isAutoDepthEnabled(ctx);
+        boolean honorLimit = isAutoDepth && StockfishSettings.isLimitStrength(ctx);
         try {
-            r = engine.analyze(ctx, fen, uciMoves, depth, multiPV, 0, true, progress);
+            r = engine.analyze(ctx, fen, uciMoves, depth, multiPV, 0, honorLimit, progress);
             if (!r.isValid() && !engine.isReady()) {
                 // Engine crashed on this position; restart once and retry.
-                if (ensureRunning(ctx)) r = engine.analyze(ctx, fen, uciMoves, depth, multiPV, 0, true, progress);
+                if (ensureRunning(ctx)) r = engine.analyze(ctx, fen, uciMoves, depth, multiPV, 0, honorLimit, progress);
             }
         } finally {
             liveSearchRunning = false;

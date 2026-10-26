@@ -2716,6 +2716,25 @@ public class SelfTest {
         check("SmartDelayManager detects clock from native layer without error", clk1.isAutoDetected);
         SmartDelayManager.resetClockNative();
 
+        // Test 50: Persistent Move Classification Cache & Terminal Board Detection
+        // 1. Persistent Classification Cache
+        MoveClassifier.clearHistory();
+        String fenSample = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2";
+        MoveClassifier.SavedClassification savedCls = new MoveClassifier.SavedClassification("Great", "e7e5", "Good move", false, false);
+        MoveClassifier.getSessionClassificationCache().put("2:e7e5:" + fenSample, savedCls);
+        check("sSessionClassificationCache stores classification entry",
+                MoveClassifier.getSessionClassificationCache().containsKey("2:e7e5:" + fenSample));
+        check("sSessionClassificationCache retrieves original classification",
+                "Great".equals(MoveClassifier.getSessionClassificationCache().get("2:e7e5:" + fenSample).classificationName));
+
+        // 2. isTerminalBoard
+        String startposTestFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        check("isTerminalBoard returns false for initial startpos", !StockfishProcess.isTerminalBoard(startposTestFen, true));
+
+        // Fool's mate: 1. f3 e5 2. g4 Qh4# (White is checkmated)
+        String foolsMateFen = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3";
+        check("isTerminalBoard returns true for Fool's mate checkmate", StockfishProcess.isTerminalBoard(foolsMateFen, true));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

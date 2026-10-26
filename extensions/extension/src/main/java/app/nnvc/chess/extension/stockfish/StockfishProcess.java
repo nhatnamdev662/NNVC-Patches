@@ -46,6 +46,9 @@ public class StockfishProcess {
     private Integer curSlowMover = null;
     private String curEngineChoice = null;
 
+    private volatile boolean isSearching = false;
+    private volatile boolean hasPendingStop = false;
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     public synchronized boolean start(Context context) {
@@ -246,6 +249,7 @@ public class StockfishProcess {
             effectiveDepth = Math.max(1, depth > 0 ? depth : StockfishSettings.getDepth(context));
         }
 
+        isSearching = true;
         try {
             drainReady();
             applyPlayEngineOptions(context, elo, multiPV, honorLimit);
@@ -266,12 +270,15 @@ public class StockfishProcess {
             NnvcLogger.d(TAG, "Search started [wasm]: " + goCmd + " (Elo=" + elo + ")");
 
             int targetMpv = Math.max(1, Math.min(8, multiPV));
-            return readSearchOutput(targetMpv, whiteToMove,
+            return readSearchOutput(fen, targetMpv, whiteToMove,
                     timeoutForSearch,
                     effectiveDepth, progress);
         } catch (Throwable e) {
+            hasPendingStop = true;
             NnvcLogger.e(TAG, "Search error in mode wasm: " + e.getMessage(), e);
             return AnalysisResult.empty();
+        } finally {
+            isSearching = false;
         }
     }
 
@@ -309,6 +316,10 @@ public class StockfishProcess {
     }
 
     public void stopSearch() {
+        if (isSearching) {
+            hasPendingStop = true;
+            isSearching = false;
+        }
         sendUciCommand("stop");
     }
 
@@ -320,7 +331,7 @@ public class StockfishProcess {
 
     // ── Output Parsing ────────────────────────────────────────────────────────
 
-    private AnalysisResult readSearchOutput(int multiPV, boolean whiteToMove, long timeoutMs,
+    private AnalysisResult readSearchOutput(String fen, int multiPV, boolean whiteToMove, long timeoutMs,
                                             int targetDepth, ProgressListener progress) throws Exception {
         String[] firstMoves = new String[multiPV];
         float[] scores = new float[multiPV];
@@ -371,8 +382,8 @@ public class StockfishProcess {
                 String[] parts = line.split("\\s+");
                 if (parts.length > 1 && !"(none)".equals(parts[1])) bestmove = parts[1];
                 if (parts.length > 3 && "ponder".equals(parts[2])) ponder = parts[3];
-                if (bestmove == null) terminal = true;
-                NnvcLogger.d(TAG, "BestMove: " + bestmove + ", eval=" + scores[0] + ", depth=" + reachedDepth);
+                if (hasMate || isTerminalBoard(fen, whiteToMove)) terminal = true;
+                NnvcLogger.d(TAG, "BestMove: " + bestmove + ", eval=" + scores[0] + ", depth=" + reachedDepth + ", terminal=" + terminal);
                 break;
             }
 
@@ -622,8 +633,23 @@ public class StockfishProcess {
         return false;
     }
 
+    public static boolean isTerminalBoard(String fen, boolean whiteToMove) {
+        if (fen == null) return false;
+        try {
+            char[] board = BoardUtil.parseBoard(fen);
+            return BoardUtil.countLegalMoves(board, whiteToMove, 1) == 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     private void drainReady() {
         if (wasmManager != null) {
+            if (!hasPendingStop) {
+                wasmManager.clearPlayOutputQueue();
+                return;
+            }
+            hasPendingStop = false;
             wasmManager.clearPlayOutputQueue();
             // Send isready to synchronize with WASM engine worker and discard any trailing output (e.g. ghost bestmove)
             sendUciCommand("isready");

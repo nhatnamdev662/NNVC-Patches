@@ -35,6 +35,28 @@ public class MoveClassifier {
     /** Moves ("prevKey|currentKey" or "seqLen:uci") that already produced a toast, so a move is rated only once. */
     private static final java.util.Set<String> classifiedMoves = ConcurrentHashMap.newKeySet();
 
+    public static class SavedClassification {
+        public final String classificationName;
+        public final String uciMove;
+        public final String speechText;
+        public final boolean isWhite;
+        public final boolean isMyMove;
+
+        public SavedClassification(String classificationName, String uciMove, String speechText, boolean isWhite, boolean isMyMove) {
+            this.classificationName = classificationName;
+            this.uciMove = uciMove;
+            this.speechText = speechText;
+            this.isWhite = isWhite;
+            this.isMyMove = isMyMove;
+        }
+    }
+
+    private static final Map<String, SavedClassification> sSessionClassificationCache = new ConcurrentHashMap<>();
+
+    public static Map<String, SavedClassification> getSessionClassificationCache() {
+        return sSessionClassificationCache;
+    }
+
     /** Move and loss tracking across plies for recapture and missed win / miss detection. */
     private static volatile String lastPlayedUci = null;
     private static volatile boolean lastWasCapture = false;
@@ -186,6 +208,7 @@ public class MoveClassifier {
         fenToPvMap.clear();
         fenToMateMap.clear();
         classifiedMoves.clear();
+        sSessionClassificationCache.clear();
         lastPlayedUci = null;
         lastWasCapture = false;
         lastOppLoss = -1f;
@@ -270,13 +293,10 @@ public class MoveClassifier {
         synchronized (fenHistory) {
             int idx = fenHistory.indexOf(key);
             if (idx >= 0) {
-                boolean truncated = false;
                 while (fenHistory.size() > idx + 1) {
                     fenHistory.remove(fenHistory.size() - 1);
-                    truncated = true;
                 }
-                // Stepped back (take-back / navigation): allow the next move to be rated again.
-                if (truncated) classifiedMoves.clear();
+                // Stepped back (take-back / navigation): preserve classifiedMoves and sSessionClassificationCache
             } else {
                 if (fenHistory.isEmpty()) {
                     String startPosKey = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w";
@@ -508,7 +528,6 @@ public class MoveClassifier {
                 uciMove = moves.get(moves.size() - 1);
                 whiteMoved = (moves.size() % 2 == 1);
                 moveIdentifier = moves.size() + ":" + uciMove;
-                if (classifiedMoves.contains(moveIdentifier)) return;
             } else {
                 // Fallback: dựa vào FEN transition nếu không hook được positionObject
                 if (currentKey == null) return;
@@ -521,7 +540,6 @@ public class MoveClassifier {
                 }
                 if (prevKey == null) return;
                 final String transition = prevKey + "|" + currentKey;
-                if (classifiedMoves.contains(transition)) return;
 
                 whiteMoved = prevKey.endsWith(" w");
                 uciMove = deduceUciMove(prevKey, currentKey);
@@ -538,6 +556,24 @@ public class MoveClassifier {
                     moves.add(uciMove);
                 }
             }
+
+            final int moveIndex = moves != null ? moves.size() : 0;
+            final String cacheKey = moveIndex + ":" + uciMove + ":" + currentFen;
+            SavedClassification cached = sSessionClassificationCache.get(cacheKey);
+            if (cached == null && currentKey != null) {
+                cached = sSessionClassificationCache.get(moveIndex + ":" + uciMove + ":" + currentKey);
+            }
+            if (cached != null) {
+                final SavedClassification sc = cached;
+                if (activity != null) {
+                    activity.runOnUiThread(() -> {
+                        displayTorchClassification(activity, sc.classificationName, sc.uciMove, sc.speechText, sc.isWhite, sc.isMyMove);
+                    });
+                }
+                return;
+            }
+
+            if (moveIdentifier != null && classifiedMoves.contains(moveIdentifier)) return;
 
             final Activity currentAct = activity;
             TorchEngine.log("[CLASSIFIER TRIGGER] Move=" + uciMove + ", whiteMoved=" + whiteMoved + ", totalMoves=" + (moves != null ? moves.size() : 0) + ", torchReady=" + TorchEngine.getInstance(context).isReady());
@@ -560,6 +596,8 @@ public class MoveClassifier {
                 int coachDepth = StockfishSettings.getCoachDepth(context);
                 final boolean finalIsMyMove = isMyMove;
                 final boolean finalUserIsWhite = (userIsWhite != null) ? userIsWhite.booleanValue() : true;
+                final String finalCacheKey = cacheKey;
+                final String finalCurrentKey = currentKey;
 
                 TorchEngine.TorchClassificationCallback torchCallback = (classificationName, playedMoveLan, bestMoveLan, speechText, audioUrlHash, rawJson) -> {
                     TorchEngine.log("[CLASSIFIER CALLBACK] class=" + classificationName + ", act=" + (currentAct != null) + ", isMyMove=" + finalIsMyMove + ", audioHash=" + audioUrlHash);
@@ -618,6 +656,11 @@ public class MoveClassifier {
                     }
 
                     if (classificationName != null && !classificationName.isEmpty() && !"null".equalsIgnoreCase(classificationName)) {
+                        SavedClassification sc = new SavedClassification(classificationName, finalUci, speechText, finalWhiteMoved, finalIsMyMove);
+                        sSessionClassificationCache.put(finalCacheKey, sc);
+                        if (finalCurrentKey != null) {
+                            sSessionClassificationCache.put(moveIndex + ":" + finalUci + ":" + finalCurrentKey, sc);
+                        }
                         if (currentAct != null) {
                             currentAct.runOnUiThread(() -> {
                                 displayTorchClassification(currentAct, classificationName,

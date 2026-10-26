@@ -531,13 +531,22 @@ public class StockfishExtension {
             return;
         }
 
-        OverlayManager.hideArrowOverlay();
-        lastArrowSignature = null;
-
         String fen = extractFen(positionObject);
         if (fen == null) {
+            OverlayManager.hideArrowOverlay();
+            lastArrowSignature = null;
             Log.w(TAG, "onBoardChanged: could not extract FEN");
             return;
+        }
+
+        boolean isWhiteTurn = isWhiteTurnFromFen(fen);
+        Boolean uWhite = isUserWhite(stateImplObject != null ? stateImplObject : getStateImpl());
+        boolean userWhite = uWhite != null ? uWhite.booleanValue() : true;
+        boolean isMyTurn = (uWhite == null) || (isWhiteTurn == userWhite);
+
+        if (!isMyTurn) {
+            OverlayManager.hideArrowOverlay();
+            lastArrowSignature = null;
         }
 
         Log.d(TAG, "Position changed → FEN: " + fen);
@@ -604,8 +613,8 @@ public class StockfishExtension {
             List<String> histMoves = MoveClassifier.getCurrentPositionMoves();
             if (histMoves != null && !histMoves.isEmpty()) {
                 String lastM = histMoves.get(histMoves.size() - 1);
-                Boolean uWhite = isUserWhite(stateImplObject);
-                boolean userWhite = uWhite != null ? uWhite.booleanValue() : true;
+                uWhite = isUserWhite(stateImplObject);
+                userWhite = uWhite != null ? uWhite.booleanValue() : true;
                 boolean userTurnNow = isWhiteTurnFromFen(fen) == userWhite;
                 if (userTurnNow) {
                     SmartDelayManager.recordOpponentMove(lastM, fen, curAct, userWhite);
@@ -765,16 +774,6 @@ public class StockfishExtension {
                 StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV,
                         partial -> {
                             MoveClassifier.recordResult(fen, partial);
-                            if (!isStale(jobKey) && partial != null && !partial.moves.isEmpty()) {
-                                android.os.Handler h = getUiHandler();
-                                if (h != null) {
-                                    h.post(() -> {
-                                        if (!isStale(jobKey)) {
-                                            displayLiveResult(ctx, fen, partial, false);
-                                        }
-                                    });
-                                }
-                            }
                         });
                 lastEngineThinkMs = Math.max(0, System.currentTimeMillis() - searchStartMs);
 
