@@ -424,6 +424,19 @@ public class AutoFindManager {
             activeSeekActivityRef = new WeakReference<>(null);
         }
         NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen destroyed: " + activity.getClass().getSimpleName());
+
+        if (currentState == State.SEEKING) {
+            getMainHandler().postDelayed(() -> {
+                if (currentState == State.SEEKING && (activeSeekActivityRef == null || activeSeekActivityRef.get() == null)) {
+                    NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen closed without active seek. Resetting SEEKING to IDLE.");
+                    if (seekingWatchdogRunnable != null) {
+                        getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+                        seekingWatchdogRunnable = null;
+                    }
+                    currentState = State.IDLE;
+                }
+            }, 800L);
+        }
     }
 
     public static void onNativeChallengeCancelled() {
@@ -433,10 +446,26 @@ public class AutoFindManager {
         }
         getMainHandler().post(() -> {
             dismissActiveSeekActivity();
-            Activity act = activeActivityRef != null ? activeActivityRef.get() : null;
-            if (act == null) act = StockfishExtension.getCurrentActivity();
-            if (act != null && !act.isFinishing()) {
-                onSeekingInterrupted(act);
+            resetHandledGameEndData();
+            currentState = State.IDLE;
+            if (seekingWatchdogRunnable != null) {
+                getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+                seekingWatchdogRunnable = null;
+            }
+
+            Activity act = (activeActivityRef != null && activeActivityRef.get() != null && !activeActivityRef.get().isFinishing() && !(Build.VERSION.SDK_INT >= 17 && activeActivityRef.get().isDestroyed()))
+                    ? activeActivityRef.get()
+                    : StockfishExtension.getCurrentActivity();
+
+            if (act != null && !act.isFinishing() && !(Build.VERSION.SDK_INT >= 17 && act.isDestroyed())) {
+                onGameOver(act);
+            } else {
+                getMainHandler().postDelayed(() -> {
+                    Activity delayedAct = StockfishExtension.getCurrentActivity();
+                    if (delayedAct != null && !delayedAct.isFinishing() && !(Build.VERSION.SDK_INT >= 17 && delayedAct.isDestroyed())) {
+                        onGameOver(delayedAct);
+                    }
+                }, 250L);
             }
         });
     }
@@ -448,10 +477,26 @@ public class AutoFindManager {
         }
         getMainHandler().post(() -> {
             dismissActiveSeekActivity();
-            Activity act = activeActivityRef != null ? activeActivityRef.get() : null;
-            if (act == null) act = StockfishExtension.getCurrentActivity();
-            if (act != null && !act.isFinishing()) {
-                onSeekingInterrupted(act);
+            resetHandledGameEndData();
+            currentState = State.IDLE;
+            if (seekingWatchdogRunnable != null) {
+                getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+                seekingWatchdogRunnable = null;
+            }
+
+            Activity act = (activeActivityRef != null && activeActivityRef.get() != null && !activeActivityRef.get().isFinishing() && !(Build.VERSION.SDK_INT >= 17 && activeActivityRef.get().isDestroyed()))
+                    ? activeActivityRef.get()
+                    : StockfishExtension.getCurrentActivity();
+
+            if (act != null && !act.isFinishing() && !(Build.VERSION.SDK_INT >= 17 && act.isDestroyed())) {
+                onGameOver(act);
+            } else {
+                getMainHandler().postDelayed(() -> {
+                    Activity delayedAct = StockfishExtension.getCurrentActivity();
+                    if (delayedAct != null && !delayedAct.isFinishing() && !(Build.VERSION.SDK_INT >= 17 && delayedAct.isDestroyed())) {
+                        onGameOver(delayedAct);
+                    }
+                }, 250L);
             }
         });
     }
@@ -496,11 +541,6 @@ public class AutoFindManager {
                 if (currentState != State.SEEKING || userExplicitlyCancelled) {
                     return;
                 }
-                if (activity == null || activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
-                    dismissActiveSeekActivity();
-                    currentState = State.IDLE;
-                    return;
-                }
 
                 // If seeking timed out without starting a new game (20s)
                 if (seekRetryCount < MAX_SEEK_RETRIES) {
@@ -509,7 +549,19 @@ public class AutoFindManager {
                     dismissActiveSeekActivity();
                     resetHandledGameEndData();
                     currentState = State.IDLE;
-                    onGameOver(activity);
+
+                    Activity targetAct = (activity != null && !activity.isFinishing() && !(Build.VERSION.SDK_INT >= 17 && activity.isDestroyed()))
+                            ? activity : StockfishExtension.getCurrentActivity();
+                    if (targetAct != null && !targetAct.isFinishing() && !(Build.VERSION.SDK_INT >= 17 && targetAct.isDestroyed())) {
+                        onGameOver(targetAct);
+                    } else {
+                        getMainHandler().postDelayed(() -> {
+                            Activity fallbackAct = StockfishExtension.getCurrentActivity();
+                            if (fallbackAct != null && !fallbackAct.isFinishing() && !(Build.VERSION.SDK_INT >= 17 && fallbackAct.isDestroyed())) {
+                                onGameOver(fallbackAct);
+                            }
+                        }, 250L);
+                    }
                 } else {
                     NnvcLogger.i(TAG, "Max seeking retries reached (" + MAX_SEEK_RETRIES + "). Resetting to IDLE.");
                     dismissActiveSeekActivity();

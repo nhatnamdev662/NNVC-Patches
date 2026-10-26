@@ -75,6 +75,27 @@ object UserProfileHeaderGetChessTitleFingerprint : Fingerprint(
     }
 )
 
+object PaletteComponentsLGetChessTitleFingerprint : Fingerprint(
+    definingClass = "Lcom/chess/palette/components/l;",
+    name = "d",
+    parameters = listOf(),
+    returnType = "Ljava/lang/String;"
+)
+
+object PaletteComponentsOGetChessTitleFingerprint : Fingerprint(
+    definingClass = "Lcom/chess/palette/components/o;",
+    name = "c",
+    parameters = listOf(),
+    returnType = "Lcom/chess/entities/ChessTitle;"
+)
+
+object ProfileN4GetLabelsFingerprint : Fingerprint(
+    definingClass = "Lcom/chess/profile/n4;",
+    name = "l",
+    parameters = listOf(),
+    returnType = "Ljava/util/List;"
+)
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Custom Titles Patch
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,6 +193,40 @@ val customTitlesPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/nnvc/chess/extension/titles/CustomTitlesExtension;->overridePaletteChessTitle(Ljava/lang/Object;)Ljava/lang/Object;
                 move-result-object v0
                 check-cast v0, Lcom/chess/palette/compose/component/ChessTitle;
+                return-object v0
+            """
+        )
+
+        // Inject overrides into Profile UserHeader (palette/components/l) getChessTitle()
+        PaletteComponentsLGetChessTitleFingerprint.method.addInstructions(
+            0,
+            """
+                move-object v0, p0
+                invoke-static {v0}, Lapp/nnvc/chess/extension/titles/CustomTitlesExtension;->overrideModelChessTitle(Ljava/lang/Object;)Ljava/lang/String;
+                move-result-object v0
+                return-object v0
+            """
+        )
+
+        // Inject overrides into Title Item (palette/components/o) getChessTitle()
+        PaletteComponentsOGetChessTitleFingerprint.method.addInstructions(
+            0,
+            """
+                move-object v0, p0
+                invoke-static {v0}, Lapp/nnvc/chess/extension/titles/CustomTitlesExtension;->overrideEntitiesChessTitle(Ljava/lang/Object;)Ljava/lang/Object;
+                move-result-object v0
+                check-cast v0, Lcom/chess/entities/ChessTitle;
+                return-object v0
+            """
+        )
+
+        // Inject overrides into Profile Labels (profile/n4) getLabels()
+        ProfileN4GetLabelsFingerprint.method.addInstructions(
+            0,
+            """
+                move-object v0, p0
+                invoke-static {v0}, Lapp/nnvc/chess/extension/titles/CustomTitlesExtension;->overrideProfileLabels(Ljava/lang/Object;)Ljava/util/List;
+                move-result-object v0
                 return-object v0
             """
         )

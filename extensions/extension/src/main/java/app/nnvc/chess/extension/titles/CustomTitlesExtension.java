@@ -367,10 +367,13 @@ public class CustomTitlesExtension {
             Class<?> clazz = modelObj.getClass();
             Field chessTitleField = CHESS_TITLE_FIELD_CACHE.get(clazz);
             if (chessTitleField == null) {
-                for (String fieldName : new String[]{"chess_title", "chessTitle"}) {
+                for (String fieldName : new String[]{"chess_title", "chessTitle", "f"}) {
                     try {
-                        chessTitleField = clazz.getDeclaredField(fieldName);
-                        break;
+                        Field f = clazz.getDeclaredField(fieldName);
+                        if (f.getType() == String.class) {
+                            chessTitleField = f;
+                            break;
+                        }
                     } catch (NoSuchFieldException ignored) {}
                 }
                 if (chessTitleField == null) {
@@ -395,6 +398,63 @@ public class CustomTitlesExtension {
         } catch (Throwable e) {
             logE("overrideModelChessTitle failed: " + e.getMessage());
             return defaultTitle;
+        }
+    }
+
+    public static Object overrideEntitiesChessTitle(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        Object defaultTitleObj = null;
+        try {
+            Class<?> clazz = obj.getClass();
+            Field titleField = null;
+            for (String fn : new String[]{"f", "chessTitle"}) {
+                try {
+                    Field f = clazz.getDeclaredField(fn);
+                    if (f.getType().getName().contains("ChessTitle") || f.getType() == Object.class) {
+                        titleField = f;
+                        break;
+                    }
+                } catch (NoSuchFieldException ignored) {}
+            }
+            if (titleField != null) {
+                titleField.setAccessible(true);
+                defaultTitleObj = titleField.get(obj);
+            }
+
+            String username = null;
+            for (String un : new String[]{"a", "username"}) {
+                try {
+                    Field uf = clazz.getDeclaredField(un);
+                    if (uf.getType() == String.class) {
+                        uf.setAccessible(true);
+                        Object uVal = uf.get(obj);
+                        if (uVal instanceof String && isValidUsername((String) uVal)) {
+                            username = ((String) uVal).trim();
+                            break;
+                        }
+                    }
+                } catch (NoSuchFieldException ignored) {}
+            }
+            if (username == null) {
+                username = extractUsername(obj);
+            }
+
+            Context context = StockfishExtension.getContext();
+            boolean customEnabled = (context == null) || StockfishSettings.isCustomTitleEnabled(context);
+            if (customEnabled && isTargetCurrentUser(context, username, obj)) {
+                String customCode = (context != null) ? StockfishSettings.getCustomTitleCode(context) : "GM";
+                if (customCode == null || customCode.trim().isEmpty()) {
+                    customCode = "GM";
+                }
+                Object customTitle = getOverrideAsChessTitle(customCode.trim().toUpperCase(), defaultTitleObj);
+                return customTitle != null ? customTitle : defaultTitleObj;
+            }
+            return defaultTitleObj;
+        } catch (Throwable t) {
+            logE("overrideEntitiesChessTitle failed: " + t.getMessage(), t);
+            return defaultTitleObj;
         }
     }
 

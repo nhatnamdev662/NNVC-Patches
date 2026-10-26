@@ -1264,12 +1264,29 @@ public class SelfTest {
         // 27d. Null-safe fallbacks for overrideModelChessTitle and overridePaletteChessTitle
         check("overrideModelChessTitle(null) returns null safely",
                 app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideModelChessTitle(null) == null);
+        check("overrideEntitiesChessTitle(null) returns null safely",
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideEntitiesChessTitle(null) == null);
         check("overridePaletteChessTitle(null) returns null safely",
                 app.nnvc.chess.extension.titles.CustomTitlesExtension.overridePaletteChessTitle(null) == null);
         check("getOverrideAsPaletteChessTitle(null, fallback) returns fallback safely",
                 "default".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsPaletteChessTitle(null, "default")));
         check("getOverrideAsPaletteChessTitle(\"\", fallback) returns fallback safely",
                 "default".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsPaletteChessTitle("", "default")));
+
+        class MockPaletteHeaderL {
+            public String a = "https://images.chesscomfiles.com/avatar.png";
+            public String b = "trannnguyennhatnam";
+            public String f = null;
+        }
+        check("overrideModelChessTitle extracts from field 'f' in mock Palette Header l",
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideModelChessTitle(new MockPaletteHeaderL()) == null);
+
+        class MockPaletteItemO {
+            public String a = "trannnguyennhatnam";
+            public Object f = "NONE";
+        }
+        check("overrideEntitiesChessTitle handles mock Palette Item o safely",
+                "NONE".equals(app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideEntitiesChessTitle(new MockPaletteItemO())));
 
         // 28. Arrow count limits & MultiPV trimming tests
         java.util.List<String> rawMoves = java.util.Arrays.asList("e2e4", "d2d4", "g1f3", "c2c4", "b1c3");
