@@ -2730,6 +2730,25 @@ public class SelfTest {
         check("sSessionClassificationCache fallback lookup by moveIndex:uciMove succeeds",
                 "Great".equals(MoveClassifier.getSessionClassificationCache().get("2:e7e5").classificationName));
 
+        // Test branch divergence pruning
+        List<String> lineA = java.util.Arrays.asList("e2e4", "e7e5", "g1f3");
+        MoveClassifier.pruneDivergentBranchIfNeeded(lineA);
+        MoveClassifier.getSessionClassificationCache().put("3:g1f3", new MoveClassifier.SavedClassification("Best", "g1f3", "Good", true, true));
+        check("sSessionClassificationCache has line A move 3", MoveClassifier.getSessionClassificationCache().containsKey("3:g1f3"));
+
+        // User navigates back to move 2 (e7e5): no divergence, move 3 preserved
+        List<String> lineNavBack = java.util.Arrays.asList("e2e4", "e7e5");
+        MoveClassifier.pruneDivergentBranchIfNeeded(lineNavBack);
+        check("sSessionClassificationCache still preserves move 3 after stepping back", MoveClassifier.getSessionClassificationCache().containsKey("3:g1f3"));
+
+        // User plays divergent move at ply 2: c7c5 (Sicilian)
+        List<String> lineB = java.util.Arrays.asList("e2e4", "c7c5");
+        MoveClassifier.pruneDivergentBranchIfNeeded(lineB);
+        check("sSessionClassificationCache pruned abandoned move 3 after divergence at ply 2",
+                !MoveClassifier.getSessionClassificationCache().containsKey("3:g1f3"));
+        check("sSessionClassificationCache pruned move 2 after divergence at ply 2",
+                !MoveClassifier.getSessionClassificationCache().containsKey("2:e7e5"));
+
         // 2. Low-Depth Komodo Play Engine Optimization (buildGoCommand without movetime 700ms)
         check("buildGoCommand returns pure depth 2 without movetime when AutoDepth is disabled (<100ms instant play)",
                 "go depth 2".equals(StockfishProcess.buildGoCommand(false, true, 2, 0)));

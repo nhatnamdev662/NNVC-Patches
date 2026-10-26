@@ -52,9 +52,54 @@ public class MoveClassifier {
     }
 
     private static final Map<String, SavedClassification> sSessionClassificationCache = new ConcurrentHashMap<>();
+    private static volatile List<String> sLastKnownMoveList = new ArrayList<>();
 
     public static Map<String, SavedClassification> getSessionClassificationCache() {
         return sSessionClassificationCache;
+    }
+
+    public static synchronized void pruneDivergentBranchIfNeeded(List<String> currentMoves) {
+        if (currentMoves == null || currentMoves.isEmpty()) return;
+        int currentSize = currentMoves.size();
+        int lastSize = sLastKnownMoveList.size();
+
+        boolean diverged = false;
+        int divergeIndex = -1;
+        int checkLen = Math.min(currentSize, lastSize);
+        for (int i = 0; i < checkLen; i++) {
+            if (!currentMoves.get(i).equals(sLastKnownMoveList.get(i))) {
+                diverged = true;
+                divergeIndex = i + 1; // 1-based ply index
+                break;
+            }
+        }
+
+        if (diverged && divergeIndex > 0) {
+            for (String key : sSessionClassificationCache.keySet()) {
+                int colon = key.indexOf(':');
+                if (colon > 0) {
+                    try {
+                        int ply = Integer.parseInt(key.substring(0, colon));
+                        if (ply >= divergeIndex) {
+                            sSessionClassificationCache.remove(key);
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+            for (String mId : classifiedMoves) {
+                int colon = mId.indexOf(':');
+                if (colon > 0) {
+                    try {
+                        int ply = Integer.parseInt(mId.substring(0, colon));
+                        if (ply >= divergeIndex) {
+                            classifiedMoves.remove(mId);
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+
+        sLastKnownMoveList = new ArrayList<>(currentMoves);
     }
 
     /** Move and loss tracking across plies for recapture and missed win / miss detection. */
@@ -209,6 +254,7 @@ public class MoveClassifier {
         fenToMateMap.clear();
         classifiedMoves.clear();
         sSessionClassificationCache.clear();
+        sLastKnownMoveList.clear();
         lastPlayedUci = null;
         lastWasCapture = false;
         lastOppLoss = -1f;
@@ -570,10 +616,14 @@ public class MoveClassifier {
                 final SavedClassification sc = cached;
                 if (activity != null) {
                     activity.runOnUiThread(() -> {
-                        displayTorchClassification(activity, sc.classificationName, sc.uciMove, sc.speechText, sc.isWhite, sc.isMyMove);
+                        displayTorchClassification(activity, sc.classificationName, sc.uciMove, sc.speechText, sc.isWhite, sc.isMyMove, false);
                     });
                 }
                 return;
+            }
+
+            if (moves != null && !moves.isEmpty()) {
+                pruneDivergentBranchIfNeeded(moves);
             }
 
             if (moveIdentifier != null && classifiedMoves.contains(moveIdentifier)) return;
@@ -706,6 +756,10 @@ public class MoveClassifier {
     }
 
     private static void displayTorchClassification(Activity activity, String torchName, String uciMove, String speechText, boolean isWhite, boolean isMyMove) {
+        displayTorchClassification(activity, torchName, uciMove, speechText, isWhite, isMyMove, true);
+    }
+
+    private static void displayTorchClassification(Activity activity, String torchName, String uciMove, String speechText, boolean isWhite, boolean isMyMove, boolean playSound) {
         if (activity == null || torchName == null) return;
         if (activity.isFinishing()) return;
         if (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed()) return;
@@ -792,9 +846,11 @@ public class MoveClassifier {
         }
 
         // 2. Phát âm thanh Chess.com chính hãng theo phân loại nước cờ (Chỉ giữ lại Brilliant)
-        String lowerName = torchName.toLowerCase(java.util.Locale.US).replace(" ", "_");
-        if ("brilliant".equals(lowerName)) {
-            SoundManager.getInstance(activity).playBrilliantSound();
+        if (playSound) {
+            String lowerName = torchName.toLowerCase(java.util.Locale.US).replace(" ", "_");
+            if ("brilliant".equals(lowerName)) {
+                SoundManager.getInstance(activity).playBrilliantSound();
+            }
         }
     }
 }

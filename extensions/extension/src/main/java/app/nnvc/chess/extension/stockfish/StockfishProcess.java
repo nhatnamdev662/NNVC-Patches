@@ -382,7 +382,7 @@ public class StockfishProcess {
                 String[] parts = line.split("\\s+");
                 if (parts.length > 1 && !"(none)".equals(parts[1])) bestmove = parts[1];
                 if (parts.length > 3 && "ponder".equals(parts[2])) ponder = parts[3];
-                if ((hasMate && mateIn == 0) || isTerminalBoard(fen, whiteToMove)) terminal = true;
+                if (bestmove == null && ((hasMate && mateIn == 0) || isTerminalBoard(fen, whiteToMove))) terminal = true;
                 NnvcLogger.d(TAG, "BestMove: " + bestmove + ", eval=" + scores[0] + ", depth=" + reachedDepth + ", terminal=" + terminal);
                 break;
             }

@@ -165,3 +165,4 @@ rule.md
 SESSION_NOTES.md
 mpp_archive/
 build_2_0_*.py
+__pycache__/
