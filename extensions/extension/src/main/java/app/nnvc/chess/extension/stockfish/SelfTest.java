@@ -2163,6 +2163,46 @@ public class SelfTest {
         AutoFindManager.postOnMain(() -> executed[0] = true);
         check("postOnMain executes runnable safely without crashing in headless environment", executed[0]);
 
+        // 40n. Adversarial Review Round 3 Hardening & Edge Cases
+        // 1. Instance tracking for dismissingSeekActivityRef
+        if (dummySeekAct != null) {
+            AutoFindManager.setDismissingSeekActivityForTest(dummySeekAct);
+            check("AutoFindManager tracks dismissingSeekActivityRef", AutoFindManager.getDismissingSeekActivityForTest() == dummySeekAct);
+            AutoFindManager.onSeekActivityDestroyed(dummySeekAct);
+            check("onSeekActivityDestroyed clears dismissingSeekActivityRef", AutoFindManager.getDismissingSeekActivityForTest() == null);
+        }
+
+        // 2. CustomTitlesExtension ENTITIES_TITLE_CACHE O(1) Lookup
+        Object gm1 = app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsChessTitle("GM", null);
+        Object gm2 = app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsChessTitle("GM", null);
+        check("getOverrideAsChessTitle handles GM lookup", gm1 == null || gm1 == gm2);
+        check("getOverrideAsChessTitle handles empty/null safely",
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsChessTitle(null, "fallback").equals("fallback") &&
+                app.nnvc.chess.extension.titles.CustomTitlesExtension.getOverrideAsChessTitle("", "fallback").equals("fallback"));
+
+        // 3. Duplicate TitledPlayer label suppression via action token f5$a$e
+        class MockProfileWithExistingBadge {
+            public Object d = new MockProfileHeaderWithUser();
+            public java.util.List<String> e = java.util.Collections.singletonList("UserLabelUi(action=f5$a$e)");
+            public boolean w() { return true; }
+        }
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest("trannnguyennhatnam");
+        java.util.List<?> dupLabels = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(new MockProfileWithExistingBadge());
+        check("overrideProfileLabels suppresses duplicate badge when profile already has f5$a$e action",
+                dupLabels != null && dupLabels.size() == 1);
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest(null);
+
+        // 4. Cached Native ViewModel Trigger via executeTrigger fallback
+        class MockTriggerableVm {
+            public boolean kaInvoked = false;
+            public void Ka() { kaInvoked = true; }
+        }
+        MockTriggerableVm mockTrigVm = new MockTriggerableVm();
+        AutoFindManager.setLastKnownViewModel(mockTrigVm);
+        check("getLastKnownViewModel returns cached VM instance", AutoFindManager.getLastKnownViewModel() == mockTrigVm);
+        check("triggerViaViewModelInstance successfully invokes Ka()", AutoFindManager.triggerViaViewModelInstance(mockTrigVm) && mockTrigVm.kaInvoked);
+        AutoFindManager.setLastKnownViewModel(null);
+
         // 40j. Direct Model Hook Auto Move (0ms Desktop Extension Parity), UserSide Resolution & Move 0 Arrow Retention
         // 1. UserSide & User Color Detection
         StockfishExtension.resetUserWhiteCache();

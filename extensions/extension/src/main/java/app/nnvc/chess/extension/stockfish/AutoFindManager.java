@@ -69,6 +69,8 @@ public class AutoFindManager {
 
     private static volatile boolean userExplicitlyCancelled = false;
     private static volatile boolean isDismissingByAutoFind = false;
+    private static volatile WeakReference<Activity> dismissingSeekActivityRef = new WeakReference<>(null);
+    private static Runnable resetDismissingFlagRunnable = null;
     private static volatile int seekRetryCount = 0;
     private static final int MAX_SEEK_RETRIES = 5;
     private static Runnable seekingWatchdogRunnable = null;
@@ -89,6 +91,14 @@ public class AutoFindManager {
 
     public static void setIsDismissingByAutoFindForTest(boolean val) {
         isDismissingByAutoFind = val;
+    }
+
+    public static Activity getDismissingSeekActivityForTest() {
+        return dismissingSeekActivityRef != null ? dismissingSeekActivityRef.get() : null;
+    }
+
+    public static void setDismissingSeekActivityForTest(Activity act) {
+        dismissingSeekActivityRef = new WeakReference<>(act);
     }
 
     public static boolean isUserExplicitlyCancelledForTest() {
@@ -462,6 +472,7 @@ public class AutoFindManager {
             NnvcLogger.i(TAG, "Đã chơi liên tiếp " + RECREATE_AFTER_MATCHES + " ván. Tái tạo Activity để giải phóng RAM & làm mới WebSocket socket.");
             currentState = State.SEEKING;
             seekStartTimeMs = getUptimeMs();
+            scheduleSeekingWatchdog(activity);
             vibrate(activity, 25);
             try {
                 Toast.makeText(activity, I18n.get(activity, "toast_newgame"), Toast.LENGTH_SHORT).show();
@@ -469,6 +480,10 @@ public class AutoFindManager {
             activity.runOnUiThread(() -> {
                 try {
                     activity.recreate();
+                    postDelayedOnMain(() -> {
+                        Activity cur = StockfishExtension.getCurrentActivity();
+                        executeTrigger(cur != null ? cur : activity);
+                    }, 600L);
                 } catch (Throwable t) {
                     NnvcLogger.e(TAG, "Activity recreate failed: " + t.getMessage());
                     executeTrigger(activity);
@@ -497,6 +512,11 @@ public class AutoFindManager {
         if (activity == null) return;
         activeSeekActivityRef = new WeakReference<>(activity);
         isDismissingByAutoFind = false;
+        dismissingSeekActivityRef = new WeakReference<>(null);
+        if (resetDismissingFlagRunnable != null) {
+            removeCallbacksOnMain(resetDismissingFlagRunnable);
+            resetDismissingFlagRunnable = null;
+        }
         NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen created: " + activity.getClass().getSimpleName());
     }
 
@@ -507,9 +527,17 @@ public class AutoFindManager {
         }
         NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen destroyed: " + activity.getClass().getSimpleName());
 
-        if (isDismissingByAutoFind) {
+        boolean isDismissedByUs = isDismissingByAutoFind || (dismissingSeekActivityRef != null && dismissingSeekActivityRef.get() == activity);
+        if (isDismissedByUs) {
             // Dismissed programmatically by AutoFind for immediate re-queue; do not reset state.
             isDismissingByAutoFind = false;
+            if (dismissingSeekActivityRef != null && dismissingSeekActivityRef.get() == activity) {
+                dismissingSeekActivityRef = new WeakReference<>(null);
+            }
+            if (resetDismissingFlagRunnable != null) {
+                removeCallbacksOnMain(resetDismissingFlagRunnable);
+                resetDismissingFlagRunnable = null;
+            }
             return;
         }
 
@@ -561,6 +589,10 @@ public class AutoFindManager {
 
     public static void dismissActiveSeekActivity() {
         isDismissingByAutoFind = true;
+        Activity seekAct = activeSeekActivityRef != null ? activeSeekActivityRef.get() : null;
+        if (seekAct != null) {
+            dismissingSeekActivityRef = new WeakReference<>(seekAct);
+        }
         try {
             boolean dismissed = false;
             try {
@@ -574,7 +606,6 @@ public class AutoFindManager {
             } catch (Throwable ignored) {}
 
             if (!dismissed) {
-                Activity seekAct = activeSeekActivityRef != null ? activeSeekActivityRef.get() : null;
                 if (seekAct != null && !seekAct.isFinishing()) {
                     NnvcLogger.i(TAG, "⚡ [SEEK DISMISS] Dismissing tracked seek activity: " + seekAct.getClass().getSimpleName());
                     seekAct.runOnUiThread(() -> {
@@ -589,9 +620,15 @@ public class AutoFindManager {
         } catch (Throwable t) {
             NnvcLogger.e(TAG, "Error in dismissActiveSeekActivity: " + t.getMessage());
         } finally {
-            postDelayedOnMain(() -> {
+            if (resetDismissingFlagRunnable != null) {
+                removeCallbacksOnMain(resetDismissingFlagRunnable);
+            }
+            resetDismissingFlagRunnable = () -> {
                 isDismissingByAutoFind = false;
-            }, 600L);
+                dismissingSeekActivityRef = new WeakReference<>(null);
+                resetDismissingFlagRunnable = null;
+            };
+            postDelayedOnMain(resetDismissingFlagRunnable, 1500L);
         }
     }
 
@@ -608,7 +645,10 @@ public class AutoFindManager {
                     return;
                 }
                 NnvcLogger.w(TAG, "⚡ [AUTO RE-QUEUE] Seeking timeout (20s) without new game.");
-                triggerImmediateReSeek(activity);
+                Activity currentAct = StockfishExtension.getCurrentActivity();
+                Activity actToUse = (currentAct != null && !currentAct.isFinishing() && !(Build.VERSION.SDK_INT >= 17 && currentAct.isDestroyed()))
+                        ? currentAct : activity;
+                triggerImmediateReSeek(actToUse);
             }
         };
 
@@ -678,10 +718,11 @@ public class AutoFindManager {
     }
 
     private static boolean executeTrigger(final Activity activity) {
-        if (activity == null) return false;
-
         // Tầng 0: Full Native Lifecycle via Activity Controller (includes gameOverV6Listener.e(), UI Compose cleanup x6() & Ka())
-        boolean triggered = triggerViaViewModel(activity);
+        boolean triggered = false;
+        if (activity != null) {
+            triggered = triggerViaViewModel(activity);
+        }
 
         // Tầng 1: Direct Cached Native ViewModel
         if (!triggered && lastNativeViewModelRef != null) {
@@ -705,7 +746,7 @@ public class AutoFindManager {
             NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller on first attempt. Scheduling retry in 400ms...");
             postDelayedOnMain(() -> {
                 if (currentState == State.SEEKING && !userExplicitlyCancelled) {
-                    boolean retry = triggerViaViewModel(activity);
+                    boolean retry = (activity != null) ? triggerViaViewModel(activity) : false;
                     if (!retry && lastNativeViewModelRef != null) {
                         Object vm = lastNativeViewModelRef.get();
                         if (vm != null) retry = triggerViaViewModelInstance(vm);

@@ -31,6 +31,7 @@ public class CustomTitlesExtension {
 
     // ── Static Caches for Ultra-Fast UI Frame Performance (0ms lag) ──
     private static final Map<String, Object> PALETTE_TITLE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Object> ENTITIES_TITLE_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, String> CODE_TO_ENUM_NAME = new HashMap<>();
     private static final Map<Class<?>, Field> USERNAME_FIELD_CACHE = new ConcurrentHashMap<>();
     private static final Map<Class<?>, Field> CHESS_TITLE_FIELD_CACHE = new ConcurrentHashMap<>();
@@ -63,6 +64,20 @@ public class CustomTitlesExtension {
                     Object val = valueOfMethod.invoke(null, entry.getValue());
                     if (val != null) {
                         PALETTE_TITLE_CACHE.put(entry.getKey(), val);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+
+        // Pre-warm entities ChessTitle cache
+        try {
+            Class<?> entitiesChessTitleClass = Class.forName("com.chess.entities.ChessTitle");
+            for (Map.Entry<String, String> entry : CODE_TO_ENUM_NAME.entrySet()) {
+                try {
+                    Field f = entitiesChessTitleClass.getField(entry.getValue());
+                    Object val = f.get(null);
+                    if (val != null) {
+                        ENTITIES_TITLE_CACHE.put(entry.getKey(), val);
                     }
                 } catch (Throwable ignored) {}
             }
@@ -211,6 +226,10 @@ public class CustomTitlesExtension {
             return defaultTitleObj;
         }
         String upper = titleCode.trim().toUpperCase();
+        Object cached = ENTITIES_TITLE_CACHE.get(upper);
+        if (cached != null) {
+            return cached;
+        }
         try {
             Class<?> chessTitleClass = Class.forName("com.chess.entities.ChessTitle");
             String enumName = CODE_TO_ENUM_NAME.get(upper);
@@ -219,6 +238,7 @@ public class CustomTitlesExtension {
                     Field f = chessTitleClass.getField(enumName);
                     Object val = f.get(null);
                     if (val != null) {
+                        ENTITIES_TITLE_CACHE.put(upper, val);
                         return val;
                     }
                 } catch (Throwable ignored) {}
@@ -233,7 +253,11 @@ public class CustomTitlesExtension {
             }
             Method fromCode = companionClass.getMethod("fromCode", String.class);
             Object overrideObj = fromCode.invoke(instance, upper);
-            return overrideObj != null ? overrideObj : defaultTitleObj;
+            if (overrideObj != null) {
+                ENTITIES_TITLE_CACHE.put(upper, overrideObj);
+                return overrideObj;
+            }
+            return defaultTitleObj;
         } catch (Throwable e) {
             return defaultTitleObj;
         }
@@ -436,18 +460,23 @@ public class CustomTitlesExtension {
         Object defaultTitleObj = null;
         try {
             Class<?> clazz = obj.getClass();
-            Field titleField = null;
-            for (String fn : new String[]{"f", "chessTitle"}) {
-                try {
-                    Field f = clazz.getDeclaredField(fn);
-                    if (f.getType().getName().contains("ChessTitle") || f.getType() == Object.class) {
-                        titleField = f;
-                        break;
-                    }
-                } catch (NoSuchFieldException ignored) {}
+            Field titleField = CHESS_TITLE_FIELD_CACHE.get(clazz);
+            if (titleField == null) {
+                for (String fn : new String[]{"f", "chessTitle"}) {
+                    try {
+                        Field f = clazz.getDeclaredField(fn);
+                        if (f.getType().getName().contains("ChessTitle") || f.getType() == Object.class) {
+                            titleField = f;
+                            break;
+                        }
+                    } catch (NoSuchFieldException ignored) {}
+                }
+                if (titleField != null) {
+                    titleField.setAccessible(true);
+                    CHESS_TITLE_FIELD_CACHE.put(clazz, titleField);
+                }
             }
             if (titleField != null) {
-                titleField.setAccessible(true);
                 defaultTitleObj = titleField.get(obj);
             }
 
@@ -633,8 +662,11 @@ public class CustomTitlesExtension {
                     // Kiểm tra xem danh sách đã có thẻ danh hiệu TitledPlayer chưa (tránh trùng lặp)
                     if (originalLabels != null) {
                         for (Object item : originalLabels) {
-                            if (item != null && item.toString().contains("TitledPlayer")) {
-                                return originalLabels;
+                            if (item != null) {
+                                String itemStr = item.toString();
+                                if (itemStr.contains("TitledPlayer") || itemStr.contains("f5$a$e") || itemStr.contains("f5$a$c")) {
+                                    return originalLabels;
+                                }
                             }
                         }
                     }
