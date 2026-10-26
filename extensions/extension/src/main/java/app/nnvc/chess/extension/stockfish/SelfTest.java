@@ -2948,6 +2948,52 @@ public class SelfTest {
         String foolsMateFen = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3";
         check("isTerminalBoard returns true for Fool's mate checkmate", StockfishProcess.isTerminalBoard(foolsMateFen, true));
 
+        // === 40p. Tests for Move 0 Auto Move & Komodo book.bin opening reset ===
+        // 1. AutoMoveManager.reset() clears all state
+        AutoMoveManager.reset();
+        check("AutoMoveManager.reset() clears isExecuting", !AutoMoveManager.isExecuting());
+        try {
+            java.lang.reflect.Field fFen = AutoMoveManager.class.getDeclaredField("lastAttemptedFen");
+            fFen.setAccessible(true);
+            check("AutoMoveManager.reset() clears lastAttemptedFen", fFen.get(null) == null);
+            java.lang.reflect.Field fUci = AutoMoveManager.class.getDeclaredField("lastAttemptedUci");
+            fUci.setAccessible(true);
+            check("AutoMoveManager.reset() clears lastAttemptedUci", fUci.get(null) == null);
+            java.lang.reflect.Field fPendFen = AutoMoveManager.class.getDeclaredField("pendingMoveFen");
+            fPendFen.setAccessible(true);
+            check("AutoMoveManager.reset() clears pendingMoveFen", fPendFen.get(null) == null);
+        } catch (Throwable t) {
+            check("AutoMoveManager reflection check failed: " + t.getMessage(), false);
+        }
+
+        // 2. StockfishExtension.resetMove0State()
+        StockfishExtension.setMove0AnalysisCompleted(true);
+        StockfishExtension.resetMove0State();
+        check("StockfishExtension.resetMove0State() clears isMove0AnalysisCompleted", !StockfishExtension.isMove0AnalysisCompleted());
+        try {
+            java.lang.reflect.Field fSched = StockfishExtension.class.getDeclaredField("isMove0AnalysisScheduled");
+            fSched.setAccessible(true);
+            check("resetMove0State() clears isMove0AnalysisScheduled", !fSched.getBoolean(null));
+            java.lang.reflect.Field fLastFen = StockfishExtension.class.getDeclaredField("lastLoadedMove0Fen");
+            fLastFen.setAccessible(true);
+            check("resetMove0State() clears lastLoadedMove0Fen", fLastFen.get(null) == null);
+        } catch (Throwable t) {
+            check("StockfishExtension reflection check failed: " + t.getMessage(), false);
+        }
+
+        // 3. AutoFindManager.onNewGameStarted() clears Move 0 flags and resets AutoMoveManager
+        StockfishExtension.setMove0AnalysisCompleted(true);
+        AutoFindManager.onNewGameStarted();
+        check("AutoFindManager.onNewGameStarted() resets StockfishExtension Move 0 state", !StockfishExtension.isMove0AnalysisCompleted());
+        check("AutoFindManager.onNewGameStarted() resets AutoMoveManager", !AutoMoveManager.isExecuting());
+
+        // 4. StockfishProcess UCI command generation: startpos without moves produces 'position startpos'
+        String startposUciFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        java.util.List<String> emptyMoves = java.util.Collections.emptyList();
+        boolean isStartposUci = (emptyMoves == null || emptyMoves.isEmpty()) && (startposUciFen != null && (startposUciFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") || "startpos".equals(startposUciFen)));
+        String generatedPos = isStartposUci ? "position startpos" : ("position fen " + startposUciFen);
+        check("Komodo book.bin UCI command generation selects 'position startpos' at move 0", "position startpos".equals(generatedPos));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

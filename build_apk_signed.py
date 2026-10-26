@@ -80,6 +80,13 @@ def get_merged_classes12_dex():
 def inject_patched_dex_if_needed(apk_path):
     import zipfile
     dex_updates = {}
+    patched_dex8 = os.path.join(SCRIPT_DIR, "patches", "patched_classes8.dex")
+    if not os.path.exists(patched_dex8):
+        patched_dex8 = os.path.join(SCRIPT_DIR, "archive", "morphe_legacy", "patched_classes8.dex")
+    if os.path.exists(patched_dex8):
+        with open(patched_dex8, "rb") as pf:
+            dex_updates["classes8.dex"] = pf.read()
+
     patched_dex9 = os.path.join(SCRIPT_DIR, "patches", "patched_classes9.dex")
     if not os.path.exists(patched_dex9):
         patched_dex9 = os.path.join(SCRIPT_DIR, "archive", "morphe_legacy", "patched_classes9.dex")
@@ -104,7 +111,7 @@ def inject_patched_dex_if_needed(apk_path):
                 need_updates[name] = data
 
     if not need_updates:
-        print("[OK] All DEX files (classes9.dex, classes12.dex) are already up to date.")
+        print(f"[OK] All DEX files ({list(dex_updates.keys())}) are already up to date.")
         return
 
     print(f"[*] Injecting updated DEX files ({list(need_updates.keys())}) into APK...")
@@ -210,16 +217,64 @@ def sign_apk(input_apk, output_apk=None):
         if input_apk and output_apk and os.path.abspath(input_apk) != os.path.abspath(output_apk):
             shutil.copy2(output_apk, input_apk)
             print(f"[*] Synchronized signed & aligned APK to: {input_apk}")
+
+        # Automatically synchronize and verify both _signed.apk and _mod.apk
+        apk_v1_dir = os.path.join(os.path.dirname(SCRIPT_DIR), "apk", "patched", "v1.0.0")
+        signed_apk_target = os.path.join(apk_v1_dir, "chess_4.10.20_nnvc_signed.apk")
+        mod_apk_target = os.path.join(apk_v1_dir, "chess_4.10.20_nnvc_mod.apk")
+
+        out_abs = os.path.abspath(output_apk)
+        if os.path.exists(apk_v1_dir):
+            if out_abs == os.path.abspath(signed_apk_target) or out_abs == os.path.abspath(mod_apk_target) or os.path.dirname(out_abs) == os.path.abspath(apk_v1_dir):
+                if out_abs != os.path.abspath(mod_apk_target):
+                    shutil.copy2(output_apk, mod_apk_target)
+                    print(f"[*] Synchronized signed & aligned APK to: {mod_apk_target}")
+                if out_abs != os.path.abspath(signed_apk_target):
+                    shutil.copy2(output_apk, signed_apk_target)
+                    print(f"[*] Synchronized signed & aligned APK to: {signed_apk_target}")
+
+                out_idsig = output_apk + ".idsig"
+                if os.path.exists(out_idsig):
+                    try:
+                        shutil.copy2(out_idsig, mod_apk_target + ".idsig")
+                        shutil.copy2(out_idsig, signed_apk_target + ".idsig")
+                    except Exception:
+                        pass
+
+                for apk_file in [signed_apk_target, mod_apk_target]:
+                    if os.path.exists(apk_file):
+                        print(f"[*] Verifying signature for: {os.path.basename(apk_file)}...")
+                        chk_cmd = [apksigner_cmd, "verify", "--verbose", "--min-sdk-version", "21", apk_file]
+                        chk_res = subprocess.run(chk_cmd, capture_output=True, text=True)
+                        if chk_res.returncode == 0:
+                            print(f"[OK] {os.path.basename(apk_file)} signature verified successfully (v1, v2, v3 active)!")
+                        else:
+                            print(f"[ERROR] Signature verification failed for {os.path.basename(apk_file)}:\n{chk_res.stderr}")
         print("=================================================================")
     else:
         print("\n[!] WARNING: APK signature SHA-256 does NOT match official fingerprint!")
         print("WebAssembly engines will fail to decrypt at runtime until re-signed.")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
-    inp = sys.argv[1]
-    out = sys.argv[2] if len(sys.argv) > 2 else None
+    apk_v1_dir = os.path.join(os.path.dirname(SCRIPT_DIR), "apk", "patched", "v1.0.0")
+    unsigned_apk = os.path.join(apk_v1_dir, "chess_4.10.20_nnvc_unsigned.apk")
+    signed_apk = os.path.join(apk_v1_dir, "chess_4.10.20_nnvc_signed.apk")
+    mod_apk = os.path.join(apk_v1_dir, "chess_4.10.20_nnvc_mod.apk")
+
+    if len(sys.argv) >= 2:
+        inp = sys.argv[1]
+        out = sys.argv[2] if len(sys.argv) > 2 else None
+    else:
+        if os.path.exists(unsigned_apk):
+            inp = unsigned_apk
+        elif os.path.exists(signed_apk):
+            inp = signed_apk
+        elif os.path.exists(mod_apk):
+            inp = mod_apk
+        else:
+            print("[ERROR] No target APK found in apk/patched/v1.0.0/")
+            sys.exit(1)
+        out = signed_apk
+
     sign_apk(inp, out)
 

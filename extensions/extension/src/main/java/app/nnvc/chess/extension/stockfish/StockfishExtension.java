@@ -87,6 +87,12 @@ public class StockfishExtension {
         isMove0AnalysisCompleted = val;
     }
 
+    public static void resetMove0State() {
+        lastLoadedMove0Fen = null;
+        isMove0AnalysisScheduled = false;
+        isMove0AnalysisCompleted = false;
+    }
+
     static boolean isEngineReady() {
         return engineReady;
     }
@@ -411,12 +417,11 @@ public class StockfishExtension {
     public static void onGameOverNative(Object viewModel, Object gameEndData) {
         try {
             NnvcLogger.i(TAG, "Native onGameOverNative hooked directly from RealGameViewModel.Gb!");
-            lastLoadedMove0Fen = null;
-            isMove0AnalysisScheduled = false;
-            isMove0AnalysisCompleted = false;
+            resetMove0State();
             nativeUserSideIsWhite = null;
             SmartDelayManager.resetClockNative();
             EloScanner.reset();
+            AutoMoveManager.reset();
             AutoFindManager.onGameOverNative(viewModel, gameEndData);
         } catch (Throwable t) {
             NnvcLogger.e(TAG, "onGameOverNative error: " + t.getMessage(), t);
@@ -574,13 +579,14 @@ public class StockfishExtension {
         if (isStartPos) {
             lastGameOverHandled = false;
             AutoFindManager.resetHandledGameEndData();
-            AutoFindManager.onNewGameStarted();
+            AutoMoveManager.reset();
             SmartDelayManager.resetClockNative();
             if (isMove0AnalysisScheduled && fen.equals(lastLoadedMove0Fen) &&
-                    ((currentJob != null && !currentJob.isDone()) || OverlayManager.hasArrows() || isMove0AnalysisCompleted)) {
+                    ((currentJob != null && !currentJob.isDone()) || OverlayManager.hasArrows())) {
                 Log.d(TAG, "[MOVE 0 SKIP] onBoardChanged Move 0 already in progress or completed, skipping duplicate reset.");
                 return;
             }
+            AutoFindManager.onNewGameStarted();
             lastLoadedMove0Fen = fen;
             isMove0AnalysisScheduled = true;
             isMove0AnalysisCompleted = false;

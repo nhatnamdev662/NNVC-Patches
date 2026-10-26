@@ -389,6 +389,8 @@ public class AutoFindManager {
         cancelCountdown("New game started");
         resetHandledGameEndData();
         currentState = State.PLAYING;
+        AutoMoveManager.reset();
+        StockfishExtension.resetMove0State();
     }
 
     /**

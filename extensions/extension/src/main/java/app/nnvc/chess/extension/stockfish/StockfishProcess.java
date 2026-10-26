@@ -259,6 +259,8 @@ public class StockfishProcess {
             if (uciMoves != null && !uciMoves.isEmpty() && WasmEngineManager.isStandardStartposMoves(uciMoves)) {
                 pos.append("position startpos moves");
                 for (String m : uciMoves) pos.append(' ').append(m);
+            } else if ((uciMoves == null || uciMoves.isEmpty()) && (fen != null && (fen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") || "startpos".equals(fen)))) {
+                pos.append("position startpos");
             } else {
                 pos.append("position fen ").append(fen);
             }

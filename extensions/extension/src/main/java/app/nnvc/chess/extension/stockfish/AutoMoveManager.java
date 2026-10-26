@@ -1306,6 +1306,7 @@ public class AutoMoveManager {
         final Runnable moveExecutionTask = new Runnable() {
             @Override
             public void run() {
+                pendingMoveRunnable = null;
                 executeMoveWithRetry(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, fromSq, toSq, isPromo, promoChar, fittsDelay, 0);
             }
         };
@@ -1361,6 +1362,8 @@ public class AutoMoveManager {
         cancelPendingAutoMove("reset");
         lastAttemptedFen = null;
         lastAttemptedUci = null;
+        pendingMoveFen = null;
+        isExecutingMove = false;
         lastMoveTimestamp = 0;
     }
 }
