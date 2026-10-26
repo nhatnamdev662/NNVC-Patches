@@ -558,7 +558,7 @@ public class StockfishExtension {
         Log.d(TAG, "Position changed → FEN: " + fen);
         currentBoardFen = fen;
         resetEmptyBoardRecovery();
-        AutoMoveManager.cancelPendingAutoMove("onBoardChanged: position changed to " + fen);
+        AutoMoveManager.cancelPendingAutoMoveIfBoardChanged(fen);
         if (AutoFindManager.isSeeking()) {
             lastGameOverHandled = false;
             AutoFindManager.onNewGameStarted();

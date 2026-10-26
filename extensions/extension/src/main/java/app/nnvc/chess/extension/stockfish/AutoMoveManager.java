@@ -69,6 +69,36 @@ public class AutoMoveManager {
         isExecutingMove = false;
     }
 
+    /**
+     * Cancels pending auto-move ONLY if the board position has actually changed to a new state.
+     * Preserves pending scheduled moves if the position is unchanged (e.g. redundant onBoardChanged events).
+     */
+    public static void cancelPendingAutoMoveIfBoardChanged(String newFen) {
+        if (newFen == null) return;
+        if (pendingMoveRunnable == null && !isExecutingMove) return;
+        String refFen = pendingMoveFen != null ? pendingMoveFen : lastAttemptedFen;
+        if (refFen != null) {
+            String[] refParts = refFen.trim().split("\\s+");
+            String[] newParts = newFen.trim().split("\\s+");
+            if (refParts.length >= 2 && newParts.length >= 2 &&
+                    refParts[0].equals(newParts[0]) && refParts[1].equals(newParts[1])) {
+                // Same piece placement and active turn; do not cancel scheduled or executing auto move.
+                return;
+            }
+        }
+        cancelPendingAutoMove("onBoardChanged: position changed to " + newFen);
+    }
+
+    public static String getPendingMoveFen() {
+        return pendingMoveFen;
+    }
+
+    public static void setPendingMoveForTest(Runnable r, String fen) {
+        pendingMoveRunnable = r;
+        pendingMoveFen = fen;
+        isExecutingMove = (r != null || fen != null);
+    }
+
     public static boolean hasPendingScheduledMove() {
         return pendingMoveRunnable != null || isExecutingMove;
     }

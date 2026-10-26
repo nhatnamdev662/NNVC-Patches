@@ -3002,8 +3002,11 @@ public class SelfTest {
         check("Black to move startpos does not produce 'position startpos'", StockfishProcess.buildPositionCommand(blackStartFen, emptyMoves).startsWith("position fen "));
         List<String> e4Moves = java.util.Collections.singletonList("e2e4");
         check("Startpos with moves uses 'position startpos moves e2e4'", "position startpos moves e2e4".equals(StockfishProcess.buildPositionCommand(startposUciFen, e4Moves)));
+        check("buildPositionCommand 'startpos' string with moves uses 'position startpos moves e2e4'", "position startpos moves e2e4".equals(StockfishProcess.buildPositionCommand("startpos", e4Moves)));
         String customMidgameFen = "r1bqk2r/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQK2R w KQkq - 2 7";
         check("Custom/midgame FEN uses 'position fen'", StockfishProcess.buildPositionCommand(customMidgameFen, emptyMoves).startsWith("position fen "));
+        check("Custom/midgame FEN with moves starting with e2e4 preserves 'position fen'",
+                StockfishProcess.buildPositionCommand(customMidgameFen, e4Moves).startsWith("position fen " + customMidgameFen + " moves e2e4"));
 
         // 5. Move 0 Duplicate Startpos Guard preserves executing AutoMove
         try {
@@ -3016,6 +3019,16 @@ public class SelfTest {
             check("Move 0 duplicate guard recognizes isExecuting to protect active move", guardTriggers);
             AutoMoveManager.reset();
             check("AutoMoveManager cleanly reset after test", !AutoMoveManager.isExecuting());
+
+            // 6. cancelPendingAutoMoveIfBoardChanged preserves pending move on duplicate FEN
+            Runnable dummyTask = new Runnable() { @Override public void run() {} };
+            AutoMoveManager.setPendingMoveForTest(dummyTask, startposUciFen);
+            check("setPendingMoveForTest schedules pending move", AutoMoveManager.hasPendingScheduledMove());
+            AutoMoveManager.cancelPendingAutoMoveIfBoardChanged(startposUciFen);
+            check("cancelPendingAutoMoveIfBoardChanged preserves move on duplicate FEN", AutoMoveManager.hasPendingScheduledMove());
+            String movedFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+            AutoMoveManager.cancelPendingAutoMoveIfBoardChanged(movedFen);
+            check("cancelPendingAutoMoveIfBoardChanged cancels move when board changes", !AutoMoveManager.hasPendingScheduledMove());
         } catch (Throwable t) {
             check("AutoMoveManager duplicate test failed: " + t.getMessage(), false);
         }

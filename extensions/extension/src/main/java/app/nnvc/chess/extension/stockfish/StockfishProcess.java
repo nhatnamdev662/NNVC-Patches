@@ -769,15 +769,23 @@ public class StockfishProcess {
     }
 
     public static String buildPositionCommand(String fen, List<String> uciMoves) {
-        StringBuilder pos = new StringBuilder((fen != null ? fen.length() : 8) + 32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
-        // Send position startpos moves if moves list is present and matches standard startpos to maximize Transposition Table reuse (3x faster)
-        if (uciMoves != null && !uciMoves.isEmpty() && WasmEngineManager.isStandardStartposMoves(uciMoves)) {
-            pos.append("position startpos moves");
-            for (String m : uciMoves) pos.append(' ').append(m);
-        } else if (fen == null || ((uciMoves == null || uciMoves.isEmpty()) && (fen.trim().startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w") || "startpos".equalsIgnoreCase(fen.trim())))) {
+        String trimmedFen = fen != null ? fen.trim() : null;
+        boolean isStartpos = trimmedFen == null
+                || "startpos".equalsIgnoreCase(trimmedFen)
+                || trimmedFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w");
+
+        StringBuilder pos = new StringBuilder((trimmedFen != null ? trimmedFen.length() : 8) + 32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
+        if (isStartpos) {
             pos.append("position startpos");
         } else {
-            pos.append("position fen ").append(fen.trim());
+            pos.append("position fen ").append(trimmedFen);
+        }
+
+        if (uciMoves != null && !uciMoves.isEmpty()) {
+            pos.append(" moves");
+            for (String m : uciMoves) {
+                pos.append(' ').append(m);
+            }
         }
         return pos.toString();
     }
