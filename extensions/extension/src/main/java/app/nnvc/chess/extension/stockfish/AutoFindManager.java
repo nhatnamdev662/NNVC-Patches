@@ -83,6 +83,26 @@ public class AutoFindManager {
         seekRetryCount = 0;
     }
 
+    public static boolean isDismissingByAutoFindForTest() {
+        return isDismissingByAutoFind;
+    }
+
+    public static void setIsDismissingByAutoFindForTest(boolean val) {
+        isDismissingByAutoFind = val;
+    }
+
+    public static boolean isUserExplicitlyCancelledForTest() {
+        return userExplicitlyCancelled;
+    }
+
+    public static void setUserExplicitlyCancelledForTest(boolean val) {
+        userExplicitlyCancelled = val;
+    }
+
+    public static void setStateForTest(State state) {
+        currentState = state;
+    }
+
     private static volatile int consecutiveMatchesCount = 0;
     public static final int RECREATE_AFTER_MATCHES = 10;
 
@@ -120,8 +140,22 @@ public class AutoFindManager {
         Handler h = getMainHandler();
         if (h != null) {
             h.postDelayed(r, delayMs);
-        } else {
+        } else if (delayMs <= 0) {
             r.run();
+        } else {
+            try {
+                new java.util.Timer("AutoFindTimerFallback", true).schedule(new java.util.TimerTask() {
+                    @Override
+                    public void run() {
+                        try {
+                            r.run();
+                        } catch (Throwable ignored) {}
+                    }
+                }, delayMs);
+            } catch (Throwable t) {
+                // Last-resort fallback
+                r.run();
+            }
         }
     }
 
@@ -210,13 +244,13 @@ public class AutoFindManager {
             cancelCelebrationReinflationFromVm(viewModel);
         }
 
-        getMainHandler().post(() -> {
+        postOnMain(() -> {
             Activity activity = StockfishExtension.getCurrentActivity();
             if (activity != null) {
                 onGameOverWithContext(activity, viewModel, gameEndData);
             } else {
                 NnvcLogger.w(TAG, "Current Activity is null during onGameOverNative, scheduling 300ms retry...");
-                getMainHandler().postDelayed(() -> {
+                postDelayedOnMain(() -> {
                     Activity retryAct = StockfishExtension.getCurrentActivity();
                     if (retryAct != null) {
                         onGameOverWithContext(retryAct, viewModel, gameEndData);
@@ -305,7 +339,7 @@ public class AutoFindManager {
         userExplicitlyCancelled = false;
         seekRetryCount = 0;
 
-        getMainHandler().post(() -> {
+        postOnMain(() -> {
             try {
                 showCountdownBanner(activity, remainingSeconds);
             } catch (Throwable t) {
@@ -328,7 +362,7 @@ public class AutoFindManager {
         userExplicitlyCancelled = false;
         seekRetryCount = 0;
         if (seekingWatchdogRunnable != null) {
-            getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+            removeCallbacksOnMain(seekingWatchdogRunnable);
             seekingWatchdogRunnable = null;
         }
         cancelCountdown("New game started");
@@ -358,17 +392,17 @@ public class AutoFindManager {
         }
 
         if (countdownRunnable != null) {
-            getMainHandler().removeCallbacks(countdownRunnable);
+            removeCallbacksOnMain(countdownRunnable);
             countdownRunnable = null;
         }
         if (seekingWatchdogRunnable != null) {
-            getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+            removeCallbacksOnMain(seekingWatchdogRunnable);
             seekingWatchdogRunnable = null;
         }
 
         Activity activity = activeAct != null ? activeAct : triggeringActivity;
         if (activity != null) {
-            getMainHandler().post(() -> removeCountdownBanner(activity));
+            postOnMain(() -> removeCountdownBanner(activity));
         }
 
         if (currentState == State.COUNTDOWN) {
@@ -385,7 +419,7 @@ public class AutoFindManager {
         if (activity == null || userExplicitlyCancelled) return;
         NnvcLogger.i(TAG, "⚡ [AUTO RE-QUEUE] Match search cancelled/interrupted. Re-queuing matchmaking immediately (0ms)...");
         if (seekingWatchdogRunnable != null) {
-            getMainHandler().removeCallbacks(seekingWatchdogRunnable);
+            removeCallbacksOnMain(seekingWatchdogRunnable);
             seekingWatchdogRunnable = null;
         }
         triggerImmediateReSeek(activity);
@@ -393,7 +427,7 @@ public class AutoFindManager {
 
     private static void startCountdownTimer(final Activity activity) {
         if (countdownRunnable != null) {
-            getMainHandler().removeCallbacks(countdownRunnable);
+            removeCallbacksOnMain(countdownRunnable);
         }
 
         countdownRunnable = new Runnable() {
@@ -408,7 +442,7 @@ public class AutoFindManager {
                 remainingSeconds--;
                 if (remainingSeconds > 0) {
                     updateCountdownBanner(activity, remainingSeconds);
-                    getMainHandler().postDelayed(this, 1000L);
+                    postDelayedOnMain(this, 1000L);
                 } else {
                     // Countdown complete -> Trigger new match
                     removeCountdownBanner(activity);
@@ -417,10 +451,11 @@ public class AutoFindManager {
             }
         };
 
-        getMainHandler().postDelayed(countdownRunnable, 1000L);
+        postDelayedOnMain(countdownRunnable, 1000L);
     }
 
     private static void triggerAutoFind(final Activity activity) {
+        userExplicitlyCancelled = false;
         consecutiveMatchesCount++;
         if (consecutiveMatchesCount >= RECREATE_AFTER_MATCHES && activity != null && !activity.isFinishing()) {
             consecutiveMatchesCount = 0;
@@ -455,12 +490,13 @@ public class AutoFindManager {
         // Start Auto Re-queue / Re-seek watchdog when matchmaking drops or is cancelled
         scheduleSeekingWatchdog(activity);
 
-        getMainHandler().post(() -> executeTrigger(activity));
+        postOnMain(() -> executeTrigger(activity));
     }
 
     public static void onSeekActivityCreated(Activity activity) {
         if (activity == null) return;
         activeSeekActivityRef = new WeakReference<>(activity);
+        isDismissingByAutoFind = false;
         NnvcLogger.i(TAG, "⚡ [NATIVE HOOK] Seek screen created: " + activity.getClass().getSimpleName());
     }
 
@@ -473,6 +509,7 @@ public class AutoFindManager {
 
         if (isDismissingByAutoFind) {
             // Dismissed programmatically by AutoFind for immediate re-queue; do not reset state.
+            isDismissingByAutoFind = false;
             return;
         }
 
@@ -525,26 +562,29 @@ public class AutoFindManager {
     public static void dismissActiveSeekActivity() {
         isDismissingByAutoFind = true;
         try {
-            Class<?> seekClz = Class.forName("com.chess.realchess.ui.wait.LiveGameSeekV6Activity");
-            Method m = seekClz.getMethod("dismissSeekNative");
-            Object res = m.invoke(null);
-            if (res instanceof Boolean && (Boolean) res) {
-                NnvcLogger.i(TAG, "⚡ [SEEK DISMISS] LiveGameSeekV6Activity dismissed via dismissSeekNative()!");
-                return;
-            }
-        } catch (Throwable ignored) {}
+            boolean dismissed = false;
+            try {
+                Class<?> seekClz = Class.forName("com.chess.realchess.ui.wait.LiveGameSeekV6Activity");
+                Method m = seekClz.getMethod("dismissSeekNative");
+                Object res = m.invoke(null);
+                if (res instanceof Boolean && (Boolean) res) {
+                    NnvcLogger.i(TAG, "⚡ [SEEK DISMISS] LiveGameSeekV6Activity dismissed via dismissSeekNative()!");
+                    dismissed = true;
+                }
+            } catch (Throwable ignored) {}
 
-        try {
-            Activity seekAct = activeSeekActivityRef != null ? activeSeekActivityRef.get() : null;
-            if (seekAct != null && !seekAct.isFinishing()) {
-                NnvcLogger.i(TAG, "⚡ [SEEK DISMISS] Dismissing tracked seek activity: " + seekAct.getClass().getSimpleName());
-                seekAct.runOnUiThread(() -> {
-                    try {
-                        seekAct.finish();
-                    } catch (Throwable t) {
-                        NnvcLogger.e(TAG, "Failed to finish seek activity: " + t.getMessage());
-                    }
-                });
+            if (!dismissed) {
+                Activity seekAct = activeSeekActivityRef != null ? activeSeekActivityRef.get() : null;
+                if (seekAct != null && !seekAct.isFinishing()) {
+                    NnvcLogger.i(TAG, "⚡ [SEEK DISMISS] Dismissing tracked seek activity: " + seekAct.getClass().getSimpleName());
+                    seekAct.runOnUiThread(() -> {
+                        try {
+                            seekAct.finish();
+                        } catch (Throwable t) {
+                            NnvcLogger.e(TAG, "Failed to finish seek activity: " + t.getMessage());
+                        }
+                    });
+                }
             }
         } catch (Throwable t) {
             NnvcLogger.e(TAG, "Error in dismissActiveSeekActivity: " + t.getMessage());
@@ -663,7 +703,7 @@ public class AutoFindManager {
             NnvcLogger.i(TAG, "Auto Find match triggered successfully!");
         } else {
             NnvcLogger.i(TAG, "Auto Find match trigger: could not locate native controller on first attempt. Scheduling retry in 400ms...");
-            getMainHandler().postDelayed(() -> {
+            postDelayedOnMain(() -> {
                 if (currentState == State.SEEKING && !userExplicitlyCancelled) {
                     boolean retry = triggerViaViewModel(activity);
                     if (!retry && lastNativeViewModelRef != null) {
@@ -1638,7 +1678,7 @@ public class AutoFindManager {
 
         btnNow.setOnClickListener(v -> {
             if (countdownRunnable != null) {
-                getMainHandler().removeCallbacks(countdownRunnable);
+                removeCallbacksOnMain(countdownRunnable);
                 countdownRunnable = null;
             }
             removeCountdownBanner(activity);

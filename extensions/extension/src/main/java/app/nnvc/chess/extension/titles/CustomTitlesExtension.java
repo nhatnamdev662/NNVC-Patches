@@ -577,8 +577,17 @@ public class CustomTitlesExtension {
         } catch (Throwable ignored) {}
 
         try {
-            Context context = StockfishExtension.getContext();
-            if (context != null && StockfishSettings.isCustomTitleEnabled(context)) {
+            Context context = getSafeContext(null);
+            boolean customEnabled = true;
+            if (context != null) {
+                try {
+                    customEnabled = StockfishSettings.isCustomTitleEnabled(context);
+                } catch (Throwable ignored) {
+                    customEnabled = true;
+                }
+            }
+
+            if (customEnabled) {
                 // Nhận diện tài khoản người dùng: chỉ can thiệp trên chính profile của người dùng
                 boolean isCurrentUser = false;
                 try {
@@ -597,6 +606,28 @@ public class CustomTitlesExtension {
                     }
                 }
 
+                if (!isCurrentUser) {
+                    try {
+                        Field headerField = null;
+                        for (String fn : new String[]{"d", "header"}) {
+                            try {
+                                headerField = uiModel.getClass().getDeclaredField(fn);
+                                break;
+                            } catch (Throwable ignored) {}
+                        }
+                        if (headerField != null) {
+                            headerField.setAccessible(true);
+                            Object headerObj = headerField.get(uiModel);
+                            if (headerObj != null) {
+                                String username = extractUsername(headerObj);
+                                if (username != null && isTargetCurrentUser(context, username, headerObj)) {
+                                    isCurrentUser = true;
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+
                 // Nếu không phải profile của chính mình: giữ nguyên 100% nhãn gốc của đối thủ/người khác
                 if (isCurrentUser) {
                     // Kiểm tra xem danh sách đã có thẻ danh hiệu TitledPlayer chưa (tránh trùng lặp)
@@ -608,7 +639,14 @@ public class CustomTitlesExtension {
                         }
                     }
 
-                    String customCode = StockfishSettings.getCustomTitleCode(context);
+                    String customCode = "GM";
+                    if (context != null) {
+                        try {
+                            customCode = StockfishSettings.getCustomTitleCode(context);
+                        } catch (Throwable ignored) {
+                            customCode = "GM";
+                        }
+                    }
                     if (customCode == null || customCode.trim().isEmpty()) {
                         customCode = "GM";
                     }
@@ -628,23 +666,36 @@ public class CustomTitlesExtension {
                         Field companionField = null;
                         for (String cfName : new String[]{"d", "INSTANCE", "Companion"}) {
                             try {
-                                companionField = userLabelUiClass.getField(cfName);
+                                companionField = userLabelUiClass.getDeclaredField(cfName);
                                 break;
-                            } catch (Throwable ignored) {}
+                            } catch (Throwable ignored) {
+                                try {
+                                    companionField = userLabelUiClass.getField(cfName);
+                                    break;
+                                } catch (Throwable ignored2) {}
+                            }
                         }
                         if (companionField != null) {
                             companionField.setAccessible(true);
                             Object companionObj = companionField.get(null);
-                            Method fromMethod = companionObj.getClass().getMethod("a", Class.forName("com.chess.net.v1.users.UserLabel"));
-                            Object userLabelUiObj = fromMethod.invoke(companionObj, titledPlayerObj);
+                            Method fromMethod = null;
+                            for (String mn : new String[]{"a", "from", "fromUserLabel"}) {
+                                try {
+                                    fromMethod = companionObj.getClass().getMethod(mn, Class.forName("com.chess.net.v1.users.UserLabel"));
+                                    break;
+                                } catch (Throwable ignored) {}
+                            }
+                            if (fromMethod != null) {
+                                Object userLabelUiObj = fromMethod.invoke(companionObj, titledPlayerObj);
 
-                            if (userLabelUiObj != null) {
-                                java.util.ArrayList<Object> result = new java.util.ArrayList<>();
-                                result.add(userLabelUiObj);
-                                if (originalLabels != null) {
-                                    result.addAll(originalLabels);
+                                if (userLabelUiObj != null) {
+                                    java.util.ArrayList<Object> result = new java.util.ArrayList<>();
+                                    result.add(userLabelUiObj);
+                                    if (originalLabels != null) {
+                                        result.addAll(originalLabels);
+                                    }
+                                    return result;
                                 }
-                                return result;
                             }
                         }
                     }

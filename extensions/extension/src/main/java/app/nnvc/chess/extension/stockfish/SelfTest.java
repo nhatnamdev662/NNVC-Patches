@@ -2088,6 +2088,81 @@ public class SelfTest {
         AutoFindManager.onNativeSeekError(503);
         check("AutoFindManager native seek hooks executed safely", true);
 
+        // 40k. AutoFindManager isDismissingByAutoFind and User Manual Cancellation Safety
+        AutoFindManager.setStateForTest(AutoFindManager.State.SEEKING);
+        AutoFindManager.setUserExplicitlyCancelledForTest(false);
+        AutoFindManager.setIsDismissingByAutoFindForTest(false);
+        android.app.Activity dummySeekAct = null;
+        android.app.Activity dummyNewSeekAct = null;
+        try {
+            java.lang.reflect.Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) f.get(null);
+            dummySeekAct = (android.app.Activity) unsafe.allocateInstance(android.app.Activity.class);
+            dummyNewSeekAct = (android.app.Activity) unsafe.allocateInstance(android.app.Activity.class);
+        } catch (Throwable ignored) {}
+
+        if (dummySeekAct != null) {
+            // When user manually destroys seek screen (isDismissingByAutoFind == false):
+            AutoFindManager.onSeekActivityDestroyed(dummySeekAct);
+            check("Manual seek screen destruction resets SEEKING state to IDLE", AutoFindManager.getState() == AutoFindManager.State.IDLE);
+            check("Manual seek screen destruction marks userExplicitlyCancelled", AutoFindManager.isUserExplicitlyCancelledForTest());
+
+            // When dismissed programmatically by AutoFind:
+            AutoFindManager.setUserExplicitlyCancelledForTest(false);
+            AutoFindManager.setStateForTest(AutoFindManager.State.SEEKING);
+            AutoFindManager.dismissActiveSeekActivity();
+            check("dismissActiveSeekActivity sets isDismissingByAutoFind", AutoFindManager.isDismissingByAutoFindForTest());
+            AutoFindManager.onSeekActivityDestroyed(dummySeekAct);
+            check("Programmatic seek dismissal preserves SEEKING state", AutoFindManager.getState() == AutoFindManager.State.SEEKING);
+            check("Programmatic seek dismissal consumes isDismissingByAutoFind flag", !AutoFindManager.isDismissingByAutoFindForTest());
+            check("Programmatic seek dismissal does not mark userExplicitlyCancelled", !AutoFindManager.isUserExplicitlyCancelledForTest());
+
+            // When new seek activity is created:
+            AutoFindManager.onSeekActivityCreated(dummyNewSeekAct);
+            check("New seek screen creation guarantees isDismissingByAutoFind is false", !AutoFindManager.isDismissingByAutoFindForTest());
+            AutoFindManager.onSeekActivityDestroyed(dummyNewSeekAct);
+            check("Destruction of new seek screen by user resets to IDLE", AutoFindManager.getState() == AutoFindManager.State.IDLE);
+            check("Destruction of new seek screen marks userExplicitlyCancelled", AutoFindManager.isUserExplicitlyCancelledForTest());
+        }
+
+        // Reset test state
+        AutoFindManager.setUserExplicitlyCancelledForTest(false);
+        AutoFindManager.setStateForTest(AutoFindManager.State.IDLE);
+
+        // 40l. overrideProfileLabels with User Fallback & Null-Safety Hardening
+        class MockProfileHeaderWithUser {
+            public String a = "trannnguyennhatnam";
+        }
+        class MockProfileN4WithHeader {
+            public Object d = new MockProfileHeaderWithUser();
+            public java.util.List<String> e = java.util.Collections.singletonList("original_label");
+            public boolean w() { return false; } // w() returns false, but header belongs to current user!
+        }
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest("trannnguyennhatnam");
+        java.util.List<?> n4Labels = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(new MockProfileN4WithHeader());
+        check("overrideProfileLabels returns non-null list for current user via header fallback",
+                n4Labels != null && !n4Labels.isEmpty());
+
+        class MockOpponentProfileN4 {
+            public Object d = new MockProfileHeaderWithUser();
+            public java.util.List<String> e = java.util.Collections.singletonList("opponent_label");
+            public boolean w() { return false; }
+        }
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest("other_user");
+        java.util.List<?> oppN4Labels = app.nnvc.chess.extension.titles.CustomTitlesExtension.overrideProfileLabels(new MockOpponentProfileN4());
+        check("overrideProfileLabels preserves opponent labels untouched",
+                oppN4Labels != null && oppN4Labels.size() == 1 && "opponent_label".equals(oppN4Labels.get(0)));
+        app.nnvc.chess.extension.titles.CustomTitlesExtension.setCachedUsernameForTest(null);
+
+        // 40m. Safe Main-Thread Handlers (Looper-less execution safety)
+        AutoFindManager.postOnMain(null);
+        AutoFindManager.postDelayedOnMain(null, 100);
+        AutoFindManager.removeCallbacksOnMain(null);
+        final boolean[] executed = new boolean[]{false};
+        AutoFindManager.postOnMain(() -> executed[0] = true);
+        check("postOnMain executes runnable safely without crashing in headless environment", executed[0]);
+
         // 40j. Direct Model Hook Auto Move (0ms Desktop Extension Parity), UserSide Resolution & Move 0 Arrow Retention
         // 1. UserSide & User Color Detection
         StockfishExtension.resetUserWhiteCache();
