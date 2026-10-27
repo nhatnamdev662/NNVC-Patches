@@ -270,8 +270,9 @@ public final class InAppUpdater {
      */
     public static boolean isForceUpdateRequired(int currentVersionCode, RemoteConfig config) {
         if (config == null) return false;
+        if (currentVersionCode >= config.versionCode) return false;
         if (currentVersionCode < config.minSupportedVersion) return true;
-        return config.forceUpdate && config.versionCode > currentVersionCode;
+        return config.forceUpdate;
     }
 
     /**

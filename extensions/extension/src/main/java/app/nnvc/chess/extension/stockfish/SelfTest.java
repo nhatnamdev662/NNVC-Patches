@@ -1170,6 +1170,13 @@ public class SelfTest {
         check("isForceUpdateRequired triggers when current < minSupportedVersion even if force_update=false",
                 app.nnvc.chess.extension.updater.InAppUpdater.isForceUpdateRequired(10002, minVerCfg));
 
+        app.nnvc.chess.extension.updater.InAppUpdater.RemoteConfig currentVerSameCfg =
+                new app.nnvc.chess.extension.updater.InAppUpdater.RemoteConfig(10000, "1.0.0", "", "", "", "", false, 10000, false, "", "", "", "", "");
+        check("isForceUpdateRequired returns false when current version equals remote version even if minSupportedVersion equals current",
+                !app.nnvc.chess.extension.updater.InAppUpdater.isForceUpdateRequired(10000, currentVerSameCfg));
+        check("BuildConfig.VERSION_CODE matches 10000 for semver 1.0.0",
+                app.nnvc.chess.extension.BuildConfig.VERSION_CODE == 10000);
+
         // 26d. File SHA-256 verification
         try {
             java.io.File tempFile = java.io.File.createTempFile("nnvc_test_update", ".bin");
