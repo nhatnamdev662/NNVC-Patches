@@ -38,6 +38,7 @@ public class CoachVoiceManager {
 
     private MediaPlayer mediaPlayer;
     private volatile String currentPlayingHash = null;
+    private volatile int lastRequestedPly = -1;
 
     public static CoachVoiceManager getInstance(Context context) {
         if (instance == null) {
@@ -105,40 +106,60 @@ public class CoachVoiceManager {
     /**
      * Phát câu nhận xét nước cờ vừa đi từ Torch Engine.
      */
+    public void onBoardChanged(int currentPly) {
+        if (currentPly > lastRequestedPly) {
+            lastRequestedPly = currentPly;
+            stop();
+        }
+    }
+
     public void speakMove(String audioUrlHash, String speechText, Context ctx) {
+        speakMove(-1, audioUrlHash, speechText, ctx);
+    }
+
+    public void speakMove(int movePly, String audioUrlHash, String speechText, Context ctx) {
         Context c = (ctx != null) ? ctx : context;
         if (!StockfishSettings.isVoiceCoachEnabled(c)) return;
         if (audioUrlHash == null || audioUrlHash.trim().isEmpty()) return;
 
+        if (movePly >= 0 && movePly < lastRequestedPly) {
+            TorchEngine.log("[COACH VOICE DROP] Bỏ qua câu thoại cũ (ply=" + movePly + " < last=" + lastRequestedPly + ")");
+            return;
+        }
+        if (movePly >= 0) {
+            lastRequestedPly = movePly;
+        }
+
         CoachManager.CoachInfo coach = CoachManager.getInstance().getCurrentCoach(c);
         if (coach == null || coach.audioBase == null || coach.audioBase.isEmpty()) return;
 
-        playAudioHash(coach, audioUrlHash.trim());
+        playAudioHash(coach, audioUrlHash.trim(), movePly);
     }
 
-
-    private void playAudioHash(CoachManager.CoachInfo coach, String hash) {
+    private void playAudioHash(CoachManager.CoachInfo coach, String hash, int movePly) {
         if (coach == null || hash == null || hash.isEmpty()) return;
         final String downloadUrl = coach.audioBase + hash + ".mp3";
-        playAudioDirect(coach, hash, downloadUrl);
+        playAudioDirect(coach, hash, downloadUrl, movePly);
     }
 
-    private void playAudioDirect(CoachManager.CoachInfo coach, String hash, String downloadUrl) {
+    private void playAudioDirect(CoachManager.CoachInfo coach, String hash, String downloadUrl, int movePly) {
         if (coach == null || hash == null || hash.isEmpty() || downloadUrl == null || downloadUrl.isEmpty()) return;
 
         final File cacheFile = new File(getVoiceCacheDir(), coach.id + "_" + hash + ".mp3");
 
         // 1. Nếu đã có trong cache bộ nhớ tạm -> phát ngay tức thì
         if (cacheFile.exists() && cacheFile.length() > 500) {
-            playLocalFile(cacheFile, hash);
+            playLocalFile(cacheFile, hash, movePly);
             return;
         }
 
         // 2. Chưa có trong cache -> tải từ CDN Chess.com trên luồng nền
         networkExecutor.execute(() -> {
+            if (movePly >= 0 && movePly < lastRequestedPly) return;
             boolean success = downloadMp3(downloadUrl, cacheFile);
+            if (movePly >= 0 && movePly < lastRequestedPly) return;
             if (success && cacheFile.exists() && cacheFile.length() > 500) {
-                playLocalFile(cacheFile, hash);
+                playLocalFile(cacheFile, hash, movePly);
             } else {
                 // TUYỆT ĐỐI KHÔNG FALLBACK KHI LỖI:
                 // Nếu tải thất bại hoặc không có mạng, giữ im lặng hoàn toàn.
@@ -147,8 +168,9 @@ public class CoachVoiceManager {
         });
     }
 
-    private void playLocalFile(File file, String hash) {
+    private void playLocalFile(File file, String hash, int movePly) {
         mainHandler.post(() -> {
+            if (movePly >= 0 && movePly < lastRequestedPly) return;
             try {
                 if (mediaPlayer == null) initMediaPlayer();
                 if (mediaPlayer == null) return;
@@ -161,6 +183,10 @@ public class CoachVoiceManager {
                 currentPlayingHash = hash;
                 mediaPlayer.prepareAsync();
                 mediaPlayer.setOnPreparedListener(mp -> {
+                    if (movePly >= 0 && movePly < lastRequestedPly) {
+                        try { mp.stop(); } catch (Throwable ignored) {}
+                        return;
+                    }
                     try {
                         mp.start();
                         TorchEngine.log("[COACH VOICE PLAYING] Đang phát voice: " + file.getName());

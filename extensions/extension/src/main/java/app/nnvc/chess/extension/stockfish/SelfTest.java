@@ -3075,6 +3075,23 @@ public class SelfTest {
         check("I18n engine_recovering key exists in Vietnamese", I18n.get("engine_recovering", true).contains("phục hồi"));
         check("I18n engine_recovering key exists in English", I18n.get("engine_recovering", false).contains("Recovering"));
 
+        // 10. OpeningBook in-memory lookups (100% Extension Parity)
+        check("OpeningBook has 85 standard positions", OpeningBook.getBookSize() == 85);
+        check("OpeningBook has startpos", OpeningBook.hasBookMove(startposFen));
+        StockfishProcess.AnalysisResult startBookRes = OpeningBook.getBookResult(startposFen);
+        check("OpeningBook startpos returns valid moves", startBookRes != null && !startBookRes.moves.isEmpty());
+        check("OpeningBook startpos depth is 0", startBookRes != null && startBookRes.depth == 0);
+        check("OpeningBook startpos candidate moves contains e2e4", startBookRes != null && startBookRes.moves.contains("e2e4"));
+        
+        String e4Fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        check("OpeningBook has after-e4 position", OpeningBook.hasBookMove(e4Fen));
+        StockfishProcess.AnalysisResult e4BookRes = OpeningBook.getBookResult(e4Fen);
+        check("OpeningBook after-e4 returns Black responses", e4BookRes != null && !e4BookRes.moves.isEmpty());
+        check("OpeningBook after-e4 contains c7c5 or e7e5", e4BookRes != null && (e4BookRes.moves.contains("c7c5") || e4BookRes.moves.contains("e7e5")));
+
+        check("OpeningBook returns null for non-book midgame FEN", OpeningBook.getBookResult(customMidgameFen) == null);
+        check("OpeningBook returns null for empty FEN", OpeningBook.getBookResult("") == null);
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

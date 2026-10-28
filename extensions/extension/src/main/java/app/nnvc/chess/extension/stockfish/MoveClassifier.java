@@ -661,7 +661,13 @@ public class MoveClassifier {
                     
                     // Kích hoạt giọng nói Huấn Luyện Viên chính hãng (nếu có audioUrlHash)
                     if (currentAct != null && audioUrlHash != null && !audioUrlHash.isEmpty()) {
-                        CoachVoiceManager.getInstance(currentAct).speakMove(audioUrlHash, speechText, currentAct);
+                        List<String> curMoves = currentPositionMoves;
+                        int livePly = (curMoves != null) ? curMoves.size() : -1;
+                        if (livePly >= 0 && moveIndex != livePly) {
+                            TorchEngine.log("[COACH VOICE DROP] Bỏ qua câu thoại vì cờ đã đi tiếp (reqPly=" + moveIndex + ", currentPly=" + livePly + ")");
+                        } else {
+                            CoachVoiceManager.getInstance(currentAct).speakMove(moveIndex, audioUrlHash, speechText, currentAct);
+                        }
                     }
 
                     // Trích xuất Accuracy (%) và Estimated Elo từ đối tượng JSON của Torch (chuẩn Extension)

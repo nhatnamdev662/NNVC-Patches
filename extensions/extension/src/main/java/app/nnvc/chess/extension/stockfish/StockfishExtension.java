@@ -476,7 +476,6 @@ public class StockfishExtension {
         
         silenceIllegalMoveSound();
         if (stateImplObject != null) {
-            ArrowInjector.clearEngineArrows(stateImplObject);
             stateImplRef.set(new WeakReference<>(stateImplObject));
         }
 
@@ -597,11 +596,7 @@ public class StockfishExtension {
             }
 
             OverlayManager.clearClassificationBadge();
-            OverlayManager.hideArrowOverlay();
             OverlayManager.resetAccuracyEloWidget();
-            if (stateImplObject != null) {
-                ArrowInjector.clearEngineArrows(stateImplObject);
-            }
             if (ctx != null) {
                 TorchEngine.getInstance(ctx).cancelPendingRequests();
                 WasmEngineManager.getInstance(ctx).resetClassifyGame();
@@ -616,6 +611,13 @@ public class StockfishExtension {
             isMove0AnalysisCompleted = false;
         }
         MoveClassifier.updateHistory(fen, positionObject);
+        if (ctx != null) {
+            List<String> curLiveMoves = MoveClassifier.getCurrentPositionMoves();
+            int curPly = (curLiveMoves != null) ? curLiveMoves.size() : (isStartPos ? 0 : -1);
+            if (curPly >= 0) {
+                CoachVoiceManager.getInstance(ctx).onBoardChanged(curPly);
+            }
+        }
         if (!isStartPos) {
             List<String> histMoves = MoveClassifier.getCurrentPositionMoves();
             if (histMoves != null && !histMoves.isEmpty()) {
@@ -728,6 +730,20 @@ public class StockfishExtension {
         }
         Context context = getContext();
         if (context != null) {
+            // Tra cứu In-Memory Opening Book chuẩn Extension (0ms)
+            StockfishProcess.AnalysisResult bookResult = OpeningBook.getBookResult(fen);
+            if (bookResult != null && !bookResult.moves.isEmpty()) {
+                lastScheduledKey = posKey;
+                Future<?> prev = currentJob;
+                if (prev != null && !prev.isDone()) {
+                    prev.cancel(true);
+                    StockfishBridge.stopSearch();
+                }
+                lastEngineThinkMs = 0;
+                displayLiveResult(context, fen, bookResult, true);
+                return;
+            }
+
             int depth = StockfishSettings.isAutoDepthEnabled(context)
                     ? StockfishSettings.autoDepthForElo(StockfishSettings.getElo(context))
                     : StockfishSettings.getDepth(context);
