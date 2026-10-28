@@ -768,26 +768,45 @@ public class StockfishProcess {
         }
     }
 
+    public static boolean doesMovesMatchFenPly(String fen, List<String> uciMoves) {
+        if (fen == null || uciMoves == null) return false;
+        String[] parts = fen.trim().split("\\s+");
+        if (parts.length < 6) return false;
+        try {
+            int fullmove = Integer.parseInt(parts[5]);
+            boolean blackToMove = "b".equalsIgnoreCase(parts[1]);
+            int expectedPlies = Math.max(0, (fullmove - 1) * 2 + (blackToMove ? 1 : 0));
+            return uciMoves.size() == expectedPlies;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     public static String buildPositionCommand(String fen, List<String> uciMoves) {
         String trimmedFen = fen != null ? fen.trim() : null;
         boolean isStartpos = trimmedFen == null
                 || "startpos".equalsIgnoreCase(trimmedFen)
                 || trimmedFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w");
 
-        StringBuilder pos = new StringBuilder((trimmedFen != null ? trimmedFen.length() : 8) + 32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
-        if (isStartpos) {
-            pos.append("position startpos");
-        } else {
-            pos.append("position fen ").append(trimmedFen);
-        }
+        boolean hasStartposMoves = uciMoves != null && !uciMoves.isEmpty()
+                && WasmEngineManager.isStandardStartposMoves(uciMoves)
+                && (isStartpos || doesMovesMatchFenPly(trimmedFen, uciMoves));
 
-        if (uciMoves != null && !uciMoves.isEmpty()) {
-            pos.append(" moves");
-            for (String m : uciMoves) {
-                pos.append(' ').append(m);
+        if (isStartpos || hasStartposMoves) {
+            StringBuilder pos = new StringBuilder(32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
+            pos.append("position startpos");
+            if (uciMoves != null && !uciMoves.isEmpty()) {
+                pos.append(" moves");
+                for (String m : uciMoves) {
+                    if (m != null && !m.trim().isEmpty()) {
+                        pos.append(' ').append(m.trim().toLowerCase(java.util.Locale.US));
+                    }
+                }
             }
+            return pos.toString();
+        } else {
+            return "position fen " + trimmedFen;
         }
-        return pos.toString();
     }
 
     public static boolean isWhiteToMove(String fen) {

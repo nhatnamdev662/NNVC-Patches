@@ -3012,8 +3012,11 @@ public class SelfTest {
         check("buildPositionCommand 'startpos' string with moves uses 'position startpos moves e2e4'", "position startpos moves e2e4".equals(StockfishProcess.buildPositionCommand("startpos", e4Moves)));
         String customMidgameFen = "r1bqk2r/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQK2R w KQkq - 2 7";
         check("Custom/midgame FEN uses 'position fen'", StockfishProcess.buildPositionCommand(customMidgameFen, emptyMoves).startsWith("position fen "));
-        check("Custom/midgame FEN with moves starting with e2e4 preserves 'position fen'",
-                StockfishProcess.buildPositionCommand(customMidgameFen, e4Moves).startsWith("position fen " + customMidgameFen + " moves e2e4"));
+        check("Custom/midgame FEN not matching moves generates pure 'position fen' without moves",
+                ("position fen " + customMidgameFen).equals(StockfishProcess.buildPositionCommand(customMidgameFen, e4Moves)));
+        String afterE4Fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+        check("Midgame FEN matching startpos ply uses 'position startpos moves e2e4'",
+                "position startpos moves e2e4".equals(StockfishProcess.buildPositionCommand(afterE4Fen, e4Moves)));
 
         // 5. Move 0 Duplicate Startpos Guard preserves executing AutoMove
         try {
@@ -3039,6 +3042,11 @@ public class SelfTest {
         } catch (Throwable t) {
             check("AutoMoveManager duplicate test failed: " + t.getMessage(), false);
         }
+
+        // 7. Depth 0 stale move prevention on non-startpos board (R1.3)
+        check("isDepthZeroStaleMove allows depth 0 at startpos (book move)", !AutoMoveManager.isDepthZeroStaleMove(startposUciFen, 0));
+        check("isDepthZeroStaleMove blocks depth 0 on midgame FEN", AutoMoveManager.isDepthZeroStaleMove(customMidgameFen, 0));
+        check("isDepthZeroStaleMove allows depth > 0 on midgame FEN", !AutoMoveManager.isDepthZeroStaleMove(customMidgameFen, 1));
 
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");

@@ -1257,6 +1257,14 @@ public class AutoMoveManager {
         executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, false, 0);
     }
 
+    public static boolean isDepthZeroStaleMove(String fen, int depth) {
+        if (depth > 0) return false;
+        boolean isStartpos = fen == null
+                || "startpos".equalsIgnoreCase(fen.trim())
+                || fen.trim().startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w");
+        return !isStartpos;
+    }
+
     public static void executeAutoMove(final Context context,
                                        final View boardView,
                                        final String uciMove,
@@ -1268,8 +1276,28 @@ public class AutoMoveManager {
                                        final Activity activity,
                                        final boolean hasMate,
                                        final int mateIn) {
+        executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, hasMate, mateIn, 1);
+    }
+
+    public static void executeAutoMove(final Context context,
+                                       final View boardView,
+                                       final String uciMove,
+                                       final boolean flipped,
+                                       final String currentFen,
+                                       final float evalScore,
+                                       final long engineThinkMs,
+                                       final boolean userWhite,
+                                       final Activity activity,
+                                       final boolean hasMate,
+                                       final int mateIn,
+                                       final int depth) {
         if (context == null || boardView == null || uciMove == null || uciMove.length() < 4) {
             NnvcLogger.w(TAG, "executeAutoMove aborted: invalid arguments (ctx=" + (context != null) + ", bv=" + (boardView != null) + ", move=" + uciMove + ")");
+            return;
+        }
+
+        if (isDepthZeroStaleMove(currentFen, depth)) {
+            NnvcLogger.w(TAG, "executeAutoMove aborted: depth=" + depth + " on non-startpos board (stale book move leak blocked: " + uciMove + ")");
             return;
         }
 

@@ -616,7 +616,11 @@ public class WasmEngineManager {
             webView.setWebChromeClient(new android.webkit.WebChromeClient() {
                 @Override
                 public boolean onConsoleMessage(android.webkit.ConsoleMessage cm) {
-                    NnvcLogger.d(TAG, "[WASM Console " + cm.messageLevel() + "] " + cm.message() + " (" + cm.sourceId() + ":" + cm.lineNumber() + ")");
+                    String msg = cm.message();
+                    NnvcLogger.d(TAG, "[WASM Console " + cm.messageLevel() + "] " + msg + " (" + cm.sourceId() + ":" + cm.lineNumber() + ")");
+                    if (msg != null && (msg.contains("Aborted(") || msg.contains("RuntimeError: Aborted") || msg.contains("RuntimeError: abort"))) {
+                        handleEngineAbort("console", msg);
+                    }
                     return true;
                 }
             });
@@ -901,7 +905,11 @@ public class WasmEngineManager {
             if ("classify".equals(kind)) {
                 isClassifySearching = false;
             }
-            EngineStatusHUD.show(context, "⚠️ Lỗi Engine (" + kind + "): " + error, true, 5000);
+            if (error != null && (error.contains("Aborted") || error.contains("RuntimeError") || error.contains("abort"))) {
+                handleEngineAbort(kind, error);
+            } else {
+                EngineStatusHUD.show(context, "⚠️ Lỗi Engine (" + kind + "): " + error, true, 5000);
+            }
         }
 
         @JavascriptInterface
@@ -917,6 +925,10 @@ public class WasmEngineManager {
 
         @JavascriptInterface
         public void onEngineOutput(String kind, String line) {
+            if (line != null && (line.contains("Aborted(") || line.contains("RuntimeError: Aborted") || line.contains("RuntimeError: abort"))) {
+                handleEngineAbort(kind, line);
+                return;
+            }
             if ("play".equals(kind)) {
                 playUciOutputQueue.offer(line);
                 UciLineListener l = playLineListener;
@@ -926,6 +938,49 @@ public class WasmEngineManager {
                 if (l != null) l.onLine(line);
             }
         }
+    }
+
+    private volatile long lastRecoveryTimestamp = 0;
+
+    public synchronized void handleEngineAbort(String kind, String reason) {
+        long now = System.currentTimeMillis();
+        if (now - lastRecoveryTimestamp < 2000) {
+            return;
+        }
+        lastRecoveryTimestamp = now;
+
+        NnvcLogger.e(TAG, "🚨 [WASM AUTO-RECOVERY] Engine abort detected (" + kind + "): " + reason + ". Destroying worker & reinitializing...");
+        isReady = false;
+        if ("play".equals(kind) || "console".equals(kind)) {
+            synchronized (playReadyLock) {
+                isPlayReady = false;
+            }
+            playUciOutputQueue.clear();
+        }
+        if ("classify".equals(kind) || "console".equals(kind)) {
+            synchronized (classifyReadyLock) {
+                isClassifyReady = false;
+            }
+            isClassifySearching = false;
+            classifyUciOutputQueue.clear();
+        }
+
+        EngineStatusHUD.show(context, "🔄 Đang tự động phục hồi Engine...", false, 3000);
+
+        mainHandler.post(() -> {
+            try {
+                if (webView != null) {
+                    webView.evaluateJavascript(
+                        "try { if (window._playWorker) { window._playWorker.terminate(); window._playWorker = null; } } catch(e){}" +
+                        "try { if (window._classifyWorker) { window._classifyWorker.terminate(); window._classifyWorker = null; } } catch(e){}",
+                        null
+                    );
+                    webView.destroy();
+                }
+            } catch (Throwable ignored) {}
+            webView = null;
+            mainHandler.postDelayed(() -> initWebView(), 500);
+        });
     }
 
     private volatile float lastClassifyScore = 0f;
