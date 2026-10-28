@@ -3043,12 +3043,20 @@ public class SelfTest {
             check("AutoMoveManager duplicate test failed: " + t.getMessage(), false);
         }
 
-        // 7. Depth 0 stale move prevention on non-startpos board (R1.3)
-        check("isDepthZeroStaleMove allows depth 0 at startpos (book move)", !AutoMoveManager.isDepthZeroStaleMove(startposUciFen, 0));
-        check("isDepthZeroStaleMove blocks depth 0 on midgame FEN", AutoMoveManager.isDepthZeroStaleMove(customMidgameFen, 0));
-        check("isDepthZeroStaleMove allows depth > 0 on midgame FEN", !AutoMoveManager.isDepthZeroStaleMove(customMidgameFen, 1));
-        check("isDepthZeroStaleMove allows depth 0 on empty string FEN (startpos)", !AutoMoveManager.isDepthZeroStaleMove("", 0));
-        check("isDepthZeroStaleMove allows depth 0 on whitespace FEN (startpos)", !AutoMoveManager.isDepthZeroStaleMove("   ", 0));
+        // 7. Mechanical Board Legal Move Validation (Book.bin restoration & stale move prevention)
+        check("isLegalMoveOnFen allows valid white book move e2e4 at startpos", AutoMoveManager.isLegalMoveOnFen(startposUciFen, "e2e4"));
+        check("isLegalMoveOnFen allows valid white knight book move g1f3 at startpos", AutoMoveManager.isLegalMoveOnFen(startposUciFen, "g1f3"));
+        check("isLegalMoveOnFen rejects black piece move on white turn at startpos", !AutoMoveManager.isLegalMoveOnFen(startposUciFen, "e7e5"));
+        check("isLegalMoveOnFen allows valid black book move e7e5 on move 1 after e4", AutoMoveManager.isLegalMoveOnFen(afterE4Fen, "e7e5"));
+        check("isLegalMoveOnFen allows valid black book move c7c5 on move 1 after e4", AutoMoveManager.isLegalMoveOnFen(afterE4Fen, "c7c5"));
+        check("isLegalMoveOnFen blocks stale move e2e4 when e2 is already empty", !AutoMoveManager.isLegalMoveOnFen(afterE4Fen, "e2e4"));
+        check("isLegalMoveOnFen blocks stale move e2e4 on midgame FEN", !AutoMoveManager.isLegalMoveOnFen(customMidgameFen, "e2e4"));
+        check("isLegalMoveOnFen allows valid move e2e4 on empty string FEN (startpos)", AutoMoveManager.isLegalMoveOnFen("", "e2e4"));
+        check("isLegalMoveOnFen allows valid move e2e4 on whitespace FEN (startpos)", AutoMoveManager.isLegalMoveOnFen("   ", "e2e4"));
+        check("isLegalMoveOnFen rejects illegal castling e1g1 through occupied squares", !AutoMoveManager.isLegalMoveOnFen(startposUciFen, "e1g1"));
+        String whiteCastleFen = "rnbqk2r/pppp1ppp/5n2/2b1p3/4P3/5N2/PPPPBPPP/RNBQK2R w KQkq - 4 4";
+        check("isLegalMoveOnFen allows legal kingside castling e1g1", AutoMoveManager.isLegalMoveOnFen(whiteCastleFen, "e1g1"));
+        check("isLegalMoveOnFen rejects null or malformed arguments", !AutoMoveManager.isLegalMoveOnFen(null, "e2e4") && !AutoMoveManager.isLegalMoveOnFen(startposUciFen, null) && !AutoMoveManager.isLegalMoveOnFen(startposUciFen, "e2"));
 
         // 8. Edge cases: empty FEN and whitespace-only moves list
         check("buildPositionCommand handles empty string FEN as startpos", "position startpos".equals(StockfishProcess.buildPositionCommand("", emptyMoves)));

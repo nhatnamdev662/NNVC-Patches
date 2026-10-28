@@ -1257,14 +1257,86 @@ public class AutoMoveManager {
         executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, false, 0);
     }
 
+    /**
+     * Xác thực tính hợp lệ cơ học trên bàn cờ của nước đi:
+     * - Ô xuất phát phải có quân của bên đang đến lượt.
+     * - Nước đi nằm trong danh sách nước đi hợp lệ (BoardUtil.generateLegalMoves) hoặc là nước nhập thành hợp lệ.
+     * 
+     * Khôi phục 100% khả năng chơi nước đi từ sách khai cuộc (book.bin với depth=0),
+     * đồng thời chặn triệt để nước đi rác/kẹt (ví dụ e2e4 khi ô e2 đã trống) gây lỗi invoke model move.
+     */
+    public static boolean isLegalMoveOnFen(String fen, String uciMove) {
+        if (fen == null || uciMove == null || uciMove.length() < 4) return false;
+        String trimmed = fen.trim();
+        if (trimmed.isEmpty() || "startpos".equalsIgnoreCase(trimmed)) {
+            trimmed = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        }
+        char[] b = BoardUtil.parseBoard(trimmed);
+        if (b == null) return false;
+
+        // Xác định lượt đi: mặc định Trắng nếu không có thông tin
+        int sp = trimmed.indexOf(' ');
+        boolean whiteToMove = true;
+        if (sp >= 0 && sp + 1 < trimmed.length()) {
+            char side = trimmed.charAt(sp + 1);
+            if (side == 'b' || side == 'B') {
+                whiteToMove = false;
+            }
+        }
+
+        int fromSq = BoardUtil.square(uciMove, 0);
+        int toSq = BoardUtil.square(uciMove, 2);
+        if (fromSq < 0 || fromSq >= 64 || toSq < 0 || toSq >= 64) return false;
+
+        char piece = b[fromSq];
+        // Ô xuất phát phải có quân của bên đang đến lượt
+        if (piece == '.' || (Character.isUpperCase(piece) != whiteToMove)) {
+            return false;
+        }
+
+        String from = uciMove.substring(0, 2);
+        String to = uciMove.substring(2, 4);
+
+        // Kiểm tra trong danh sách legal moves cơ học của BoardUtil
+        List<BoardUtil.LegalMove> legalMoves = BoardUtil.generateLegalMoves(b, whiteToMove);
+        if (legalMoves != null) {
+            for (BoardUtil.LegalMove lm : legalMoves) {
+                if (from.equalsIgnoreCase(lm.from) && to.equalsIgnoreCase(lm.to)) {
+                    return true;
+                }
+            }
+        }
+
+        // Nhập thành (Castling): BoardUtil.generateLegalMoves không sinh nước nhảy 2 ô của Vua
+        // Hỗ trợ cả chuẩn UCI (e1g1, e1c1, e8g8, e8c8) và FIDE960 (e1h1, e1a1, e8h8, e8a8)
+        if (whiteToMove && piece == 'K') {
+            if ("e1".equalsIgnoreCase(from)) {
+                if ("g1".equalsIgnoreCase(to) || "h1".equalsIgnoreCase(to)) {
+                    // White kingside: h1 phải là Xe Trắng ('R'), f1 và g1 phải trống
+                    return b[63] == 'R' && b[61] == '.' && b[62] == '.' && !BoardUtil.isKingInCheck(b, true);
+                } else if ("c1".equalsIgnoreCase(to) || "a1".equalsIgnoreCase(to)) {
+                    // White queenside: a1 phải là Xe Trắng ('R'), b1, c1, d1 phải trống
+                    return b[56] == 'R' && b[57] == '.' && b[58] == '.' && b[59] == '.' && !BoardUtil.isKingInCheck(b, true);
+                }
+            }
+        } else if (!whiteToMove && piece == 'k') {
+            if ("e8".equalsIgnoreCase(from)) {
+                if ("g8".equalsIgnoreCase(to) || "h8".equalsIgnoreCase(to)) {
+                    // Black kingside: h8 phải là Xe Đen ('r'), f8 và g8 phải trống
+                    return b[7] == 'r' && b[5] == '.' && b[6] == '.' && !BoardUtil.isKingInCheck(b, false);
+                } else if ("c8".equalsIgnoreCase(to) || "a8".equalsIgnoreCase(to)) {
+                    // Black queenside: a8 phải là Xe Đen ('r'), b8, c8, d8 phải trống
+                    return b[0] == 'r' && b[1] == '.' && b[2] == '.' && b[3] == '.' && !BoardUtil.isKingInCheck(b, false);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    @Deprecated
     public static boolean isDepthZeroStaleMove(String fen, int depth) {
-        if (depth > 0) return false;
-        String trimmed = fen != null ? fen.trim() : null;
-        boolean isStartpos = trimmed == null
-                || trimmed.isEmpty()
-                || "startpos".equalsIgnoreCase(trimmed)
-                || trimmed.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w");
-        return !isStartpos;
+        return false;
     }
 
     public static void executeAutoMove(final Context context,
@@ -1298,8 +1370,8 @@ public class AutoMoveManager {
             return;
         }
 
-        if (isDepthZeroStaleMove(currentFen, depth)) {
-            NnvcLogger.w(TAG, "executeAutoMove aborted: depth=" + depth + " on non-startpos board (stale book move leak blocked: " + uciMove + ")");
+        if (!isLegalMoveOnFen(currentFen, uciMove)) {
+            NnvcLogger.w(TAG, "executeAutoMove aborted: move " + uciMove + " is illegal on current board state (fen=" + currentFen + ")");
             return;
         }
 

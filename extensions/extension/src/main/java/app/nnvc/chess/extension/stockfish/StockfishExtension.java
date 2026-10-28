@@ -1072,24 +1072,20 @@ public class StockfishExtension {
                 } else {
                     String bestMove = safeChosenMove != null ? safeChosenMove : ((result.moves != null && !result.moves.isEmpty()) ? result.moves.get(0) : null);
                     if (bestMove != null && bestMove.length() >= 4) {
-                        if (AutoMoveManager.isDepthZeroStaleMove(fen, result.depth)) {
-                            NnvcLogger.w("NNVC_AutoMove", "⚠️ [AUTO MOVE REJECT] Bỏ qua nước đi rác (depth=" + result.depth + " trên thế cờ trung cuộc / stale book leak): " + bestMove);
+                        View bv = null;
+                        if (activity != null && activity.getWindow() != null) {
+                            bv = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
+                        }
+                        if (bv == null) {
+                            bv = OverlayManager.getCachedBoardView();
+                        }
+                        if (bv != null) {
+                            boolean flipped = OverlayManager.isBoardFlipped(bv, getStateImpl());
+                            boolean finalUserIsWhite = (userWhite != null) ? userWhite.booleanValue() : true;
+                            NnvcLogger.i("NNVC_AutoMove", "⚡ [AUTO MOVE TRIGGER] Chuẩn bị đi nước: " + bestMove + " (flipped=" + flipped + ", thinkMs=" + lastEngineThinkMs + "ms)");
+                            AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen, result.score, lastEngineThinkMs, finalUserIsWhite, activity, result.hasMate, result.mateIn, result.depth);
                         } else {
-                            View bv = null;
-                            if (activity != null && activity.getWindow() != null) {
-                                bv = OverlayManager.findChessBoardView(activity.getWindow().getDecorView());
-                            }
-                            if (bv == null) {
-                                bv = OverlayManager.getCachedBoardView();
-                            }
-                            if (bv != null) {
-                                boolean flipped = OverlayManager.isBoardFlipped(bv, getStateImpl());
-                                boolean finalUserIsWhite = (userWhite != null) ? userWhite.booleanValue() : true;
-                                NnvcLogger.i("NNVC_AutoMove", "⚡ [AUTO MOVE TRIGGER] Chuẩn bị đi nước: " + bestMove + " (flipped=" + flipped + ", thinkMs=" + lastEngineThinkMs + "ms)");
-                                AutoMoveManager.executeAutoMove(context, bv, bestMove, flipped, fen, result.score, lastEngineThinkMs, finalUserIsWhite, activity, result.hasMate, result.mateIn, result.depth);
-                            } else {
-                                NnvcLogger.w("NNVC_AutoMove", "❌ [AUTO MOVE ERROR] Không tìm thấy ChessBoardView trên giao diện.");
-                            }
+                            NnvcLogger.w("NNVC_AutoMove", "❌ [AUTO MOVE ERROR] Không tìm thấy ChessBoardView trên giao diện.");
                         }
                     }
                 }
