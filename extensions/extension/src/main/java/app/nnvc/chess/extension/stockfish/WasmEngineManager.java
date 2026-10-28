@@ -96,8 +96,12 @@ public class WasmEngineManager {
 
     public static boolean isStandardStartposMoves(List<String> moves) {
         if (moves == null || moves.isEmpty()) return false;
-        String first = moves.get(0);
-        return first != null && STARTPOS_LEGAL_FIRST_MOVES.contains(first.trim().toLowerCase(java.util.Locale.US));
+        for (String m : moves) {
+            if (m != null && !m.trim().isEmpty()) {
+                return STARTPOS_LEGAL_FIRST_MOVES.contains(m.trim().toLowerCase(java.util.Locale.US));
+            }
+        }
+        return false;
     }
 
     public static WasmEngineManager getInstance(Context context) {

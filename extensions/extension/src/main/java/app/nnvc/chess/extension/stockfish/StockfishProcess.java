@@ -774,9 +774,16 @@ public class StockfishProcess {
         if (parts.length < 6) return false;
         try {
             int fullmove = Integer.parseInt(parts[5]);
+            if (fullmove < 1) return false;
             boolean blackToMove = "b".equalsIgnoreCase(parts[1]);
-            int expectedPlies = Math.max(0, (fullmove - 1) * 2 + (blackToMove ? 1 : 0));
-            return uciMoves.size() == expectedPlies;
+            int expectedPlies = (fullmove - 1) * 2 + (blackToMove ? 1 : 0);
+            int validMoves = 0;
+            for (String m : uciMoves) {
+                if (m != null && !m.trim().isEmpty()) {
+                    validMoves++;
+                }
+            }
+            return validMoves == expectedPlies;
         } catch (Throwable ignored) {
             return false;
         }

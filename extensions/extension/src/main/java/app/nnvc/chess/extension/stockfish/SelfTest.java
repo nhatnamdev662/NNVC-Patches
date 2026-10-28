@@ -3047,11 +3047,21 @@ public class SelfTest {
         check("isDepthZeroStaleMove allows depth 0 at startpos (book move)", !AutoMoveManager.isDepthZeroStaleMove(startposUciFen, 0));
         check("isDepthZeroStaleMove blocks depth 0 on midgame FEN", AutoMoveManager.isDepthZeroStaleMove(customMidgameFen, 0));
         check("isDepthZeroStaleMove allows depth > 0 on midgame FEN", !AutoMoveManager.isDepthZeroStaleMove(customMidgameFen, 1));
+        check("isDepthZeroStaleMove allows depth 0 on empty string FEN (startpos)", !AutoMoveManager.isDepthZeroStaleMove("", 0));
+        check("isDepthZeroStaleMove allows depth 0 on whitespace FEN (startpos)", !AutoMoveManager.isDepthZeroStaleMove("   ", 0));
 
         // 8. Edge cases: empty FEN and whitespace-only moves list
         check("buildPositionCommand handles empty string FEN as startpos", "position startpos".equals(StockfishProcess.buildPositionCommand("", emptyMoves)));
         List<String> blankMoves = java.util.Arrays.asList("", "   ", null);
         check("buildPositionCommand filters blank moves and avoids trailing 'moves'", "position startpos".equals(StockfishProcess.buildPositionCommand("startpos", blankMoves)));
+
+        // 8b. Robustness: valid moves counting in doesMovesMatchFenPly and isStandardStartposMoves
+        List<String> movesWithBlanks = java.util.Arrays.asList(null, "", "e2e4");
+        check("isStandardStartposMoves handles leading null and blank moves", WasmEngineManager.isStandardStartposMoves(movesWithBlanks));
+        List<String> midgameMovesWithBlanks = java.util.Arrays.asList("e2e4", "", null);
+        check("doesMovesMatchFenPly counts only valid moves", StockfishProcess.doesMovesMatchFenPly(afterE4Fen, midgameMovesWithBlanks));
+        List<String> falsePlyMatch = java.util.Arrays.asList("e2e4", "", null, "");
+        check("doesMovesMatchFenPly does not falsely match when blanks pad length", !StockfishProcess.doesMovesMatchFenPly(customMidgameFen, falsePlyMatch));
 
         // 9. Bilingual I18n engine recovery string
         check("I18n engine_recovering key exists in Vietnamese", I18n.get("engine_recovering", true).contains("phục hồi"));

@@ -1259,9 +1259,11 @@ public class AutoMoveManager {
 
     public static boolean isDepthZeroStaleMove(String fen, int depth) {
         if (depth > 0) return false;
-        boolean isStartpos = fen == null
-                || "startpos".equalsIgnoreCase(fen.trim())
-                || fen.trim().startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w");
+        String trimmed = fen != null ? fen.trim() : null;
+        boolean isStartpos = trimmed == null
+                || trimmed.isEmpty()
+                || "startpos".equalsIgnoreCase(trimmed)
+                || trimmed.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w");
         return !isStartpos;
     }
 
