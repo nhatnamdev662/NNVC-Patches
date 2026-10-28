@@ -307,6 +307,8 @@ public class I18n {
                 return isVi ? "Tự động nhận diện" : "Auto-detected";
             case "tcp_src_clock":
                 return isVi ? "Từ đồng hồ" : "From clock";
+            case "engine_recovering":
+                return isVi ? "🔄 Đang tự động phục hồi Engine..." : "🔄 Auto-Recovering Engine...";
             default:
                 return key;
         }

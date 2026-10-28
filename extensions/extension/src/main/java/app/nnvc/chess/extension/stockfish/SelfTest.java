@@ -3048,6 +3048,15 @@ public class SelfTest {
         check("isDepthZeroStaleMove blocks depth 0 on midgame FEN", AutoMoveManager.isDepthZeroStaleMove(customMidgameFen, 0));
         check("isDepthZeroStaleMove allows depth > 0 on midgame FEN", !AutoMoveManager.isDepthZeroStaleMove(customMidgameFen, 1));
 
+        // 8. Edge cases: empty FEN and whitespace-only moves list
+        check("buildPositionCommand handles empty string FEN as startpos", "position startpos".equals(StockfishProcess.buildPositionCommand("", emptyMoves)));
+        List<String> blankMoves = java.util.Arrays.asList("", "   ", null);
+        check("buildPositionCommand filters blank moves and avoids trailing 'moves'", "position startpos".equals(StockfishProcess.buildPositionCommand("startpos", blankMoves)));
+
+        // 9. Bilingual I18n engine recovery string
+        check("I18n engine_recovering key exists in Vietnamese", I18n.get("engine_recovering", true).contains("phục hồi"));
+        check("I18n engine_recovering key exists in English", I18n.get("engine_recovering", false).contains("Recovering"));
+
         // === SUMMARY ===
         System.out.println("\n" + passed + " passed, " + failed + " failed.");
         if (failed > 0) {

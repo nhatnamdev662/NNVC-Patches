@@ -1323,7 +1323,7 @@ public class AutoMoveManager {
             final Runnable throttledTask = new Runnable() {
                 @Override
                 public void run() {
-                    executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, hasMate, mateIn);
+                    executeAutoMove(context, boardView, uciMove, flipped, currentFen, evalScore, engineThinkMs, userWhite, activity, hasMate, mateIn, depth);
                 }
             };
             pendingMoveRunnable = throttledTask;

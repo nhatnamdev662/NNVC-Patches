@@ -785,6 +785,7 @@ public class StockfishProcess {
     public static String buildPositionCommand(String fen, List<String> uciMoves) {
         String trimmedFen = fen != null ? fen.trim() : null;
         boolean isStartpos = trimmedFen == null
+                || trimmedFen.isEmpty()
                 || "startpos".equalsIgnoreCase(trimmedFen)
                 || trimmedFen.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w");
 
@@ -796,9 +797,13 @@ public class StockfishProcess {
             StringBuilder pos = new StringBuilder(32 + (uciMoves != null ? uciMoves.size() * 6 : 0));
             pos.append("position startpos");
             if (uciMoves != null && !uciMoves.isEmpty()) {
-                pos.append(" moves");
+                boolean hasMovesHeader = false;
                 for (String m : uciMoves) {
                     if (m != null && !m.trim().isEmpty()) {
+                        if (!hasMovesHeader) {
+                            pos.append(" moves");
+                            hasMovesHeader = true;
+                        }
                         pos.append(' ').append(m.trim().toLowerCase(java.util.Locale.US));
                     }
                 }

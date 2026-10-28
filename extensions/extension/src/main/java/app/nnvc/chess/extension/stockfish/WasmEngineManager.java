@@ -908,7 +908,8 @@ public class WasmEngineManager {
             if (error != null && (error.contains("Aborted") || error.contains("RuntimeError") || error.contains("abort"))) {
                 handleEngineAbort(kind, error);
             } else {
-                EngineStatusHUD.show(context, "⚠️ Lỗi Engine (" + kind + "): " + error, true, 5000);
+                String prefix = I18n.isVi(context) ? "⚠️ Lỗi Engine (" : "⚠️ Engine Error (";
+                EngineStatusHUD.show(context, prefix + kind + "): " + error, true, 5000);
             }
         }
 
@@ -965,7 +966,7 @@ public class WasmEngineManager {
             classifyUciOutputQueue.clear();
         }
 
-        EngineStatusHUD.show(context, "🔄 Đang tự động phục hồi Engine...", false, 3000);
+        EngineStatusHUD.show(context, I18n.get(context, "engine_recovering"), false, 3000);
 
         mainHandler.post(() -> {
             try {
